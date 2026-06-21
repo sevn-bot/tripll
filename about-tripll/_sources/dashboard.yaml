@@ -1,0 +1,28 @@
+title: Dashboard
+nav_label: Dashboard
+nav_order: 50
+summary: The optional FastAPI control plane gives a live view of runs, worktrees, and the Pre-0 human-in-the-loop wizard.
+body: |
+  <h2>Run it</h2>
+  <p>Install the <code>api</code> extra (bundled in <code>make setup</code>) and start the server:</p>
+  <pre><code>make serve     # → http://localhost:8765</code></pre>
+  <p>Set <code>TRIPLL_API_TOKEN</code> to require a bearer token; without it the server runs in
+  open dev mode. Host and port are configurable via <code>TRIPLL_SERVE_HOST</code> /
+  <code>TRIPLL_SERVE_PORT</code>.</p>
+
+  <h2>What you get</h2>
+  <ul>
+    <li><strong>Run list &amp; detail</strong> — status, batches, and per-wave progress.</li>
+    <li><strong>Live feed</strong> — orchestrator status tables and turn logs stream as waves run.</li>
+    <li><strong>HITL wizard</strong> — resolve the Pre-0 gate from the browser: open a run, open
+      HITL, complete the form, then submit &amp; approve.</li>
+    <li><strong>Worktree view</strong> — see each lane's worktree and branch state.</li>
+  </ul>
+
+  <h2>Human-in-the-loop</h2>
+  <p>A run stops at the Pre-0 gate until decisions are recorded. You can resolve it three ways —
+  the dashboard modal, the API, or the CLI interview (<code>make pre0-interview RUN=&lt;id&gt;</code>)
+  — then approve and resume (<code>make finish-pre0 RUN=&lt;id&gt;</code> does all of it).</p>
+
+  <p>Log output is redacted using <code>config/log-hide-keys.toml</code> before it reaches the API or
+  UI. Architecture and IA details live in <code>docs/control-plane-design.md</code>.</p>

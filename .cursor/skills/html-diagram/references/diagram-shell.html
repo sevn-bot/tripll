@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagram shell — sevn.bot html-diagram reference</title>
+<script>
+  (function () {
+    const saved = localStorage.getItem('sevn-theme');
+    const theme = saved || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<style>
+  /* ── sevn tokens (inline copy from styles/sevn/style/tokens/) ── */
+  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --sevn-primary: #5fb1f7; --sevn-primary-light: #9dd0fb; --sevn-primary-dark: #2a7fc6;
+    --sevn-accent: #ff3b3b; --sevn-success: #6a9c78;
+    --sevn-base-050: #0c0a09; --sevn-base-100: #14110f; --sevn-base-150: #181513;
+    --sevn-base-200: #26211d; --sevn-base-300: #322c27; --sevn-base-400: #423a33;
+    --sevn-slate-200: #ece7e1; --sevn-slate-300: #c8c1b8; --sevn-slate-400: #948b80;
+    --sevn-slate-500: #6b6359; --sevn-light-050: #fbf9f6; --sevn-light-100: #f4f0ea;
+    --sevn-light-150: #ebe5dc; --sevn-light-200: #ddd5c9; --sevn-light-300: #c4baa9;
+    --sevn-font-sans: 'Inter Tight', system-ui, sans-serif;
+    --sevn-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sevn-radius-md: 6px; --sevn-radius-lg: 8px; --sevn-radius-xl: 12px;
+    --sevn-space-2: 0.5rem; --sevn-space-3: 0.75rem; --sevn-space-4: 1rem;
+    --sevn-duration-fast: 140ms; --sevn-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  :root, :root[data-theme='dark'] {
+    --sevn-bg: var(--sevn-base-050);
+    --sevn-bg-image: radial-gradient(ellipse at 80% -10%, rgba(95,177,247,0.05) 0%, transparent 55%),
+                     radial-gradient(ellipse at 0% 100%, rgba(255,59,59,0.04) 0%, transparent 50%);
+    --sevn-surface-1: var(--sevn-base-100); --sevn-surface-2: var(--sevn-base-150);
+    --sevn-fg: var(--sevn-slate-300); --sevn-fg-strong: var(--sevn-slate-200);
+    --sevn-fg-muted: var(--sevn-slate-400); --sevn-fg-faint: var(--sevn-slate-500);
+    --sevn-border: var(--sevn-base-300); --sevn-border-faint: rgba(236,231,225,0.06);
+    --sevn-selected-bg: rgba(95,177,247,0.10); --sevn-surface-primary-tint: rgba(95,177,247,0.08);
+    --sevn-surface-accent-tint: rgba(255,59,59,0.08); --sevn-surface-success-tint: rgba(106,156,120,0.10);
+    --sevn-zone: rgba(95,177,247,0.03);
+    --sevn-flow: var(--sevn-primary); --sevn-flow-soft: rgba(95,177,247,0.12);
+    --sevn-gate: var(--sevn-accent);
+  }
+  :root[data-theme='light'] {
+    --sevn-bg: var(--sevn-light-050); --sevn-bg-image: none;
+    --sevn-surface-1: var(--sevn-light-100); --sevn-surface-2: var(--sevn-light-150);
+    --sevn-fg: #3d3830; --sevn-fg-strong: #1a1612; --sevn-fg-muted: #6b6359; --sevn-fg-faint: #948b80;
+    --sevn-border: var(--sevn-light-300); --sevn-border-faint: rgba(26,22,18,0.06);
+    --sevn-selected-bg: rgba(95,177,247,0.14); --sevn-surface-primary-tint: rgba(95,177,247,0.10);
+    --sevn-surface-accent-tint: rgba(255,59,59,0.08); --sevn-surface-success-tint: rgba(106,156,120,0.12);
+    --sevn-zone: rgba(95,177,247,0.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sevn-font-sans); color: var(--sevn-fg); background: var(--sevn-bg);
+    background-image: var(--sevn-bg-image);
+    -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .bar {
+    display: flex; align-items: center; gap: var(--sevn-space-3); flex-wrap: wrap;
+    padding: var(--sevn-space-3) var(--sevn-space-4);
+    border-bottom: 1px solid var(--sevn-border-faint); flex: none; z-index: 10;
+    background: var(--sevn-surface-1);
+  }
+  .bar h1 { font-size: 1.125rem; font-weight: 600; color: var(--sevn-fg-strong); letter-spacing: -0.015em; }
+  .bar .sub { font-family: var(--sevn-font-mono); font-size: 0.6875rem; color: var(--sevn-fg-muted);
+    letter-spacing: 0.14em; text-transform: uppercase; }
+  .spacer { flex: 1; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip, .btn-ghost {
+    font-family: var(--sevn-font-mono); font-size: 0.6875rem; letter-spacing: 0.04em;
+    padding: 5px 11px; border: 1px solid var(--sevn-border); border-radius: 999px;
+    background: transparent; color: var(--sevn-fg-muted); cursor: pointer;
+    transition: all var(--sevn-duration-fast) var(--sevn-ease-out);
+  }
+  .chip:hover, .btn-ghost:hover { color: var(--sevn-fg-strong); border-color: var(--sevn-fg-muted); }
+  .chip.on { background: var(--sevn-primary); border-color: var(--sevn-primary); color: var(--sevn-base-050); }
+  .zoom-group { display: flex; gap: 4px; align-items: center; }
+  .zoom-group .btn-ghost { border-radius: var(--sevn-radius-md); padding: 5px 9px; min-width: 32px; }
+  .zoom-label { font-family: var(--sevn-font-mono); font-size: 0.6875rem; color: var(--sevn-fg-faint); min-width: 3.5rem; text-align: center; }
+
+  .stage { flex: 1; position: relative; min-height: 0; overflow: hidden; cursor: grab; display: flex; flex-direction: column; }
+  .stage.panning { cursor: grabbing; }
+  .stage svg { display: block; width: 100%; height: 100%; flex: 1; min-height: 0; touch-action: none; }
+
+  .zone rect { fill: var(--sevn-zone); stroke: var(--sevn-border); stroke-width: 1; stroke-dasharray: 5 5; rx: 12; }
+  .zone .ztitle { font-family: var(--sevn-font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; fill: var(--sevn-fg-muted); }
+  .node { cursor: pointer; }
+  .node rect { fill: var(--sevn-surface-1); stroke: var(--sevn-border); stroke-width: 1.5; rx: 8; transition: stroke var(--sevn-duration-fast); }
+  .node:hover rect { stroke: var(--sevn-fg-muted); }
+  .node.lit rect, .node.sel rect { stroke: var(--sevn-primary); stroke-width: 2; }
+  .node .t { font-family: var(--sevn-font-sans); font-size: 13px; font-weight: 600; fill: var(--sevn-fg-strong); pointer-events: none; }
+  .node .m { font-family: var(--sevn-font-mono); font-size: 10px; fill: var(--sevn-fg-muted); pointer-events: none; }
+  .node.gate rect { fill: var(--sevn-surface-accent-tint); stroke: var(--sevn-gate); }
+  .node.exec rect { fill: var(--sevn-surface-success-tint); stroke: var(--sevn-success); }
+  .node.store rect { fill: var(--sevn-surface-2); }
+
+  .edge { stroke: var(--sevn-fg-faint); stroke-width: 1.5; fill: none; marker-end: url(#arrow); transition: opacity .2s, stroke .2s; }
+  .edge.dash { stroke-dasharray: 5 4; }
+  .elbl { font-family: var(--sevn-font-mono); font-size: 9.5px; fill: var(--sevn-fg-muted); pointer-events: none; }
+
+  .stage.flowing .edge, .stage.flowing .elbl { opacity: 0.12; }
+  .stage.flowing .node:not(.lit) { opacity: 0.28; }
+  .stage.flowing .zone { opacity: 0.4; }
+  .stage.flowing .edge.lit { opacity: 1; stroke: var(--sevn-flow); marker-end: url(#arrow-lit);
+    stroke-dasharray: 6 4; animation: march .85s linear infinite; }
+  .stage.flowing .elbl.lit { opacity: 1; fill: var(--sevn-flow); }
+  @keyframes march { to { stroke-dashoffset: -10; } }
+  @media (prefers-reduced-motion: reduce) { .stage.flowing .edge.lit { animation: none; } }
+
+  /* description panel (click node) */
+  .detail {
+    position: fixed; right: var(--sevn-space-4); bottom: var(--sevn-space-4); width: min(380px, calc(100vw - 2rem));
+    background: var(--sevn-surface-2); border: 1px solid var(--sevn-border); border-radius: var(--sevn-radius-xl);
+    padding: var(--sevn-space-4); box-shadow: var(--sevn-shadow-lg, 0 12px 24px rgba(0,0,0,0.45));
+    z-index: 800; transform: translateY(12px); opacity: 0; pointer-events: none;
+    transition: opacity var(--sevn-duration-fast), transform var(--sevn-duration-fast);
+  }
+  .detail.show { opacity: 1; transform: none; pointer-events: auto; }
+  .detail .kind { font-family: var(--sevn-font-mono); font-size: 0.625rem; color: var(--sevn-primary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .detail h3 { font-size: 1rem; font-weight: 600; color: var(--sevn-fg-strong); }
+  .detail .meta { font-family: var(--sevn-font-mono); font-size: 0.6875rem; color: var(--sevn-fg-muted); margin: 4px 0 10px; }
+  .detail p { font-size: 0.8125rem; line-height: 1.55; }
+  .detail code { font-family: var(--sevn-font-mono); font-size: 0.75rem; color: var(--sevn-primary); }
+  .detail .close { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--sevn-fg-muted); cursor: pointer; font-size: 1.1rem; }
+  .rel-chip {
+    font-family: var(--sevn-font-mono); font-size: 0.6875rem; padding: 2px 8px; margin: 0 4px 4px 0;
+    border: 1px solid var(--sevn-border); border-radius: var(--sevn-radius-md);
+    background: var(--sevn-surface-primary-tint); color: var(--sevn-primary); cursor: pointer;
+  }
+  .rel-chip:hover { border-color: var(--sevn-primary); }
+  #nodeSearch {
+    font-family: var(--sevn-font-mono); font-size: 0.6875rem; padding: 5px 10px;
+    border: 1px solid var(--sevn-border); border-radius: var(--sevn-radius-md);
+    background: var(--sevn-surface-1); color: var(--sevn-fg); width: 9rem;
+  }
+  #nodeSearch::placeholder { color: var(--sevn-fg-faint); }
+  .stage.searching .node { opacity: 0.18; }
+  .stage.searching .node.match { opacity: 1; }
+
+  .flowcap {
+    position: fixed; left: var(--sevn-space-4); bottom: var(--sevn-space-4); max-width: 420px;
+    background: var(--sevn-surface-2); border: 1px solid var(--sevn-border); border-radius: var(--sevn-radius-xl);
+    padding: var(--sevn-space-4); z-index: 700; display: none;
+  }
+  .flowcap.show { display: block; }
+  .flowcap .fname { font-family: var(--sevn-font-mono); font-size: 0.6875rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--sevn-primary); margin-bottom: 6px; }
+  .flowcap li { font-size: 0.8125rem; line-height: 1.5; margin-left: 1.1rem; }
+
+  .hint-bar {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: var(--sevn-space-3);
+    font-family: var(--sevn-font-mono); font-size: 0.625rem; color: var(--sevn-fg-faint);
+    letter-spacing: 0.06em; pointer-events: none; z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div>
+    <h1>Diagram title</h1>
+    <div class="sub">subtitle · module paths</div>
+  </div>
+  <div class="spacer"></div>
+  <input type="search" id="nodeSearch" placeholder="Find… (/)" aria-label="Find node">
+  <div class="chips" id="chips">
+    <button class="chip on" data-flow="all">All</button>
+    <button class="chip" data-flow="demo">Demo flow</button>
+  </div>
+  <div class="zoom-group">
+    <button class="btn-ghost" id="zoomOut" title="Zoom out (−)">−</button>
+    <span class="zoom-label" id="zoomPct">100%</span>
+    <button class="btn-ghost" id="zoomIn" title="Zoom in (+)">+</button>
+    <button class="btn-ghost" id="zoomFit" title="Fit (0)">Fit</button>
+    <button class="btn-ghost" id="zoomReset" title="Reset (R)">R</button>
+  </div>
+  <button class="btn-ghost" id="themeToggle">Theme</button>
+</div>
+
+<div class="stage" id="stage">
+  <svg id="svg" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill: var(--sevn-fg-faint)"/>
+      </marker>
+      <marker id="arrow-lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill: var(--sevn-flow)"/>
+      </marker>
+    </defs>
+    <g id="pz">
+      <g class="zone"><rect x="40" y="80" width="1120" height="560" rx="12"/>
+        <text class="ztitle" x="60" y="108">Example zone</text></g>
+      <!-- Nodes: always set explicit x/y/width/height on inner rect -->
+      <g class="node" data-k="a"><rect x="120" y="280" width="180" height="72"/>
+        <text class="t" x="140" y="308">Node A</text>
+        <text class="m" x="140" y="328">source module</text></g>
+      <g class="node gate" data-k="b"><rect x="480" y="280" width="200" height="72"/>
+        <text class="t" x="500" y="308">Gate B</text>
+        <text class="m" x="500" y="328">decision point</text></g>
+      <g class="node exec" data-k="c"><rect x="860" y="280" width="180" height="72"/>
+        <text class="t" x="880" y="308">Executor C</text>
+        <text class="m" x="880" y="328">worker tier</text></g>
+      <g id="edges"></g>
+      <g id="elbls"></g>
+    </g>
+  </svg>
+</div>
+
+<div class="hint-bar">click node · description · / search · scroll zoom · drag pan</div>
+
+<div class="detail" id="detail">
+  <button class="close" id="detailClose" aria-label="Close">×</button>
+  <h3 id="d-title">Click a node</h3>
+  <div class="kind" id="d-kind"></div>
+  <div class="meta" id="d-meta"></div>
+  <p id="d-body">Each node maps to a class, function, or branch in source. Click for detail.</p>
+</div>
+
+<div class="flowcap" id="flowcap">
+  <div class="fname" id="f-name"></div>
+  <ol id="f-steps"></ol>
+</div>
+
+<script>
+/* ── DATA: define edges here — paths are auto-routed from node rects ── */
+const EDGES = [
+  { id: 'e-ab', from: 'a', to: 'b', label: 'request' },
+  { id: 'e-bc', from: 'b', to: 'c', label: 'dispatch', dash: true },
+];
+
+const DETAIL = {
+  a: { t: 'ExampleService', kind: 'class', symbol: 'ExampleService', m: 'src/example/service.py', b: 'Template node — replace with a real class from the codebase.' },
+  b: { t: 'authorize()', kind: 'function', symbol: 'authorize', m: 'src/example/gate.py', b: 'Gate nodes use accent tint; map to a real decision function or class.' },
+  c: { t: 'Worker.run', kind: 'method', symbol: 'Worker.run', m: 'src/example/worker.py', b: 'Executor nodes use success tint; map to the harness entrypoint.' },
+};
+
+const FLOWS = {
+  demo: { name: 'Demo flow', edges: ['e-ab', 'e-bc'], nodes: ['a', 'b', 'c'],
+    steps: ['A sends request', 'B authorizes', 'C executes'] },
+};
+
+/* ── Auto-routed edges from node rect anchors ── */
+function nodeRect(key) {
+  const g = document.querySelector(`.node[data-k="${key}"]`);
+  if (!g) return null;
+  const r = g.querySelector('rect');
+  const x = +r.getAttribute('x'), y = +r.getAttribute('y');
+  const w = +r.getAttribute('width'), h = +r.getAttribute('height');
+  return { x, y, w, h, cx: x + w/2, cy: y + h/2, right: x+w, left: x, top: y, bottom: y+h };
+}
+
+function anchorPoint(box, side) {
+  const m = { r: [box.right, box.cy, 'r'], l: [box.left, box.cy, 'l'], t: [box.cx, box.top, 't'], b: [box.cx, box.bottom, 'b'] };
+  const [x, y, s] = m[side] || m.r;
+  return { x, y, side: s };
+}
+
+function pickAnchors(a, b, edge) {
+  if (edge?.fromSide && edge?.toSide) return [anchorPoint(a, edge.fromSide), anchorPoint(b, edge.toSide)];
+  const dx = b.cx - a.cx, dy = b.cy - a.cy;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0
+      ? [anchorPoint(a, 'r'), anchorPoint(b, 'l')]
+      : [anchorPoint(a, 'l'), anchorPoint(b, 'r')];
+  }
+  return dy >= 0
+    ? [anchorPoint(a, 'b'), anchorPoint(b, 't')]
+    : [anchorPoint(a, 't'), anchorPoint(b, 'b')];
+}
+
+function routePath(from, to, edge) {
+  const [p1, p2] = pickAnchors(from, to, edge);
+  const horiz = p1.side === 'r' || p1.side === 'l';
+  if (horiz) {
+    const mx = (p1.x + p2.x) / 2;
+    return `M${p1.x},${p1.y} C${mx},${p1.y} ${mx},${p2.y} ${p2.x},${p2.y}`;
+  }
+  const my = (p1.y + p2.y) / 2;
+  return `M${p1.x},${p1.y} C${p1.x},${my} ${p2.x},${my} ${p2.x},${p2.y}`;
+}
+
+function labelPos(from, to, edge) {
+  const [p1, p2] = pickAnchors(from, to, edge);
+  return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 - 6 };
+}
+
+function renderEdges() {
+  const eg = document.getElementById('edges');
+  const lg = document.getElementById('elbls');
+  eg.innerHTML = ''; lg.innerHTML = '';
+  EDGES.forEach(e => {
+    const a = nodeRect(e.from), b = nodeRect(e.to);
+    if (!a || !b) return;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('id', e.id); path.setAttribute('class', 'edge' + (e.dash ? ' dash' : ''));
+    path.setAttribute('d', routePath(a, b, e));
+    eg.appendChild(path);
+    if (e.label) {
+      const pos = labelPos(a, b, e);
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('class', 'elbl'); t.setAttribute('data-e', e.id);
+      t.setAttribute('x', pos.x); t.setAttribute('y', pos.y);
+      t.setAttribute('text-anchor', 'middle'); t.textContent = e.label;
+      lg.appendChild(t);
+    }
+  });
+}
+
+/** Pixels per one SVG user unit (letterboxed stage↔viewBox; ignores pan/zoom on #pz). */
+function svgUnitPx() {
+  const stageR = stage.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  return Math.min(stageR.width / vb.width, stageR.height / vb.height);
+}
+
+/* ── Pan / zoom ── */
+const stage = document.getElementById('stage');
+const pz = document.getElementById('pz');
+const svg = document.getElementById('svg');
+let scale = 1, tx = 0, ty = 0, panning = false, panStart = null;
+
+function applyTransform() {
+  pz.setAttribute('transform', `matrix(${scale},0,0,${scale},${tx},${ty})`);
+  document.getElementById('zoomPct').textContent = Math.round(scale * 100) + '%';
+}
+function zoomAt(factor, clientX, clientY) {
+  const ns = Math.min(3, Math.max(0.25, scale * factor));
+  if (clientX == null) { scale = ns; applyTransform(); return; }
+  const r = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const ux = (clientX - r.left) * (vb.width / r.width);
+  const uy = (clientY - r.top) * (vb.height / r.height);
+  tx = ux - ((ux - tx) / scale) * ns;
+  ty = uy - ((uy - ty) / scale) * ns;
+  scale = ns;
+  applyTransform();
+}
+function fitView() {
+  const b = pz.getBBox();
+  const vb = svg.viewBox.baseVal;
+  const pad = 40;
+  scale = Math.min((vb.width - pad) / b.width, (vb.height - pad) / b.height, 1.5);
+  tx = (vb.width - b.width * scale) / 2 - b.x * scale;
+  ty = (vb.height - b.height * scale) / 2 - b.y * scale;
+  applyTransform();
+}
+function resetView() {
+  scale = 1; tx = 0; ty = 0;
+  applyTransform();
+}
+
+document.getElementById('zoomIn').onclick = () => zoomAt(1.2);
+document.getElementById('zoomOut').onclick = () => zoomAt(1/1.2);
+document.getElementById('zoomFit').onclick = fitView;
+document.getElementById('zoomReset').onclick = resetView;
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoomAt(e.deltaY < 0 ? 1.08 : 1/1.08, e.clientX, e.clientY);
+}, { passive: false });
+stage.addEventListener('pointerdown', e => {
+  if (e.target.closest('.node')) return;
+  panning = true; panStart = { x: e.clientX, y: e.clientY, tx, ty };
+  stage.classList.add('panning'); stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener('pointermove', e => {
+  if (!panning || !panStart) return;
+  const r = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const rx = vb.width / r.width, ry = vb.height / r.height;
+  tx = panStart.tx + (e.clientX - panStart.x) * rx;
+  ty = panStart.ty + (e.clientY - panStart.y) * ry;
+  applyTransform();
+});
+stage.addEventListener('pointerup', () => { panning = false; panStart = null; stage.classList.remove('panning'); });
+
+/* ── Click: detail panel ── */
+const detail = document.getElementById('detail');
+
+function showDetail(key) {
+  const d = DETAIL[key]; if (!d) return;
+  document.getElementById('d-title').textContent = d.t;
+  const kindEl = document.getElementById('d-kind');
+  if (kindEl) kindEl.textContent = d.kind ? `${d.kind} · ${d.symbol || ''}` : '';
+  document.getElementById('d-meta').textContent = d.m || '';
+  let html = d.b || '';
+  if (d.spec) html += `<p style="margin-top:10px;font-family:var(--sevn-font-mono);font-size:0.6875rem;color:var(--sevn-fg-muted)">Spec: ${d.spec}</p>`;
+  if (d.related?.length) {
+    html += '<p style="margin-top:8px;font-size:0.75rem">See also: ' +
+      d.related.map(k => `<button type="button" class="rel-chip" data-k="${k}">${DETAIL[k]?.t || k}</button>`).join('') + '</p>';
+  }
+  document.getElementById('d-body').innerHTML = html;
+  detail.classList.add('show');
+}
+document.getElementById('detailClose').onclick = () => detail.classList.remove('show');
+detail.addEventListener('click', e => {
+  const chip = e.target.closest('.rel-chip');
+  if (!chip) return;
+  focusNode(chip.dataset.k);
+});
+
+function focusNode(key) {
+  document.querySelectorAll('.node').forEach(x => x.classList.remove('sel'));
+  const n = document.querySelector(`.node[data-k="${key}"]`);
+  if (!n) return;
+  n.classList.add('sel');
+  showDetail(key);
+}
+
+const nodeSearch = document.getElementById('nodeSearch');
+function filterNodes(q) {
+  const query = q.trim().toLowerCase();
+  let any = false;
+  document.querySelectorAll('.node').forEach(n => {
+    const d = DETAIL[n.dataset.k] || {};
+    const hay = [n.textContent, d.t, d.symbol, d.m, d.b, d.kind].filter(Boolean).join(' ').toLowerCase();
+    const ok = !query || hay.includes(query);
+    n.classList.toggle('match', ok);
+    if (ok) any = true;
+  });
+  stage.classList.toggle('searching', !!query);
+  if (query && !any) stage.classList.remove('searching');
+}
+nodeSearch.addEventListener('input', () => filterNodes(nodeSearch.value));
+
+document.querySelectorAll('.node').forEach(n => {
+  n.addEventListener('click', e => {
+    e.stopPropagation();
+    focusNode(n.dataset.k);
+  });
+});
+
+/* ── Flow chips ── */
+const fcap = document.getElementById('flowcap');
+function setFlow(key) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.flow === key));
+  document.querySelectorAll('.edge').forEach(e => e.classList.remove('lit'));
+  document.querySelectorAll('.elbl').forEach(l => l.classList.remove('lit'));
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('lit'));
+  if (key === 'all') { stage.classList.remove('flowing'); fcap.classList.remove('show'); return; }
+  const f = FLOWS[key];
+  stage.classList.add('flowing');
+  f.edges.forEach(id => document.getElementById(id)?.classList.add('lit'));
+  document.querySelectorAll('.elbl').forEach(l => { if (f.edges.includes(l.dataset.e)) l.classList.add('lit'); });
+  f.nodes.forEach(k => document.querySelector(`.node[data-k="${k}"]`)?.classList.add('lit'));
+  document.getElementById('f-name').textContent = f.name;
+  document.getElementById('f-steps').innerHTML = f.steps.map(s => `<li>${s}</li>`).join('');
+  fcap.classList.add('show');
+}
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => setFlow(c.dataset.flow)));
+
+/* ── Theme + keyboard ── */
+document.getElementById('themeToggle').onclick = () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('sevn-theme', next);
+};
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== nodeSearch) {
+    e.preventDefault(); nodeSearch.focus(); nodeSearch.select(); return;
+  }
+  if (e.key === 'Escape') { detail.classList.remove('show'); nodeSearch.blur(); }
+  if (e.key === '+' || e.key === '=') zoomAt(1.15);
+  if (e.key === '-') zoomAt(1/1.15);
+  if (e.key === '0') fitView();
+  if (e.key === 'r' || e.key === 'R') resetView();
+});
+
+renderEdges();
+fitView();
+</script>
+</body>
+</html>

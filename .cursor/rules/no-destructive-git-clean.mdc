@@ -1,0 +1,29 @@
+---
+description: Block git clean -x/-X — deletes gitignored plan/specs/prd
+globs:
+alwaysApply: true
+---
+
+# Never run destructive `git clean` in sevn.bot
+
+**FORBIDDEN** (deletes gitignored local-only operator docs):
+
+```bash
+git clean -fdx
+git clean -fdX
+git clean -x
+git clean -X
+```
+
+Destroys `plan/`, `specs/`, `prd/`, `examples/`, `prompts/`, and other `.gitignore` trees. Confirmed data loss: 2026-06-17 (CI wave-runner ran `git clean -fdx` on main checkout).
+
+**Allowed:**
+
+```bash
+git clean -fd
+git clean -fd -- path/to/dir
+```
+
+**Never** combine `git reset --hard` with any `git clean` to "clean WIP" without backing up `plan/`, `specs/`, `prd/` outside the repo.
+
+`make setup` / `make install-git-guards` installs a repo-local `alias.clean` in `.git/config` that **blocks** `-x`/`-X`. If `git clean -fdx` is not blocked, run `make install-git-guards` before doing anything else.

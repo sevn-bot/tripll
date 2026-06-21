@@ -286,7 +286,7 @@ log-redact-check: sync ## Validate log-hide-keys.toml + redaction unit tests
 	@test -f config/log-hide-keys.toml || (echo "Missing config/log-hide-keys.toml" >&2; exit 1)
 	$(UV_RUN) run --extra dev pytest tests/test_log_redact.py -v --tb=short
 
-check: lint typecheck log-redact-check test ## Lint + typecheck + log redact gate + test (required gate)
+check: lint typecheck log-redact-check about-site-check test ## Lint + typecheck + log redact + about-site drift + test (required gate)
 
 setup: ## Fresh checkout: sync deps + install git hooks (CI bootstrap entry point)
 	$(UV_RUN) sync --extra dev --extra api --extra obs
@@ -297,6 +297,12 @@ build: ## Build wheel + sdist into dist/
 	$(UV) build
 
 ci: check build ## Full local gate mirrored by GitHub Actions (check + build)
+
+about-site: ## Regenerate the about-tripll/ help site from _sources + _templates
+	$(UV_RUN) run --extra dev python scripts/build_about_site.py
+
+about-site-check: ## Fail if about-tripll/ HTML is stale (CI drift gate)
+	$(UV_RUN) run --extra dev python scripts/build_about_site.py --check
 
 OUT ?= scaffold-out
 scaffold-package: ## Scaffold + normalize a new package (NAME=<project> [OUT=<dir>]) via cookiecutter
