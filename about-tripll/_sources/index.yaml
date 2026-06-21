@@ -1,0 +1,31 @@
+title: tripll
+nav_label: Overview
+nav_order: 10
+summary: A headless, parallel wave-plan execution pipeline. Drop a set of plan files in, and tripll dispatches each wave to an agent backend in dependency order — with human gates, retries, and branch integration.
+body: |
+  <p><strong>tripll</strong> turns a folder of wave-plan files into a deterministic execution
+  graph and runs it end to end against a target git repository — no chat session required.</p>
+
+  <h2>What it does</h2>
+  <ol>
+    <li>Parse a plan set into a <strong>RunGraph</strong> — lanes, batches, Pre-0 gates, and
+      content-window (CW) seams.</li>
+    <li>Dispatch each wave to an agent backend (<code>claude_code</code>, <code>cursor_local</code>,
+      <code>cursor_cloud</code>) in dependency order, each in its own git worktree.</li>
+    <li>Stop at the <strong>Pre-0 human gate</strong> until you approve.</li>
+    <li>Retry failed waves before escalating.</li>
+    <li>Optionally <strong>integrate</strong> each batch onto a single branch.</li>
+  </ol>
+
+  <h2>Where to go next</h2>
+  <ul>
+    <li><a href="getting-started.html">Getting started</a> — install, init, and start your first run.</li>
+    <li><a href="architecture.html">Architecture</a> — the graph model and execution engine.</li>
+    <li><a href="cli.html">CLI &amp; Make</a> — commands and environment variables.</li>
+    <li><a href="dashboard.html">Dashboard</a> — the control plane and live feed.</li>
+  </ul>
+
+  <h2>Tech stack</h2>
+  <p>Python 3.12+, <code>src/</code> layout (hatchling + uv), loguru logging, optional
+  Logfire/OpenTelemetry observability, and a FastAPI control plane with an HTML dashboard.
+  MIT licensed.</p>

@@ -58,6 +58,9 @@ dev = [
     "fastapi>=0.115.0",
     "httpx>=0.28.0",
     "python-multipart>=0.0.9",
+    # about-tripll docs site generator (scripts/build_about_site.py).
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]
