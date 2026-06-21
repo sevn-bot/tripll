@@ -1,0 +1,25 @@
+# Reference copy — official Agent-Native Plans multi-stage Dockerfile (Node 24).
+# Canonical build context: gitignored scaffold at wave-orchestrator/vendor/agent-native-plans/
+# Source: https://www.agent-native.com/docs/deployment#docker
+# Locked decisions: plan/tripll-agent-native-docker-local-wave-plan.md D1, D3, D8
+
+FROM node:24-slim AS build
+WORKDIR /app
+# Native modules (node-pty, better-sqlite3) need compile tools when prebuilds are missing (e.g. linux/arm64).
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+# pnpm-workspace.yaml carries overrides required by the lockfile (Agent-Native scaffolds).
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
+
+FROM node:24-slim
+WORKDIR /app
+COPY --from=build /app/.output .output
+# data/ is a runtime-created SQLite directory — do not copy a dev DB into prod.
+# For production, set DATABASE_URL to a hosted Postgres or Turso instance.
+RUN mkdir -p /app/data
+ENV PORT=3000
+EXPOSE 3000
+CMD ["node", ".output/server/index.mjs"]

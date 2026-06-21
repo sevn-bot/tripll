@@ -1,0 +1,23 @@
+# tripll runtime artefacts — not committed
+runs/
+.env
+
+# Virtualenv
+.venv/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Egg / build info
+*.egg-info/
+dist/
+build/
+.hatch/
+
+# macOS
+.DS_Store

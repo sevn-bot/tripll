@@ -1,0 +1,40 @@
+{% if pause_banners %}
+<div class="pause-banners">
+  {% for banner in pause_banners %}
+  <div class="pause-banner {{ banner.css_class }}">
+    <strong>{{ banner.kind | replace("_", " ") }}:</strong>
+    <span class="pause-snippet">{{ banner.snippet }}</span>
+    <details class="pause-banner-details">
+      <summary>View full {{ banner.filename }}</summary>
+      <pre class="marker-full">{{ banner.full_text }}</pre>
+    </details>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="run-header">
+  <div class="run-header-meta">
+    <span class="badge badge-{{ run_state }}">{{ run_state }}</span>
+    {% if is_live %}
+      <span class="badge badge-live">live</span>
+    {% else %}
+      <span class="badge badge-offline">offline</span>
+    {% endif %}
+    <span class="cost">Run cost: ${{ "%.4f"|format(run_cost) }}</span>
+  </div>
+  <div class="run-header-links">
+    {% if wave_summary %}
+    <p class="run-wave-summary">{{ wave_summary }}</p>
+    {% endif %}
+    {% if log_file_count %}
+      <span class="muted">{{ log_file_count }} log file{{ "s" if log_file_count != 1 else "" }} in <code>logs/</code></span>
+    {% else %}
+      <span class="muted">No log files yet</span>
+    {% endif %}
+    {% if report_exists %}
+      <a href="/runs/{{ run_id }}/report">View report</a>
+    {% else %}
+      <span class="muted">report.md not available</span>
+    {% endif %}
+  </div>
+</div>

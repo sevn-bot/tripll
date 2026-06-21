@@ -1,0 +1,25 @@
+# Sync hook revisions with dev tooling (see pyproject.toml [project.optional-dependencies] dev).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: tripll-conventional-commit
+        name: Conventional Commits 1.0.0 (commit-msg)
+        entry: python scripts/check_conventional_commit.py
+        language: system
+        stages: [commit-msg]
+        pass_filenames: true

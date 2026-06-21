@@ -1,0 +1,27 @@
+<section class="batch-timeline" id="batch-timeline" data-source="{{ batch_timeline.source }}">
+  <h2>Batch timeline</h2>
+  {% if batch_timeline.lanes %}
+  <div class="batch-timeline-chart">
+    {% for lane in batch_timeline.lanes %}
+    <div class="batch-lane{% if lane.is_human_gate %} batch-lane-gate{% endif %}">
+      <div class="batch-lane-label" title="{{ lane.label }}">
+        <span class="batch-id">{{ lane.batch_id }}</span>
+        {% if lane.is_human_gate %}<span class="muted">gate</span>{% endif %}
+      </div>
+      <div class="batch-lane-nodes">
+        {% for node in lane.nodes %}
+        <span class="batch-node badge badge-{{ node.phase }}" title="{{ node.node_id }} — {{ node.phase }}">
+          {{ node.wave_id }}
+        </span>
+        {% else %}
+        <span class="muted">—</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="batch-timeline-meta muted">Source: {{ batch_timeline.source }}</p>
+  {% else %}
+  <p class="no-items">No batch layers available yet.</p>
+  {% endif %}
+</section>

@@ -1,0 +1,52 @@
+<div class="attempts-panel">
+  <div class="attempts-meta">
+    <span class="attempt-current">Latest attempt {{ current_attempt_n }}</span>
+    {% if starting_new_attempt %}
+    <span class="badge badge-dispatched attempt-starting">Starting attempt {{ current_attempt_n }}</span>
+    {% endif %}
+  </div>
+  {% if attempt_rows %}
+  <table class="attempts-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Started (UTC)</th>
+        <th>Model</th>
+        <th>Outcome</th>
+        <th>Tokens</th>
+        <th>Cost</th>
+        <th>Evidence</th>
+        <th>Log</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in attempt_rows %}
+      <tr>
+        <td>{{ a.attempt_n }}</td>
+        <td class="attempt-started">{{ a.started_at }}</td>
+        <td><code>{{ a.model }}</code></td>
+        <td>{{ a.outcome }}</td>
+        <td class="tokens">{{ a.tokens }}</td>
+        <td class="cost">
+          {% if a.cost_usd is not none %}${{ "%.4f"|format(a.cost_usd) }}{% else %}—{% endif %}
+        </td>
+        <td class="attempt-evidence" title="{{ a.evidence }}">{{ a.evidence }}</td>
+        <td>
+          <a class="log-full-link"
+             href="{{ log_full_page_url(run_id, node_id, a.attempt_n, api_token=api_token) }}"
+             target="_blank"
+             rel="noopener">full log ↗</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted attempts-storage-hint">Attempts are stored in <code>runs/…/{{ run_id }}/ledger.db</code> and logs under <code>logs/</code>.</p>
+  {% else %}
+  {% if status_detail %}
+  <p class="wave-status-note">{{ status_detail }}</p>
+  {% else %}
+  <p class="muted no-items">No attempts recorded yet.</p>
+  {% endif %}
+  {% endif %}
+</div>

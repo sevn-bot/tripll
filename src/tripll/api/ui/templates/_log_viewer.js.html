@@ -1,0 +1,435 @@
+<script>
+(function () {
+  var logPollers = {};
+
+  function escHtml(text) {
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function toolCallSummary(event) {
+    var tc = event.tool_call || {};
+    var keys = Object.keys(tc);
+    if (!keys.length) return "Tool call";
+    var name = keys[0];
+    var inner = tc[name] || {};
+    var args = inner.args || {};
+    if (name === "readToolCall") return "Read " + (args.path || "file");
+    if (name === "writeToolCall") return "Write " + (args.path || "file");
+    if (name === "editToolCall") return "Edit " + (args.path || "file");
+    if (name === "shellToolCall") return "Shell " + ((args.command || "").slice(0, 80) || "command");
+    if (name === "grepToolCall") return "Grep " + (args.pattern || "");
+    if (name === "TaskToolCall" || name === "taskToolCall") return "Task " + (args.description || name);
+    return name.replace(/ToolCall$/, "");
+  }
+
+  function jsonEventSummary(event) {
+    var t = event.type || "event";
+    if (t === "tool_call") {
+      var sub = event.subtype ? " (" + event.subtype + ")" : "";
+      return toolCallSummary(event) + sub;
+    }
+    if (t === "assistant") return "Assistant message";
+    if (t === "thinking") {
+      var snippet = (event.text || "").slice(0, 72);
+      return snippet ? "Thinking — " + snippet : "Thinking";
+    }
+    if (t === "result") return event.is_error ? "Result (error)" : "Result (done)";
+    if (t === "user") return "User prompt";
+    if (t === "system") return "System";
+    return t;
+  }
+
+  function colorizePlainLine(line) {
+    var esc = escHtml(line);
+    if (/^\s*⚠\s+\d+\t/.test(line)) {
+      var codeMatch = line.match(/^\s*⚠\s+\d+\t([\s\S]*)$/);
+      if (codeMatch && codeMatch[1].length > 40) {
+        var codeBody = stripNumberedLines(line.replace(/^\[[^\]]+\]\s*/, ""));
+        return (
+          '<details class="log-code-block">' +
+          '<summary class="log-code-summary">Code snippet</summary>' +
+          '<pre class="log-code"><code>' + escHtml(codeBody) + "</code></pre></details>"
+        );
+      }
+    }
+    if (/ATTEMPT START|^={10,}/.test(line)) return '<span class="log-line log-line-header">' + esc + "</span>";
+    if (/✓|agent finished|verify ok\b/i.test(line)) return '<span class="log-line log-line-ok">' + esc + "</span>";
+    if (/✗|error:|failed|⚠|denied|fatal:|scope breach/i.test(line)) return '<span class="log-line log-line-err">' + esc + "</span>";
+    if (/subagent|tool_use|Executing wave|Thought|Reading|Checking branch|tool_call/i.test(line)) {
+      return '<span class="log-line log-line-action">' + esc + "</span>";
+    }
+    if (/^\[/.test(line)) return '<span class="log-line log-line-ts">' + esc + "</span>";
+    return '<span class="log-line">' + esc + "</span>";
+  }
+
+  function detectLanguage(path) {
+    if (!path) return "text";
+    var ext = String(path).split(".").pop().toLowerCase();
+    if (ext === "py") return "python";
+    if (ext === "js" || ext === "jsx") return "javascript";
+    if (ext === "ts" || ext === "tsx") return "typescript";
+    if (ext === "json") return "json";
+    if (ext === "md") return "markdown";
+    if (ext === "toml") return "toml";
+    if (ext === "sh") return "shell";
+    if (ext === "html") return "html";
+    if (ext === "css") return "css";
+    return ext || "text";
+  }
+
+  function stripNumberedLines(text) {
+    if (!text || text.indexOf("\t") === -1) return text;
+    return text.split("\n").map(function (line) {
+      var tab = line.indexOf("\t");
+      if (tab > 0 && /^\d+$/.test(line.slice(0, tab))) return line.slice(tab + 1);
+      return line;
+    }).join("\n");
+  }
+
+  function looksLikeCode(text) {
+    if (!text || text.length < 24) return false;
+    if (text.indexOf("\n") === -1 && text.length < 80) return false;
+    return /(?:def |class |import |function |const |#include|<\/?[a-z]|^\s*\{)/m.test(text)
+      || (text.split("\n").length >= 3 && text.indexOf("\t") >= 0);
+  }
+
+  function extractCodeBlocks(event) {
+    var blocks = [];
+    function push(label, code, lang) {
+      if (!code || !looksLikeCode(String(code))) return;
+      blocks.push({ label: label, code: stripNumberedLines(String(code)), lang: lang || "text" });
+    }
+
+    if (event.type === "user" && event.message && event.message.content) {
+      event.message.content.forEach(function (item) {
+        if (!item || item.type !== "tool_result") return;
+        var content = item.content;
+        if (typeof content === "string") {
+          push("Tool result", content, "text");
+        }
+      });
+    }
+
+    if (event.tool_use_result && event.tool_use_result.file) {
+      var file = event.tool_use_result.file;
+      push(file.filePath || file.path || "File", file.content || "", detectLanguage(file.filePath || file.path));
+    }
+
+    if (event.type === "assistant" && event.message && event.message.content) {
+      event.message.content.forEach(function (item) {
+        if (!item) return;
+        if (item.type === "tool_use") {
+          var input = item.input || {};
+          if (input.file_text) push(item.name + " " + (input.path || input.file_path || ""), input.file_text, detectLanguage(input.path || input.file_path));
+          if (input.new_string && input.old_string) {
+            push((item.name || "Edit") + " diff", input.old_string + "\n---\n" + input.new_string, detectLanguage(input.path || input.file_path));
+          } else if (input.new_string) {
+            push((item.name || "Edit") + " " + (input.path || input.file_path || ""), input.new_string, detectLanguage(input.path || input.file_path));
+          }
+          if (input.command && input.command.length > 40) push("Shell", input.command, "shell");
+        }
+      });
+    }
+
+    if (event.type === "tool_call" && event.tool_call) {
+      Object.keys(event.tool_call).forEach(function (name) {
+        var inner = event.tool_call[name] || {};
+        var args = inner.args || inner.input || {};
+        if (args.file_text) push(name + " " + (args.path || ""), args.file_text, detectLanguage(args.path));
+        if (args.new_string) push(name + " " + (args.path || ""), args.new_string, detectLanguage(args.path));
+        if (args.content && typeof args.content === "string") push(name, args.content, detectLanguage(args.path));
+      });
+    }
+
+    return blocks;
+  }
+
+  function compactJsonForMeta(raw, event) {
+    try {
+      var clone = JSON.parse(raw);
+      if (clone.message && clone.message.content && Array.isArray(clone.message.content)) {
+        clone.message.content = clone.message.content.map(function (item) {
+          if (!item) return item;
+          if (item.type === "tool_result" && typeof item.content === "string" && looksLikeCode(item.content)) {
+            return Object.assign({}, item, { content: "[code hidden — expand above]" });
+          }
+          if (item.type === "tool_use" && item.input) {
+            var input = Object.assign({}, item.input);
+            ["file_text", "new_string", "old_string", "content"].forEach(function (key) {
+              if (typeof input[key] === "string" && looksLikeCode(input[key])) input[key] = "[code hidden — expand above]";
+            });
+            return Object.assign({}, item, { input: input });
+          }
+          return item;
+        });
+      }
+      if (clone.tool_use_result && clone.tool_use_result.file && clone.tool_use_result.file.content) {
+        clone.tool_use_result = Object.assign({}, clone.tool_use_result, {
+          file: Object.assign({}, clone.tool_use_result.file, { content: "[code hidden — expand above]" }),
+        });
+      }
+      return JSON.stringify(clone, null, 2);
+    } catch (e) {
+      return raw.length > 6000 ? raw.slice(0, 6000) + "…" : raw;
+    }
+  }
+
+  function formatCodeBlocks(blocks) {
+    if (!blocks.length) return "";
+    return blocks.map(function (block) {
+      return (
+        '<details class="log-code-block">' +
+        '<summary class="log-code-summary">' + escHtml(block.label) + " (" + escHtml(block.lang) + ")</summary>" +
+        '<pre class="log-code"><code class="language-' + escHtml(block.lang) + '">' +
+        escHtml(block.code) +
+        "</code></pre></details>"
+      );
+    }).join("");
+  }
+
+  function formatJsonEvent(raw, event) {
+    var summary = escHtml(jsonEventSummary(event));
+    var codeBlocks = extractCodeBlocks(event);
+    var meta = escHtml(compactJsonForMeta(raw, event));
+    var cls = "log-event";
+    if (event.type === "tool_call") cls += " log-event-tool";
+    else if (event.type === "thinking") cls += " log-event-think";
+    else if (event.type === "assistant") cls += " log-event-assistant";
+    else if (event.type === "result" && event.is_error) cls += " log-event-err";
+    return (
+      '<details class="' + cls + '">' +
+      '<summary class="log-event-summary">' + summary + "</summary>" +
+      formatCodeBlocks(codeBlocks) +
+      '<pre class="log-meta-body">' + meta + "</pre></details>"
+    );
+  }
+
+  function formatLogLine(line) {
+    if (!line) return '<span class="log-line log-line-blank">&nbsp;</span>';
+    var trimmed = line.trim();
+    if (trimmed.charAt(0) === "{") {
+      try {
+        var event = JSON.parse(trimmed);
+        if (event && event.type) return formatJsonEvent(trimmed, event);
+      } catch (e) { /* plain text */ }
+    }
+    return colorizePlainLine(line);
+  }
+
+  function renderRich(container, rawText) {
+    var lines = rawText.split("\n");
+    container.innerHTML = lines.map(formatLogLine).join("\n");
+  }
+
+  function getRawText(container) {
+    return container.dataset.rawText || container.textContent || "";
+  }
+
+  function setRawText(container, text) {
+    container.dataset.rawText = text;
+  }
+
+  window.tripllInitLogViewer = function (root) {
+    if (!root || root.getAttribute("data-log-bound") === "1") return;
+    root.setAttribute("data-log-bound", "1");
+    var container = root.querySelector("[data-log-content]");
+    var searchInput = root.querySelector("[data-log-search]");
+    if (!container) return;
+
+    var fontSize = 13;
+    var marks = [];
+    var markIndex = -1;
+    var rawText = container.textContent || "";
+    setRawText(container, rawText);
+
+    function applyFontSize() {
+      container.style.fontSize = fontSize + "px";
+    }
+
+    function clearMarks() {
+      marks.forEach(function (m) { m.classList.remove("log-mark-active"); });
+      marks = [];
+      markIndex = -1;
+    }
+
+    function runSearch(term) {
+      var source = getRawText(container);
+      renderRich(container, source);
+      clearMarks();
+      if (!term) return;
+      var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+      var lower = term.toLowerCase();
+      var node;
+      while ((node = walker.nextNode())) {
+        var text = node.textContent || "";
+        var idx = text.toLowerCase().indexOf(lower);
+        if (idx === -1) continue;
+        var span = document.createElement("mark");
+        span.className = "log-mark";
+        var matchedLen = text.substring(idx, idx + term.length).length;
+        if (matchedLen !== term.length) {
+          matchedLen = lower.length;
+        }
+        var after = node.splitText(idx);
+        after.textContent = after.textContent.substring(matchedLen);
+        span.textContent = text.substring(idx, idx + matchedLen);
+        node.parentNode.insertBefore(span, after);
+        marks.push(span);
+        node = after;
+      }
+      if (marks.length) {
+        markIndex = 0;
+        marks[0].classList.add("log-mark-active");
+        marks[0].scrollIntoView({ block: "center" });
+      }
+    }
+
+    function stepMark(delta) {
+      if (!marks.length) return;
+      marks[markIndex].classList.remove("log-mark-active");
+      markIndex = (markIndex + delta + marks.length) % marks.length;
+      marks[markIndex].classList.add("log-mark-active");
+      marks[markIndex].scrollIntoView({ block: "center" });
+    }
+
+    root.querySelector("[data-log-zoom-in]")?.addEventListener("click", function () {
+      fontSize = Math.min(22, fontSize + 1);
+      applyFontSize();
+    });
+    root.querySelector("[data-log-zoom-out]")?.addEventListener("click", function () {
+      fontSize = Math.max(10, fontSize - 1);
+      applyFontSize();
+    });
+    searchInput?.addEventListener("input", function () {
+      runSearch(searchInput.value.trim());
+    });
+    root.querySelector("[data-log-search-next]")?.addEventListener("click", function () {
+      stepMark(1);
+    });
+    root.querySelector("[data-log-search-prev]")?.addEventListener("click", function () {
+      stepMark(-1);
+    });
+
+    container.tripllAppend = function (chunk) {
+      if (!chunk) return;
+      var atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 12;
+      var current = getRawText(container);
+      current += chunk;
+      setRawText(container, current);
+      var activeTerm = searchInput ? searchInput.value.trim() : "";
+      if (activeTerm) {
+        runSearch(activeTerm);
+      } else {
+        var lines = chunk.split("\n");
+        var html = lines.map(formatLogLine).join("\n");
+        if (container.innerHTML && !container.innerHTML.endsWith("\n") && chunk.charAt(0) !== "\n") {
+          container.insertAdjacentHTML("beforeend", "\n" + html);
+        } else {
+          container.insertAdjacentHTML("beforeend", html);
+        }
+      }
+      if (atBottom) container.scrollTop = container.scrollHeight;
+    };
+
+    renderRich(container, rawText);
+    applyFontSize();
+  };
+
+  window.tripllStopAllLogPolls = function () {
+    Object.keys(logPollers).forEach(function (key) {
+      clearInterval(logPollers[key]);
+      delete logPollers[key];
+    });
+  };
+
+  window.tripllStopLogPoll = function (hostId) {
+    if (logPollers[hostId]) {
+      clearInterval(logPollers[hostId]);
+      delete logPollers[hostId];
+    }
+  };
+
+  window.tripllEnsureLogPanel = function (host) {
+    if (!host || host.getAttribute("data-log-loaded") === "1") {
+      window.tripllStartLogPoll(host);
+      return;
+    }
+    var logUrl = host.getAttribute("data-log-url");
+    if (!logUrl) return;
+    host.innerHTML = '<span class="muted">Loading log…</span>';
+    fetch(logUrl, { credentials: "same-origin" })
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        host.innerHTML = html;
+        host.setAttribute("data-log-loaded", "1");
+        var viewer = host.querySelector("[data-log-viewer]");
+        if (viewer) window.tripllInitLogViewer(viewer);
+        window.tripllStartLogPoll(host);
+      })
+      .catch(function () {
+        host.innerHTML = '<span class="muted log-line-err">Failed to load log.</span>';
+      });
+  };
+
+  window.tripllStartLogPoll = function (host) {
+    if (!host) return;
+    var hostId = host.id || host.getAttribute("data-log-url") || String(Math.random());
+    if (host.getAttribute("data-log-poll") !== "true") return;
+    if (logPollers[hostId]) return;
+
+    var appendBase = host.getAttribute("data-log-append-url");
+    if (!appendBase) return;
+    var pollS = parseInt(host.getAttribute("data-log-poll-s") || "3", 10) * 1000;
+
+    logPollers[hostId] = setInterval(function () {
+      var container = host.querySelector("[data-log-content]");
+      if (!container) return;
+      var offset = parseInt(container.getAttribute("data-log-offset") || "0", 10) || 0;
+      var url = appendBase + (appendBase.indexOf("?") >= 0 ? "&" : "?") + "offset=" + offset;
+      fetch(url, { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data || !data.text) {
+            if (data && data.offset != null) container.setAttribute("data-log-offset", String(data.offset));
+            return;
+          }
+          container.setAttribute("data-log-offset", String(data.offset));
+          if (typeof container.tripllAppend === "function") container.tripllAppend(data.text);
+          else {
+            var merged = (container.dataset.rawText || container.textContent || "") + data.text;
+            container.dataset.rawText = merged;
+            container.textContent = merged;
+          }
+        })
+        .catch(function () { /* ignore transient poll errors */ });
+    }, pollS);
+  };
+
+  window.tripllBindWaveExpanders = function (root) {
+    if (!root) return;
+    root.querySelectorAll("details.wave-expander").forEach(function (det) {
+      if (det.getAttribute("data-log-bound") === "1") return;
+      det.setAttribute("data-log-bound", "1");
+      det.addEventListener("toggle", function () {
+        if (!det.open) return;
+        var panel = det.querySelector(".wave-log-panel");
+        if (panel) window.tripllEnsureLogPanel(panel);
+      });
+      if (det.open) {
+        var openPanel = det.querySelector(".wave-log-panel");
+        if (openPanel) window.tripllEnsureLogPanel(openPanel);
+      }
+    });
+    root.querySelectorAll("[data-log-viewer]").forEach(function (viewer) {
+      window.tripllInitLogViewer(viewer);
+    });
+  };
+
+  document.addEventListener("DOMContentLoaded", function () {
+    window.tripllBindWaveExpanders(document.body);
+  });
+})();
+</script>

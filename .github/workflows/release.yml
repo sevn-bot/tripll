@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build + GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bootstrap (uv + sync)
+        uses: ./.github/actions/bootstrap
+
+      - name: Verify gate
+        run: make check
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+      # Opt-in: publish to PyPI via Trusted Publishing (OIDC). Uncomment + configure a
+      # PyPI publisher for sevn-bot/tripll, then add `id-token: write` to permissions.
+      # - name: Publish to PyPI
+      #   run: uv publish

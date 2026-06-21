@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% block title %}tripll — run {{ run_id }}{% endblock %}
+{% block content %}
+
+<a class="back-link" href="/">← dashboard</a>
+<h1>Run <code>{{ run_id }}</code></h1>
+
+{% include "_run_header.html" %}
+
+{% include "_hitl_modal.html" %}
+
+{% if orch.enabled %}
+<div id="orchestrator-host"
+     hx-get="/runs/{{ run_id }}/orchestrator{% if api_token %}?token={{ api_token }}{% endif %}"
+     {% if orch.poll_orchestrator %}
+     hx-trigger="load, every {{ orch.orchestrator_poll_s }}s"
+     {% else %}
+     hx-trigger="load once"
+     {% endif %}
+     hx-swap="innerHTML">
+  {% include "_orchestrator.html" %}
+</div>
+{% endif %}
+
+{% include "_batch_timeline.html" %}
+
+{% if report_exists %}
+<details class="report-panel">
+  <summary>Run report (report.md)</summary>
+  <div class="report-panel-body"
+       hx-get="/runs/{{ run_id }}/report{% if api_token %}?token={{ api_token }}{% endif %}"
+       hx-trigger="revealed once"
+       hx-swap="innerHTML">
+    <span class="muted">Expand to load report…</span>
+  </div>
+</details>
+{% endif %}
+
+<div class="actions">
+  {% if hitl.pending %}
+  <button type="button" class="btn btn-hitl" id="hitl-open-btn-actions"
+          onclick="document.getElementById('hitl-open-btn') && document.getElementById('hitl-open-btn').click()">
+    Open HITL
+  </button>
+  <button class="btn btn-approve"
+          id="hitl-approve-btn"
+          {% if not hitl.complete %}disabled title="Complete HITL form first"{% endif %}
+          hx-post="/api/runs/{{ run_id }}/approve"
+          {% if api_token %}hx-headers='{"Authorization": "Bearer {{ api_token }}"}'{% endif %}
+          hx-swap="none"
+          onclick="showFlash(this, 'Approving gate…')">
+    Approve gate
+  </button>
+  {% else %}
+  <button class="btn btn-approve"
+          hx-post="/api/runs/{{ run_id }}/approve"
+          {% if api_token %}hx-headers='{"Authorization": "Bearer {{ api_token }}"}'{% endif %}
+          hx-swap="none"
+          onclick="showFlash(this, 'Approving…')">
+    Approve
+  </button>
+  {% endif %}
+  <button class="btn btn-resume"
+          hx-post="/api/runs/{{ run_id }}/resume"
+          {% if api_token %}hx-headers='{"Authorization": "Bearer {{ api_token }}"}'{% endif %}
+          hx-swap="none"
+          onclick="showFlash(this, 'Resuming…')">
+    Resume
+  </button>
+  <button class="btn btn-pause"
+          hx-post="/api/runs/{{ run_id }}/pause"
+          {% if api_token %}hx-headers='{"Authorization": "Bearer {{ api_token }}"}'{% endif %}
+          hx-swap="none"
+          onclick="showFlash(this, 'Pause requested…')">
+    Pause
+  </button>
+  <span id="action-flash" class="flash"></span>
+</div>
+
+<div class="run-detail-layout">
+  <section class="run-detail-main">
+    <h2>Waves</h2>
+    <div id="sse-status">Connecting to live event stream…</div>
+
+    <table id="waves-table">
+      <thead>
+        <tr>
+          <th>NODE ID</th>
+          <th>PHASE</th>
+          <th>CURRENT ACTION</th>
+          <th>MODEL</th>
+          <th>TOKENS (in→out)</th>
+          <th>COST (USD)</th>
+        </tr>
+      </thead>
+      <tbody id="waves-body">
+        {% include "_waves_tbody.html" %}
+      </tbody>
+    </table>
+  </section>
+
+  <aside class="run-detail-sidebar">
+    <h2>Event timeline</h2>
+    {% include "_timeline.html" %}
+  </aside>
+</div>
+
+<script>
+(function () {
+  var token = {{ api_token | tojson }};
+  var sseUrl = {{ sse_url | tojson }};
+  var runId = {{ run_id | tojson }};
+  if (token) {
+    sseUrl += "?token=" + encodeURIComponent(token);
+  }
+
+  var runState = {{ run_state | tojson }};
+  var isLive = {{ is_live | tojson }};
+  var statusEl = document.getElementById("sse-status");
+  var tbody = document.getElementById("waves-body");
+  var timelineEl = document.getElementById("event-timeline");
+  var es = new EventSource(sseUrl);
+  var nodeState = {};
+  var seenEventIds = {};
+  var ACTIVE_POLL_PHASES = { running: true, verifying: true, dispatched: true };
+  var openWaveIds = [];
+
+  function captureOpenWaves() {
+    openWaveIds = [];
+    if (!tbody) return;
+    if (window.tripllStopAllLogPolls) window.tripllStopAllLogPolls();
+    tbody.querySelectorAll("tr[data-node-id]").forEach(function (row) {
+      var det = row.querySelector("details.wave-expander");
+      if (det && det.open) openWaveIds.push(row.getAttribute("data-node-id"));
+    });
+  }
+
+  function restoreOpenWaves() {
+    if (!tbody || !openWaveIds.length) {
+      window.tripllBindWaveExpanders(tbody);
+      return;
+    }
+    openWaveIds.forEach(function (nodeId) {
+      var row = tbody.querySelector('tr[data-node-id="' + nodeId + '"]');
+      if (!row) return;
+      var det = row.querySelector("details.wave-expander");
+      if (det) det.open = true;
+    });
+    window.tripllBindWaveExpanders(tbody);
+  }
+
+  document.body.addEventListener("htmx:afterSwap", function (evt) {
+    if (evt.detail.target === tbody) restoreOpenWaves();
+  });
+
+  function setStreamStatus() {
+    if (!statusEl) return;
+    if (isLive && runState === "active") {
+      statusEl.textContent = "Live — receiving events…";
+    } else if (runState === "paused") {
+      statusEl.textContent = "Run paused — phases reflect last ledger state.";
+    } else if (runState === "failed") {
+      statusEl.textContent = "Run failed — stream closed.";
+    } else if (runState === "done") {
+      statusEl.textContent = "Run finished — stream closed.";
+    } else {
+      statusEl.textContent = "Stream idle.";
+    }
+  }
+  setStreamStatus();
+
+  if (timelineEl) {
+    timelineEl.querySelectorAll(".timeline-row[data-event-id]").forEach(function (row) {
+      seenEventIds[row.getAttribute("data-event-id")] = true;
+    });
+  }
+
+  es.onopen = function () {
+    if (isLive && runState === "active") {
+      if (statusEl) statusEl.textContent = "Live — receiving events…";
+    }
+  };
+
+  es.onerror = function () {
+    es.close();
+    refreshWavesTable();
+    setStreamStatus();
+  };
+
+  es.onmessage = function (evt) {
+    var data;
+    try {
+      data = JSON.parse(evt.data);
+    } catch (e) {
+      return;
+    }
+
+    if (data.phase === "orchestrator") {
+      refreshOrchestratorPanel();
+      return;
+    }
+
+    updateWaveRow(data);
+    appendTimelineRow(data);
+  };
+
+  function refreshWavesTable() {
+    if (typeof htmx === "undefined" || !tbody) return;
+    captureOpenWaves();
+    var url = "/runs/" + encodeURIComponent(runId) + "/waves-table";
+    if (token) url += "?token=" + encodeURIComponent(token);
+    htmx.ajax("GET", url, { target: tbody, swap: "innerHTML" });
+  }
+
+  function refreshOrchestratorPanel() {
+    var host = document.getElementById("orchestrator-host");
+    if (!host || typeof htmx === "undefined") return;
+    var url = "/runs/" + encodeURIComponent(runId) + "/orchestrator";
+    if (token) url += "?token=" + encodeURIComponent(token);
+    htmx.ajax("GET", url, { target: host, swap: "innerHTML" });
+  }
+
+  function updateWaveRow(data) {
+    var nodeId = data.node_id;
+    if (!nodeState[nodeId]) {
+      nodeState[nodeId] = {
+        phase: "",
+        last_action: "",
+        input: null,
+        output: null,
+        cost: null,
+        attempt_n: null,
+        task_id: null,
+      };
+    }
+    var ns = nodeState[nodeId];
+    var prevAction = ns.last_action;
+
+    if (data.phase)        ns.phase       = data.phase;
+    if (data.last_action)  ns.last_action = data.last_action;
+    if (data.input_tokens  != null) ns.input  = data.input_tokens;
+    if (data.output_tokens != null) ns.output = data.output_tokens;
+    if (data.cost_usd      != null) ns.cost   = data.cost_usd;
+    if (data.attempt_n     != null) ns.attempt_n = data.attempt_n;
+    if (data.task_id       != null) ns.task_id = data.task_id;
+
+    var rowId = "wave-row-" + nodeId.replace(/[:/]/g, "-");
+    var row = document.getElementById(rowId);
+    if (!row) {
+      refreshWavesTable();
+      return;
+    }
+
+    var phaseEl = row.querySelector(".wave-col-phase, .wave-phase");
+    if (phaseEl) {
+      phaseEl.innerHTML =
+        '<span class="badge badge-' + escHtml(ns.phase) + '">' + escHtml(ns.phase) + '</span>' +
+        (ns.attempt_n != null
+          ? '<span class="wave-attempt-inline muted"> · attempt ' + ns.attempt_n + '</span>'
+          : '');
+    }
+    var actionEl = row.querySelector(".wave-col-action, .wave-action");
+    if (actionEl) actionEl.textContent = ns.last_action || "—";
+
+    var tokensEl = row.querySelector(".wave-col-tokens, .wave-tokens");
+    if (tokensEl) {
+      tokensEl.textContent = (ns.input != null && ns.output != null)
+        ? ns.input + "→" + ns.output
+        : "—";
+    }
+    var costEl = row.querySelector(".wave-col-cost, .wave-cost");
+    if (costEl) {
+      costEl.textContent = ns.cost != null ? "$" + ns.cost.toFixed(4) : "—";
+    }
+
+    syncWorktreePoll(row, ns.phase);
+    syncLogPoll(row, ns.phase);
+
+    if (data.last_action && data.last_action !== prevAction && ACTIVE_POLL_PHASES[ns.phase]) {
+      reloadTasksPanel(rowId);
+    }
+  }
+
+  function syncWorktreePoll(row, phase) {
+    var shouldPoll = !!ACTIVE_POLL_PHASES[phase];
+    row.setAttribute("data-poll-worktree", shouldPoll ? "true" : "false");
+    var host = row.querySelector(".worktree-host");
+    if (!host) return;
+    if (shouldPoll) {
+      var url = "/runs/" + encodeURIComponent(runId) + "/waves/" +
+        encodeURIComponent(row.getAttribute("data-node-id")) + "/worktree";
+      if (token) url += "?token=" + encodeURIComponent(token);
+      host.setAttribute("hx-get", url);
+      host.setAttribute("hx-trigger", "load, every 5s");
+      host.setAttribute("hx-swap", "innerHTML");
+      if (typeof htmx !== "undefined") {
+        htmx.process(host);
+        htmx.trigger(host, "load");
+      }
+    } else {
+      host.removeAttribute("hx-get");
+      host.removeAttribute("hx-trigger");
+      host.removeAttribute("hx-swap");
+    }
+  }
+
+  function syncLogPoll(row, phase) {
+    var shouldPoll = !!ACTIVE_POLL_PHASES[phase];
+    row.setAttribute("data-poll-log", shouldPoll ? "true" : "false");
+    var host = row.querySelector(".wave-log-panel");
+    if (!host) return;
+    host.setAttribute("data-log-poll", shouldPoll ? "true" : "false");
+    if (shouldPoll && host.getAttribute("data-log-loaded") === "1") {
+      window.tripllStartLogPoll(host);
+    } else if (!shouldPoll && host.id) {
+      window.tripllStopLogPoll(host.id);
+    }
+  }
+
+  function reloadTasksPanel(rowId) {
+    var host = document.querySelector("#" + rowId + " .wave-tasks-host");
+    if (!host || typeof htmx === "undefined") return;
+    var url = host.getAttribute("data-tasks-url");
+    if (!url) return;
+    htmx.ajax("GET", url, { target: host, swap: "innerHTML" });
+  }
+
+  function appendTimelineRow(data) {
+    if (!timelineEl || data.event_id == null) return;
+    var eid = String(data.event_id);
+    if (seenEventIds[eid]) return;
+    seenEventIds[eid] = true;
+
+    var noItems = timelineEl.querySelector(".no-items");
+    if (noItems) noItems.remove();
+
+    var row = document.createElement("div");
+    row.className = "timeline-row";
+    row.setAttribute("data-event-id", eid);
+    var costHtml = data.cost_usd != null
+      ? '<span class="timeline-cost cost">$' + data.cost_usd.toFixed(4) + '</span>'
+      : "";
+    var attemptHtml = data.attempt_n != null
+      ? '<span class="timeline-attempt muted">attempt ' + data.attempt_n + '</span>'
+      : "";
+    row.innerHTML =
+      '<span class="timeline-ts">' + escHtml(data.ts || "") + '</span>' +
+      '<span class="timeline-node"><code>' + escHtml(data.node_id || "") + '</code></span>' +
+      '<span class="badge badge-' + escHtml(data.phase || "") + '">' + escHtml(data.phase || "") + '</span>' +
+      attemptHtml +
+      '<span class="timeline-action">' + escHtml(data.last_action || "—") + '</span>' +
+      costHtml;
+    timelineEl.appendChild(row);
+    timelineEl.scrollTop = timelineEl.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  window.tripllBindWaveExpanders(tbody);
+})();
+
+function showFlash(btn, msg) {
+  var el = document.getElementById("action-flash");
+  if (el) {
+    el.textContent = msg;
+    setTimeout(function () { el.textContent = ""; }, 3000);
+  }
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}tripll — runs{% endblock %}
+{% block content %}
+
+<div class="launch-form">
+  <h2>Launch run</h2>
+  <form class="ui-form" method="post" action="/launch">
+    <label for="input_path">Input set</label>
+    {% if input_sets %}
+    <select id="input_path" name="input_path">
+      <option value="">— select input set —</option>
+      {% for p in input_sets %}
+      <option value="{{ p }}">{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <p class="muted">Or enter a custom path below.</p>
+    {% endif %}
+    <input type="text" name="input_path_custom" placeholder="/absolute/path/to/input-set" />
+
+    <label for="profile_id">Agent profile</label>
+    {% if profiles %}
+    <select id="profile_id" name="profile_id" required>
+      <option value="">— select profile —</option>
+      {% for p in profiles %}
+      <option value="{{ p.profile_id }}">{{ p.name }} ({{ p.profile_id }})</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <p class="no-items">No profiles — <a href="/agents/new">create one</a> first.</p>
+    {% endif %}
+
+    <div class="form-actions">
+      <button type="submit"{% if not profiles %} disabled{% endif %}>Launch</button>
+    </div>
+  </form>
+</div>
+
+<h2>Runs</h2>
+{% if runs %}
+<table>
+  <thead>
+    <tr>
+      <th>RUN ID</th>
+      <th>SLUG</th>
+      <th>STATE</th>
+      <th>COST (USD)</th>
+      <th>LIVE</th>
+      <th>UPDATED</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr>
+      <td><a href="/runs/{{ run.run_id }}">{{ run.run_id }}</a></td>
+      <td>{{ run.slug }}</td>
+      <td><span class="badge badge-{{ run.state }}">{{ run.state }}</span></td>
+      <td class="cost">${{ "%.4f"|format(run.cost_usd) }}</td>
+      <td>
+        {% if run.is_live %}
+          <span class="badge badge-live">live</span>
+        {% else %}
+          <span class="badge badge-offline">—</span>
+        {% endif %}
+      </td>
+      <td>{{ run.updated_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="no-items">No runs found.</p>
+{% endif %}
+
+<div class="section">
+  <h2>Backends</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>BACKEND</th>
+        <th>AVAILABLE</th>
+        <th>STREAMING</th>
+        <th>DETAIL</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in backends %}
+      <tr>
+        <td>{{ b.name }}</td>
+        <td>
+          {% if b.available %}
+            <span class="badge badge-active">yes</span>
+          {% else %}
+            <span class="badge badge-offline">no</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if b.streaming %}
+            <span class="badge badge-active">yes</span>
+          {% else %}
+            <span class="badge badge-offline">no</span>
+          {% endif %}
+        </td>
+        <td>{{ b.detail }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

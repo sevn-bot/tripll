@@ -1,0 +1,106 @@
+{% for w in waves %}
+<tr id="wave-row-{{ w.node_id|replace(':', '-')|replace('/', '-') }}"
+    class="wave-data-row"
+    data-node-id="{{ w.node_id }}"
+    data-poll-worktree="{{ 'true' if w.poll_worktree else 'false' }}"
+    data-poll-log="{{ 'true' if w.poll_log else 'false' }}">
+  <td colspan="6" class="wave-row-cell">
+    <details class="wave-expander">
+      <summary class="wave-summary-grid">
+        <span class="wave-col-node">
+          {{ w.node_id }}
+          {% if w.is_gate_only %}
+          <span class="gate-badge">gate — no dispatch</span>
+          {% elif w.has_attempts %}
+          <span class="wave-attempt-badge muted">attempt {{ w.current_attempt_n }}</span>
+          {% endif %}
+          {% if hitl.pending and w.wave_id == 'W0' %}
+          <button type="button" class="btn btn-hitl hitl-resolve-btn">Resolve gate</button>
+          {% endif %}
+          {% if w.starting_new_attempt %}
+          <span class="badge badge-dispatched attempt-starting">starting attempt {{ w.current_attempt_n }}</span>
+          {% endif %}
+        </span>
+        <span class="wave-col-phase wave-phase">
+          <span class="badge badge-{{ w.phase }}">{{ w.phase }}</span>
+          <span class="wave-attempt-inline muted"></span>
+        </span>
+        <span class="wave-col-action wave-action action-text">{{ w.display_action }}</span>
+        <span class="wave-col-model wave-model"><code>{{ w.model }}</code></span>
+        <span class="wave-col-tokens wave-tokens tokens">
+          {% if w.input_tokens is not none %}
+            {{ w.input_tokens }}→{{ w.output_tokens }}
+          {% else %}
+            —
+          {% endif %}
+        </span>
+        <span class="wave-col-cost wave-cost cost">
+          {% if w.cost_usd is not none %}
+            ${{ "%.4f"|format(w.cost_usd) }}
+          {% else %}
+            —
+          {% endif %}
+        </span>
+      </summary>
+      <div class="wave-detail-panel wave-detail-panel-wide">
+        {% if w.status_detail %}
+        <div class="wave-status-detail wave-status-{{ w.phase }}">{{ w.status_detail }}</div>
+        {% endif %}
+        <section class="wave-panel-section">
+          <h3 class="wave-panel-title">Attempts</h3>
+          {% with attempt_rows=w.attempt_rows, current_attempt_n=w.current_attempt_n, starting_new_attempt=w.starting_new_attempt, node_id=w.node_id, status_detail=w.status_detail, run_id=run_id, api_token=api_token %}
+          {% include "_attempts.html" %}
+          {% endwith %}
+        </section>
+        <section class="wave-panel-section">
+          <h3 class="wave-panel-title">Wave tasks</h3>
+          <div id="wave-tasks-{{ w.node_id|replace(':', '-')|replace('/', '-') }}"
+               class="wave-tasks-host"
+               data-tasks-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/tasks{% if api_token %}?token={{ api_token }}{% endif %}">
+            {% with task_result=w.task_result, status_detail=w.status_detail %}
+            {% include "_wave_tasks.html" %}
+            {% endwith %}
+          </div>
+        </section>
+        <section class="wave-panel-section">
+          <h3 class="wave-panel-title">Worktree</h3>
+          <div id="wave-worktree-{{ w.node_id|replace(':', '-')|replace('/', '-') }}"
+               class="worktree-host"
+               hx-get="/runs/{{ run_id }}/waves/{{ w.node_id }}/worktree{% if api_token %}?token={{ api_token }}{% endif %}"
+               {% if w.poll_worktree %}
+               hx-trigger="load, every {{ w.worktree_poll_s }}s"
+               {% else %}
+               hx-trigger="revealed once"
+               {% endif %}
+               hx-swap="innerHTML">
+            <span class="muted">{% if w.poll_worktree %}Loading worktree…{% else %}Expand to load worktree snapshot.{% endif %}</span>
+          </div>
+        </section>
+        {% if w.show_log_panel %}
+        <section class="wave-panel-section wave-log-section">
+          <h3 class="wave-panel-title">Log</h3>
+          <div class="wave-log-panel wave-log-panel-wide"
+               id="wave-log-{{ w.node_id|replace(':', '-')|replace('/', '-') }}"
+               data-log-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/log{% if api_token %}?token={{ api_token }}{% endif %}"
+               data-log-append-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/log/append{% if api_token %}?token={{ api_token }}{% endif %}"
+               data-log-poll="{{ 'true' if w.poll_log else 'false' }}"
+               data-log-poll-s="{{ w.log_poll_s }}">
+            <span class="muted">Expand wave row to load log…</span>
+          </div>
+        </section>
+        {% elif w.is_human_gate_done %}
+        <section class="wave-panel-section">
+          <p class="muted">No agent log — human gate completed without dispatch.</p>
+        </section>
+        {% elif w.is_gate_only %}
+        <section class="wave-panel-section">
+          <p class="muted">No agent log — human gate only (wave not dispatched).</p>
+        </section>
+        {% endif %}
+      </div>
+    </details>
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="6" class="no-items">No waves dispatched yet.</td></tr>
+{% endfor %}

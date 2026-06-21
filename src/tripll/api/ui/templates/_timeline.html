@@ -1,0 +1,15 @@
+<div id="event-timeline" class="event-timeline">
+  {% for e in timeline_events %}
+  <div class="timeline-row" data-event-id="{{ e.event_id }}">
+    <span class="timeline-ts">{{ e.ts }}</span>
+    <span class="timeline-node"><code>{{ e.node_id }}</code></span>
+    <span class="badge badge-{{ e.phase }}">{{ e.phase }}</span>
+    <span class="timeline-action">{{ e.last_action or "—" }}</span>
+    {% if e.cost_usd is not none %}
+      <span class="timeline-cost cost">${{ "%.4f"|format(e.cost_usd) }}</span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="no-items">No events yet.</div>
+  {% endfor %}
+</div>

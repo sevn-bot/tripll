@@ -1,0 +1,23 @@
+<div class="wave-tasks-panel">
+  {% if task_result and task_result.bullets %}
+  <ul class="wave-task-checklist">
+    {% for b in task_result.bullets %}
+    <li class="wave-task-item{% if b.active %} wave-task-active{% endif %}{% if b.checked %} wave-task-checked{% endif %}">
+      <span class="wave-task-id">{{ b.id }}</span>
+      <span class="wave-task-text">{{ b.text }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if task_result.inferred_task_id %}
+  <div class="wave-task-inferred muted">Active: {{ task_result.inferred_task_id }}</div>
+  {% endif %}
+  {% elif task_result is not none %}
+  <p class="muted no-items">No checklist bullets in the staged plan slice (use <code>- [ ] **R1.1** …</code> format).</p>
+  {% else %}
+  {% if status_detail %}
+  <p class="wave-status-note">{{ status_detail }}</p>
+  {% else %}
+  <p class="muted no-items">No staged plan slice yet — allocate worktree in W0 or wait for dispatch.</p>
+  {% endif %}
+  {% endif %}
+</div>

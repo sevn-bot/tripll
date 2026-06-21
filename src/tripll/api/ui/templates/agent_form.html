@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}tripll — {{ form_title }}{% endblock %}
+{% block content %}
+
+<a class="back-link" href="/agents">← agents</a>
+<h1>{{ form_title }}</h1>
+
+{% if form_error %}
+<p class="form-error">{{ form_error }}</p>
+{% endif %}
+
+<form class="ui-form" method="post" action="{{ form_action }}">
+  {% if is_new %}
+  <label for="profile_id">Profile ID <span class="muted">(optional — derived from name if blank)</span></label>
+  <input type="text" id="profile_id" name="profile_id" value="{{ profile.profile_id or '' }}" />
+  {% else %}
+  <p><strong>Profile ID:</strong> <code>{{ profile.profile_id }}</code></p>
+  {% endif %}
+
+  <label for="name">Name</label>
+  <input type="text" id="name" name="name" value="{{ profile.name }}" required />
+
+  <label for="backend">Backend</label>
+  <select id="backend" name="backend" required>
+    {% for b in backends %}
+    <option value="{{ b }}"{% if profile.backend == b %} selected{% endif %}>{{ b }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="model">Model</label>
+  <input type="text" id="model" name="model" value="{{ profile.model }}" required />
+
+  <label for="agent">Agent</label>
+  <input type="text" id="agent" name="agent" value="{{ profile.agent }}" required />
+
+  <label for="skills">Skills <span class="muted">(JSON array or comma-separated)</span></label>
+  <textarea id="skills" name="skills" rows="3">{{ profile.skills_text }}</textarea>
+
+  <div class="form-actions">
+    <button type="submit">{{ submit_label }}</button>
+    <a class="btn" href="/agents">Cancel</a>
+  </div>
+</form>
+
+{% endblock %}

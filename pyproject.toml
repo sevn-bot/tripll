@@ -1,0 +1,125 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tripll"
+version = "0.0.1"
+description = "tripll — headless parallel wave-plan execution pipeline"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Alex Hawat" }]
+dependencies = [
+    "loguru>=0.7.3",
+    "typer>=0.25.1",
+    "pydantic>=2.13.3",
+]
+
+[project.optional-dependencies]
+# Optional integration: the cursor_cloud adapter *probes* for ``sevn.evolution.router``
+# at runtime (importlib.util.find_spec) and is unavailable when sevn is absent.
+# sevn is an external, optional integration — never a build dependency of tripll.
+cloud = [
+    "sevn",
+]
+# Observability — Logfire/OTel tracing. No-op without LOGFIRE_TOKEN.
+obs = [
+    "logfire>=4.32.1",
+]
+# Reserved for future in-process LLM orchestration (not wired today; tripll currently
+# drives external claude/cursor CLIs via adapters).
+ai = [
+    "pydantic-ai>=1.106,<2",
+]
+# Tests-first package scaffolding (design-note §9.7): cookiecutter-pypackage.
+# Install with: uv sync --extra scaffold  (or run via `uvx cookiecutter` ad hoc)
+scaffold = [
+    "cookiecutter>=2.5.0",
+]
+# W4 control-plane HTTP server + W5 web dashboard.
+# Install with: uv sync --extra api
+api = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+    # W5 dashboard — Jinja2 templating engine.
+    "jinja2>=3.1.0",
+    # W2 dashboard forms — multipart form parsing.
+    "python-multipart>=0.0.9",
+]
+dev = [
+    "pytest==9.0.3",
+    "pytest-asyncio==1.3.0",
+    "mypy==1.20.2",
+    "ruff==0.15.12",
+    "pre-commit==4.6.0",
+    # API test client (ships with httpx).
+    "fastapi>=0.115.0",
+    "httpx>=0.28.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.scripts]
+tripll = "tripll.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tripll"]
+
+# ---------------------------------------------------------------------------
+# Ruff — mirrors root pyproject.toml rule set; spike/ and tests/ exempt T20
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+    "RUF",
+    "ASYNC",
+    "PT",
+    "TCH",
+    "PIE",
+    "T20",
+]
+ignore = [
+    "E501",
+    "B008",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tripll"]
+
+[tool.ruff.lint.per-file-ignores]
+# Spike scripts: print() OK, not in app tree
+"spike/**" = ["T20", "F401", "E402"]
+# Tests: print() OK
+"tests/**" = ["T20", "TC003", "ASYNC240"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict, aligned with root repo
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+mypy_path = ["src"]
+packages = ["tripll"]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

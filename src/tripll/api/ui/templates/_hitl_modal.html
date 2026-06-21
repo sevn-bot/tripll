@@ -1,0 +1,229 @@
+{% if hitl.pending or hitl.form %}
+<div class="hitl-banner banner-hitl" id="hitl-banner">
+  <strong>Human input required</strong>
+  <span class="muted">— complete the gate questionnaire before the run continues.</span>
+  <button type="button" class="btn btn-hitl" id="hitl-open-btn">Open HITL</button>
+  {% if hitl.complete %}
+  <span class="badge badge-live">responses complete</span>
+  {% endif %}
+</div>
+{% endif %}
+
+<div id="hitl-modal" class="hitl-modal hidden" aria-hidden="true">
+  <div class="hitl-modal-backdrop" id="hitl-modal-backdrop"></div>
+  <div class="hitl-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="hitl-modal-title">
+    <header class="hitl-modal-header">
+      <h2 id="hitl-modal-title">Gate decisions</h2>
+      <span id="hitl-step-label" class="muted"></span>
+    </header>
+    <div id="hitl-question-body" class="hitl-modal-body">
+      <p class="muted">Loading…</p>
+    </div>
+    <footer class="hitl-modal-footer">
+      <button type="button" class="btn" id="hitl-prev-btn">Previous</button>
+      <button type="button" class="btn" id="hitl-next-btn">Next</button>
+      <button type="button" class="btn" id="hitl-save-btn">Save draft</button>
+      <button type="button" class="btn btn-approve" id="hitl-submit-btn">Submit &amp; approve</button>
+      <button type="button" class="btn" id="hitl-exit-btn">Exit</button>
+    </footer>
+    <div id="hitl-flash" class="flash"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var runId = {{ run_id | tojson }};
+  var token = {{ api_token | tojson }};
+  var modal = document.getElementById("hitl-modal");
+  if (!modal) return;
+
+  var openBtn = document.getElementById("hitl-open-btn");
+  var backdrop = document.getElementById("hitl-modal-backdrop");
+  var bodyEl = document.getElementById("hitl-question-body");
+  var stepLabel = document.getElementById("hitl-step-label");
+  var flashEl = document.getElementById("hitl-flash");
+  var state = { form: null, responses: { answers: [] }, step: 0 };
+
+  function authHeaders() {
+    var h = { "Content-Type": "application/json" };
+    if (token) h["Authorization"] = "Bearer " + token;
+    return h;
+  }
+
+  function apiUrl(path) {
+    return "/api/runs/" + encodeURIComponent(runId) + path;
+  }
+
+  function showFlash(msg, isErr) {
+    if (!flashEl) return;
+    flashEl.textContent = msg;
+    flashEl.style.color = isErr ? "#f85149" : "#3fb950";
+  }
+
+  function openModal() {
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+    loadHitl();
+  }
+
+  function closeModal() {
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  function answerMap() {
+    var m = {};
+    (state.responses.answers || []).forEach(function (a) {
+      m[a.question_id] = a;
+    });
+    return m;
+  }
+
+  function currentAnswer(qid) {
+    return answerMap()[qid] || { question_id: qid, option_id: null, checked: false, notes: "" };
+  }
+
+  function renderQuestion() {
+    if (!state.form || !state.form.questions || !state.form.questions.length) {
+      bodyEl.innerHTML = "<p class='muted'>No questions in form.</p>";
+      return;
+    }
+    var q = state.form.questions[state.step];
+    var ans = currentAnswer(q.id);
+    stepLabel.textContent = "Question " + (state.step + 1) + " / " + state.form.questions.length;
+    var html = "<div class='hitl-prompt'>" + esc(q.prompt) + "</div>";
+    if (q.type === "confirm") {
+      html += "<label class='hitl-confirm'><input type='checkbox' id='hitl-checked' " +
+        (ans.checked ? "checked" : "") + "> " + esc(q.checkbox_label || "I confirm") + "</label>";
+    } else {
+      html += "<div class='hitl-options'>";
+      (q.options || []).forEach(function (opt) {
+        var checked = ans.option_id === opt.id ? " checked" : "";
+        html += "<label class='hitl-option'><input type='radio' name='hitl-opt' value='" +
+          escAttr(opt.id) + "'" + checked + "> <strong>" + esc(opt.label) + "</strong>";
+        if (opt.recommended) html += " <span class='badge badge-live'>Recommended</span>";
+        if (opt.explanation) html += "<div class='hitl-explanation muted'>" + esc(opt.explanation) + "</div>";
+        html += "</label>";
+      });
+      html += "</div>";
+    }
+    html += "<label class='hitl-notes-label'>Notes (optional)<textarea id='hitl-notes' rows='3'>" +
+      esc(ans.notes || "") + "</textarea></label>";
+    bodyEl.innerHTML = html;
+  }
+
+  function collectCurrentAnswer() {
+    if (!state.form || !state.form.questions.length) return;
+    var q = state.form.questions[state.step];
+    var ans = { question_id: q.id, option_id: null, checked: null, notes: "" };
+    var notesEl = document.getElementById("hitl-notes");
+    if (notesEl) ans.notes = notesEl.value.trim();
+    if (q.type === "confirm") {
+      var cb = document.getElementById("hitl-checked");
+      ans.checked = cb ? cb.checked : false;
+    } else {
+      var sel = document.querySelector("input[name='hitl-opt']:checked");
+      ans.option_id = sel ? sel.value : null;
+    }
+    var answers = (state.responses.answers || []).filter(function (a) {
+      return a.question_id !== q.id;
+    });
+    answers.push(ans);
+    state.responses.answers = answers;
+  }
+
+  function payload(status) {
+    collectCurrentAnswer();
+    return {
+      status: status || "draft",
+      answers: state.responses.answers || [],
+    };
+  }
+
+  function loadHitl() {
+    fetch(apiUrl("/hitl"), { headers: authHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        state.form = data.form;
+        state.responses = data.responses || { answers: [] };
+        if (!state.responses.answers) state.responses.answers = [];
+        state.step = 0;
+        renderQuestion();
+      })
+      .catch(function (e) {
+        bodyEl.innerHTML = "<p class='muted'>Failed to load HITL form.</p>";
+        showFlash(String(e), true);
+      });
+  }
+
+  function saveDraft() {
+    fetch(apiUrl("/hitl/responses"), {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify(payload("draft")),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        showFlash(d.complete ? "Draft saved (complete)" : "Draft saved");
+      })
+      .catch(function () { showFlash("Save failed", true); });
+  }
+
+  function submitAndApprove() {
+    var body = payload("submitted");
+    fetch(apiUrl("/hitl/submit"), {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    })
+      .then(function (r) {
+        if (!r.ok) return r.json().then(function (d) { throw new Error(JSON.stringify(d)); });
+        return fetch(apiUrl("/hitl/approve"), {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(body),
+        });
+      })
+      .then(function (r) {
+        if (!r.ok) throw new Error("approve failed");
+        return fetch(apiUrl("/resume"), { method: "POST", headers: authHeaders() });
+      })
+      .then(function () {
+        showFlash("Submitted, approved, and resume requested");
+        setTimeout(function () { window.location.reload(); }, 800);
+      })
+      .catch(function (e) {
+        showFlash("Submit failed: " + e, true);
+      });
+  }
+
+  function esc(s) {
+    return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function escAttr(s) { return esc(s).replace(/"/g, "&quot;"); }
+
+  if (openBtn) openBtn.addEventListener("click", openModal);
+  document.querySelectorAll(".hitl-resolve-btn").forEach(function (btn) {
+    btn.addEventListener("click", openModal);
+  });
+  if (backdrop) backdrop.addEventListener("click", closeModal);
+  document.getElementById("hitl-exit-btn").addEventListener("click", function () {
+    collectCurrentAnswer();
+    saveDraft();
+    closeModal();
+  });
+  document.getElementById("hitl-prev-btn").addEventListener("click", function () {
+    collectCurrentAnswer();
+    if (state.step > 0) { state.step -= 1; renderQuestion(); }
+  });
+  document.getElementById("hitl-next-btn").addEventListener("click", function () {
+    collectCurrentAnswer();
+    if (state.form && state.step < state.form.questions.length - 1) {
+      state.step += 1;
+      renderQuestion();
+    }
+  });
+  document.getElementById("hitl-save-btn").addEventListener("click", saveDraft);
+  document.getElementById("hitl-submit-btn").addEventListener("click", submitAndApprove);
+})();
+</script>

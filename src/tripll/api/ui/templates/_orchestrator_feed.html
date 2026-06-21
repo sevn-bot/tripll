@@ -1,0 +1,18 @@
+<div class="orchestrator-feed" id="orchestrator-feed">
+  {% if orch.feed %}
+  {% for entry in orch.feed %}
+  <div class="orch-feed-row" data-turn-n="{{ entry.turn_n or '' }}">
+    {% if entry.timestamp %}
+    <span class="orch-feed-ts">{{ entry.timestamp }}</span>
+    {% endif %}
+    <span class="badge badge-orch-turn badge-orch-{{ entry.turn_type }}">{{ entry.turn_type }}</span>
+    <span class="orch-feed-summary">{{ entry.summary }}</span>
+    {% if entry.log_url %}
+    <a class="orch-feed-log-link" href="{{ entry.log_url }}">wave log</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted no-items">No orchestrator turns yet.</p>
+  {% endif %}
+</div>

@@ -1,0 +1,37 @@
+<div class="worktree-panel">
+  {% if worktree_error %}
+  <p class="muted">({{ worktree_error }})</p>
+  {% elif status %}
+  <div class="worktree-meta">
+    <span><strong>Branch:</strong> <code>{{ status.branch }}</code></span>
+    <span class="muted">HEAD {{ status.head_sha[:8] }}</span>
+    <span>{{ status.changed_count }} changed</span>
+  </div>
+  {% if status.changed_paths %}
+  <details class="worktree-files-expander" open>
+    <summary>Files affected ({{ status.changed_paths | length }})</summary>
+    <ul class="worktree-paths">
+      {% for p in status.changed_paths %}
+      <li><code>{{ p }}</code></li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% else %}
+  <p class="muted">No files changed vs HEAD.</p>
+  {% endif %}
+  {% if status.diff_stat_lines %}
+  <details class="worktree-files-expander">
+    <summary>Diff stat</summary>
+    <pre class="worktree-diff-stat">{{ status.diff_stat_lines | join("\n") }}</pre>
+  </details>
+  {% elif not status.changed_paths %}
+  <p class="muted">No diff vs HEAD.</p>
+  {% endif %}
+  {% else %}
+  {% if status_detail %}
+  <p class="wave-status-note">{{ status_detail }}</p>
+  {% else %}
+  <p class="muted no-items">Worktree not allocated yet.</p>
+  {% endif %}
+  {% endif %}
+</div>

@@ -1,0 +1,53 @@
+<div class="orchestrator-panel">
+  {% if orch.current_wave %}
+  <p class="orch-current-wave">
+    <strong>Current wave:</strong> {{ orch.current_wave }}
+  </p>
+  {% endif %}
+
+  {% if orch.gate_notice %}
+  <div class="orch-gate-notice orch-gate-{{ orch.gate_kind or 'gate' }}">
+    {% if orch.gate_kind == 'review_gate' %}
+    <strong>REVIEW GATE</strong>
+    {% elif orch.gate_kind == 'stop' %}
+    <strong>STOP</strong>
+    {% else %}
+    <strong>GATE</strong>
+    {% endif %}
+    <span>{{ orch.gate_notice }}</span>
+  </div>
+  {% endif %}
+
+  {% if orch.next_action %}
+  <p class="orch-next-action">
+    <strong>Next action:</strong> {{ orch.next_action }}
+  </p>
+  {% endif %}
+
+  {% if orch.rows %}
+  <table class="orch-status-table">
+    <thead>
+      <tr>
+        <th>Wave</th>
+        <th>Status</th>
+        <th>Branch</th>
+        <th>Commit</th>
+        <th>Evidence / blockers</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in orch.rows %}
+      <tr>
+        <td>{{ row.wave }}</td>
+        <td><span class="badge badge-orch-{{ row.status | replace(' ', '-') | lower }}">{{ row.status }}</span></td>
+        <td><code>{{ row.branch }}</code></td>
+        <td>{% if row.commit not in ['—', '-'] %}<code>{{ row.commit }}</code>{% else %}{{ row.commit }}{% endif %}</td>
+        <td class="orch-evidence">{{ row.evidence or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted no-items">No status rows yet.</p>
+  {% endif %}
+</div>

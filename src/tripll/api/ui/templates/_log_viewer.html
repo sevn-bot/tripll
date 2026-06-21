@@ -1,0 +1,19 @@
+<div class="log-viewer" data-log-viewer{% if log_append_url %} data-log-append-url="{{ log_append_url }}"{% endif %}>
+  <div class="log-viewer-toolbar">
+    <div class="log-viewer-meta">
+      {% if attempt_n %}Attempt {{ attempt_n }}{% else %}Log{% endif %}
+      {% if truncated %} · showing tail only{% endif %}
+    </div>
+    <div class="log-viewer-controls">
+      <button type="button" class="log-btn" data-log-zoom-out title="Smaller text">A−</button>
+      <button type="button" class="log-btn" data-log-zoom-in title="Larger text">A+</button>
+      <input type="search" class="log-search" placeholder="Search log…" data-log-search aria-label="Search log">
+      <button type="button" class="log-btn" data-log-search-prev title="Previous match">↑</button>
+      <button type="button" class="log-btn" data-log-search-next title="Next match">↓</button>
+      {% if log_available and attempt_n and full_log_url %}
+      <a class="log-btn log-full-tab" href="{{ full_log_url }}" target="_blank" rel="noopener">Open full log ↗</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="log-content log-content-rich" data-log-content data-log-offset="{{ log_byte_offset | default(0) }}">{{ log_content }}</div>
+</div>

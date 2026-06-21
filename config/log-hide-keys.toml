@@ -1,0 +1,5 @@
+# Keys removed from attempt logs before the GUI/API serves them.
+# Add dotted paths for nested keys (e.g. "message.content.signature").
+hide_keys = [
+  "signature",
+]
