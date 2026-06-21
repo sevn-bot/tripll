@@ -15,7 +15,7 @@ jobs:
     name: Lint + typecheck + test + build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Bootstrap (uv + sync)
         uses: ./.github/actions/bootstrap
