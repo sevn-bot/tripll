@@ -58,6 +58,7 @@ WaveState = Literal[
     "dispatched",
     "running",
     "verifying",
+    "unverified",
     "done",
     "failed",
     "blocked",
@@ -149,6 +150,8 @@ class AttemptRow:
         cost_usd (float | None): Provider-reported session cost when available.
         input_tokens (int | None): Input tokens when reported.
         output_tokens (int | None): Output tokens when reported.
+        env_fingerprint_json (str | None): Serialised 13-field ``EnvFingerprint``.
+        env_fingerprint_hash (str | None): Stable hash for graph ``RAN_IN`` edge.
     """
 
     attempt_id: str
@@ -165,6 +168,8 @@ class AttemptRow:
     cost_usd: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    env_fingerprint_json: str | None = None
+    env_fingerprint_hash: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,7 +241,7 @@ CREATE TABLE IF NOT EXISTS waves (
     state         TEXT NOT NULL DEFAULT 'queued'
                       CHECK (state IN (
                           'queued', 'gate_pending', 'dispatched',
-                          'running', 'verifying',
+                          'running', 'verifying', 'unverified',
                           'done', 'failed', 'blocked', 'deferred'
                       )),
     attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -344,6 +349,8 @@ def open_ledger(path: object) -> LedgerConnection:
     _migrate_cost_columns(conn)
     _migrate_event_attempt_n(conn)
     _migrate_event_metadata(conn)
+    _migrate_unverified_wave_state(conn)
+    _migrate_attempt_env_fingerprint(conn)
     conn.commit()
     logger.debug("ledger: opened {}", path)
     return LedgerConnection(conn, path=None if path == ":memory:" else path)
@@ -407,6 +414,49 @@ def _migrate_event_metadata(conn: sqlite3.Connection) -> None:
     evt_cols = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
     if "metadata" not in evt_cols:
         conn.execute("ALTER TABLE events ADD COLUMN metadata TEXT")
+
+
+def _migrate_unverified_wave_state(conn: sqlite3.Connection) -> None:
+    """Rebuild ``waves`` when the state CHECK lacks ``unverified`` (W7)."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='waves'"
+    ).fetchone()
+    if not row or not row[0] or "unverified" in row[0]:
+        return
+    conn.executescript(
+        """
+        CREATE TABLE waves_new (
+            node_id       TEXT NOT NULL,
+            run_id        TEXT NOT NULL REFERENCES runs(run_id),
+            plan_id       TEXT NOT NULL,
+            wave_id       TEXT NOT NULL,
+            lane          TEXT NOT NULL,
+            state         TEXT NOT NULL DEFAULT 'queued'
+                              CHECK (state IN (
+                                  'queued', 'gate_pending', 'dispatched',
+                                  'running', 'verifying', 'unverified',
+                                  'done', 'failed', 'blocked', 'deferred'
+                              )),
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL,
+            PRIMARY KEY (run_id, node_id)
+        );
+        INSERT INTO waves_new SELECT * FROM waves;
+        DROP TABLE waves;
+        ALTER TABLE waves_new RENAME TO waves;
+        CREATE INDEX IF NOT EXISTS idx_waves_run_state ON waves (run_id, state);
+        """
+    )
+
+
+def _migrate_attempt_env_fingerprint(conn: sqlite3.Connection) -> None:
+    """Add ``EnvFingerprint`` columns to ``attempts`` (§7.9.2)."""
+    att_cols = {row[1] for row in conn.execute("PRAGMA table_info(attempts)")}
+    if "env_fingerprint_json" not in att_cols:
+        conn.execute("ALTER TABLE attempts ADD COLUMN env_fingerprint_json TEXT")
+    if "env_fingerprint_hash" not in att_cols:
+        conn.execute("ALTER TABLE attempts ADD COLUMN env_fingerprint_hash TEXT")
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +583,8 @@ def insert_attempt(
     log_path: str | None = None,
     model: str | None = None,
     agent: str | None = None,
+    env_fingerprint_json: str | None = None,
+    env_fingerprint_hash: str | None = None,
 ) -> str:
     """Record a new dispatch attempt; returns the generated ``attempt_id``.
 
@@ -548,6 +600,8 @@ def insert_attempt(
         log_path (str | None): Path to the attempt log file.
         model (str | None): Provider model id for task-graph sync.
         agent (str | None): Agent slug for task-graph sync.
+        env_fingerprint_json (str | None): Serialised ``EnvFingerprint`` for ``RAN_IN``.
+        env_fingerprint_hash (str | None): Stable fingerprint hash.
 
     Returns:
         str: The generated ``attempt_id`` UUID.
@@ -567,9 +621,21 @@ def insert_attempt(
         lc.conn.execute(
             """INSERT INTO attempts
                    (attempt_id, run_id, node_id, attempt_n, backend,
-                    brief_path, log_path, started_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (attempt_id, run_id, node_id, attempt_n, backend, brief_path, log_path, now),
+                    brief_path, log_path, started_at,
+                    env_fingerprint_json, env_fingerprint_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                attempt_id,
+                run_id,
+                node_id,
+                attempt_n,
+                backend,
+                brief_path,
+                log_path,
+                now,
+                env_fingerprint_json,
+                env_fingerprint_hash,
+            ),
         )
         lc.conn.execute(
             """UPDATE waves SET attempt_count = attempt_count + 1, updated_at = ?
@@ -1132,7 +1198,8 @@ def list_attempts(lc: LedgerConnection, run_id: str, node_id: str) -> list[Attem
     rows = lc.conn.execute(
         """SELECT attempt_id, run_id, node_id, attempt_n, backend,
                   brief_path, log_path, started_at, ended_at, outcome, evidence,
-                  cost_usd, input_tokens, output_tokens
+                  cost_usd, input_tokens, output_tokens,
+                  env_fingerprint_json, env_fingerprint_hash
            FROM attempts
            WHERE run_id = ? AND node_id = ?
            ORDER BY attempt_n""",
@@ -1154,6 +1221,8 @@ def list_attempts(lc: LedgerConnection, run_id: str, node_id: str) -> list[Attem
             cost_usd=float(r[11]) if r[11] is not None else None,
             input_tokens=int(r[12]) if r[12] is not None else None,
             output_tokens=int(r[13]) if r[13] is not None else None,
+            env_fingerprint_json=str(r[14]) if r[14] is not None else None,
+            env_fingerprint_hash=str(r[15]) if r[15] is not None else None,
         )
         for r in rows
     ]

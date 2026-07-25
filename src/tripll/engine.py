@@ -75,6 +75,17 @@ from tripll.adapters.quota import quota_message
 from tripll.brief import extract_wave_summary, render_json_brief, write_brief
 from tripll.git_commit import commit_and_push_wave
 from tripll.graph import CW_HOTSPOTS, Batch, OrchestratorConfig, RunGraph, WaveNode, paths_overlap
+from tripll.harness.boundary import (
+    assert_verify_isolation,
+    build_verify_dispatch,
+    materialize_verify_worktree,
+    remove_verify_worktree,
+)
+from tripll.harness.fingerprint import (
+    capture_env_fingerprint,
+    fingerprint_hash,
+    fingerprint_to_json,
+)
 from tripll.hitl import GateKind, write_form_for_run
 from tripll.ledger import (
     ORCHESTRATOR_NODE_ID,
@@ -947,6 +958,7 @@ class Engine:
         self._orchestrator_turns: list[OrchestratorTurn] = []
         self._last_dispatch_result_text: str = ""
         self._last_worktree_path: Path | None = None
+        self._last_checkpoint_sha: str = ""
 
     # -- public API ---------------------------------------------------------
 
@@ -1422,6 +1434,42 @@ class Engine:
                     evidence[:120],
                 )
         return False, evidence
+
+    def _run_isolated_verify(
+        self,
+        *,
+        run_id: str,
+        node: WaveNode,
+        implementer_worktree: Path,
+        commit_sha: str,
+        targets: list[str],
+        transcript: str = "",
+    ) -> tuple[bool, str]:
+        """Dispatch isolated verify and always clean up the verify worktree."""
+        verify_path: Path | None = None
+        implementer = {
+            "process_id": os.getpid(),
+            "worktree": str(implementer_worktree),
+            "transcript": transcript or None,
+        }
+        verify_ctx = build_verify_dispatch(
+            implementer=implementer,
+            wave={"node_id": node.node_id, "commit_sha": commit_sha or "HEAD"},
+            runs_root=self.runs_root.run_dir(run_id) / "verify-wts",
+        )
+        assert_verify_isolation(implementer=implementer, verifier=verify_ctx)
+        run_path = implementer_worktree
+        if commit_sha and commit_sha not in {"", "unknown", "HEAD"}:
+            try:
+                run_path = materialize_verify_worktree(self.repo_root, verify_ctx)
+                verify_path = run_path
+            except RuntimeError as exc:
+                logger.warning("engine: isolated verify worktree failed — {}", exc)
+        try:
+            return self._verify_with_retries(run_path, targets)
+        finally:
+            if verify_path is not None:
+                remove_verify_worktree(self.repo_root, verify_path)
 
     def _end_attempt_with_usage(
         self,
@@ -2177,6 +2225,14 @@ class Engine:
                 pre_dispatch_owned = self._owned_changed_paths(worktree, node.owned_paths)
 
                 # --- mutating sequence: insert_attempt + transition_wave x2 ---
+                task_id = f"{run_id}:{node.node_id}"
+                env_fp = capture_env_fingerprint(
+                    task_id=task_id,
+                    model_id=node.model or getattr(self.adapter, "model", None) or "",
+                    repo_root=self.repo_root,
+                )
+                fp_json = fingerprint_to_json(env_fp)
+                fp_hash = fingerprint_hash(env_fp)
                 async with self._ledger_lock:
                     attempt_id = insert_attempt(
                         lc,
@@ -2188,6 +2244,8 @@ class Engine:
                         log_path=str(log_path),
                         model=node.model or getattr(self.adapter, "model", None),
                         agent=getattr(self.adapter, "agent", None),
+                        env_fingerprint_json=fp_json,
+                        env_fingerprint_hash=fp_hash,
                     )
                     attempts_used += 1
                     transition_wave(lc, run_id, node.node_id, "dispatched")
@@ -2363,7 +2421,14 @@ class Engine:
                         async with self._ledger_lock:
                             transition_wave(lc, run_id, node.node_id, "verifying")
                             append_event(lc, run_id=run_id, node_id=node.node_id, phase="verifying")
-                        ok, ev = self._verify_with_retries(worktree.path, node.verify_targets)
+                        ok, ev = self._run_isolated_verify(
+                            run_id=run_id,
+                            node=node,
+                            implementer_worktree=worktree.path,
+                            commit_sha=self._last_checkpoint_sha,
+                            targets=node.verify_targets,
+                            transcript=result.result_text,
+                        )
                         if ok:
                             if (
                                 self._orchestrator_mode
@@ -2574,6 +2639,7 @@ class Engine:
             )
             return
         if sha:
+            self._last_checkpoint_sha = sha
             logger.info(
                 "engine: {} {} attempt {} checkpoint {}",
                 run_id,
