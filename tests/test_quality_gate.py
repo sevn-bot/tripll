@@ -6,10 +6,7 @@ import pytest
 
 from tests.conftest import require_module
 
-_XFAIL = pytest.mark.xfail(reason="green after W3: quality_gate.py", strict=False)
 
-
-@_XFAIL
 @pytest.mark.parametrize(
     ("predicate", "expected"),
     [
@@ -25,7 +22,6 @@ def test_gate_applies_only_to_semantic_extractors(predicate: str, expected: bool
     assert applies_to(predicate) is expected
 
 
-@_XFAIL
 def test_low_precision_blocks_and_records_prompt_fix() -> None:
     run_quality_gate = require_module("tripll.extract.quality_gate", attr="run_quality_gate")
     verdict = run_quality_gate(
