@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
-
-from tests.conftest import require_module
-
-_XFAIL = pytest.mark.xfail(reason="green after W6: LangGraph recovery", strict=False)
+from tripll.ledger import open_ledger
+from tripll.loops.l1_outer import recover_from_ledger, simulate_recovery
 
 
-@_XFAIL
 def test_kill_mid_loop_resumes_same_thread_id() -> None:
-    simulate_recovery = require_module("tripll.loops.l1_outer", attr="simulate_recovery")
     result = simulate_recovery(
         thread_id="run-abc",
         checkpoint_db=":memory:",
@@ -22,10 +17,8 @@ def test_kill_mid_loop_resumes_same_thread_id() -> None:
     assert result["state_preserved"] is True
 
 
-@_XFAIL
 def test_deleted_checkpoint_recoverable_from_ledger() -> None:
-    recover_from_ledger = require_module("tripll.loops.l1_outer", attr="recover_from_ledger")
-    ledger = require_module("tripll.ledger", attr="open_ledger")(":memory:")
+    ledger = open_ledger(":memory:")
     result = recover_from_ledger(
         run_id="run-abc",
         ledger=ledger,
