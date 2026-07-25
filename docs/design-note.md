@@ -1,9 +1,71 @@
-# wave-orchestrator — W0 Design Note
+# wave-orchestrator / tripll — design note (code factory L1)
 
-**Status:** W0 signed off (2026-06-15 ✅: operator approved graph model + brief schema)
-**Date:** 2026-06-15
-**Author:** wave-runner W0 pass
-**Source plan:** `plan/wave-orchestrator-pipeline/wave-orchestrator-pipeline-wave-plan.md`
+**Status:** Code factory L1 — W12 docs (2026-07-25)
+**Date:** 2026-06-15 (W0) · updated 2026-07-25 (L1 task graph)
+**Author:** wave-runner W0 pass · L1 executor W12
+**Design:** `.ignorelocal/design/plan/tripll-code-factory-design.md` (§7–§13)
+
+---
+
+## 0. Code factory L1 — task graph, harness, exits
+
+L1 turns tripll from a wave **dispatcher** into a **level-1 code factory**. The execution
+graph (`RunGraph`) is mirrored into a **task layer** in `.tripll/graph.db` alongside the
+authoritative **SQLite ledger** (D6). LangGraph checkpoints (`graph` extra) are optional and
+derived — recovery replays from the ledger.
+
+### 0.1 Three graph layers
+
+| Layer | Contents | Store |
+|-------|----------|-------|
+| `code` | Modules, symbols, tests, specs, requirements, CI checks | `.tripll/graph.db` |
+| `task` | Plans, waves, attempts, gates, PRs, env fingerprints | same DB + ledger |
+| `finding` | CI failures, review comments, verifier outcomes | same DB |
+
+Ontology: `src/tripll/ontology/ontology.yaml`. Docs: [`docs/ontology.md`](ontology.md),
+[`docs/graph-serving.md`](graph-serving.md), [`docs/harness-checks.md`](harness-checks.md).
+
+### 0.2 Ledger vs checkpoint
+
+| Artifact | Role |
+|----------|------|
+| `ledger.db` | **System of record** — wave states, attempts, events, costs |
+| `.tripll/graph.db` task layer | Derived task graph; brief packer + findings attach here |
+| LangGraph `AsyncSqliteSaver` | Optional loop seam; `thread_id == run_id`; not authoritative |
+| `graph.json` | Legacy derived snapshot for dashboard/tests (one release overlap) |
+
+### 0.3 Exit table (§7.10)
+
+| # | Name | Fires when |
+|---|------|------------|
+| 1 | goal_met | Outcome contract + CI green + `pullfrog-approval` success |
+| 2 | turn_cap | `max_attempts=5` exhausted (impl waves) |
+| 3 | budget_cap | `TRIPLL_COST_BUDGET_USD` exceeded |
+| 4 | wall_clock | Per-wave limit or run deadline |
+| 5 | no_progress | Three identical graph-delta hashes |
+| 6 | human_interrupt | Operator pause / kill switch |
+| 7 | error_threshold | Circuit breaker per `(agent, problem_type)` |
+| 8 | external_event | PR merged/closed or source issue closed |
+
+Implementation: `src/tripll/loops/exits.py`. Dashboard shows caps near firing (§12).
+
+### 0.4 Telemetry seams (§12 — L2 inputs, recorded in v1)
+
+Per attempt: agent/prompt hashes, model, `EnvFingerprint`, tokens, cost, wall clock, outcome,
+scope breaches, grader results, findings raised/fixed.
+
+Per run: attempts-to-green, first-attempt pass rate, escalations, exit fired, findings by kind,
+stale-finding rate, human gate wait, total cost, graph-brief vs grep-brief (D23).
+
+### 0.5 Migration (§13)
+
+1. Ledger unchanged — task layer written **alongside**, not instead.
+2. `graph.json` retained one release as derived artifact.
+3. Plan v1/v2 readers warn once; v3 is canonical.
+4. `CW_HOTSPOTS` retired after corpus replay proves equivalence.
+5. `build_plan_from_errors` kept as sevn turn-bundle entry point.
+6. `skw run --wave` preserved as thin alias.
+7. Extras: `graph`, `kg`; stale `ai` extra dropped.
 
 ---
 
@@ -128,8 +190,8 @@ One brief is emitted per WaveNode dispatch. Fields match the `wave-runner` "Quic
   "manual_smoke_deferred": [],
   "wall_clock_limit_s": 2700,
   "retry_policy": {
-    "max_attempts": 3,
-    "on_3rd_failure": "escalate"
+    "max_attempts": 5,
+    "on_5th_failure": "escalate"
   },
   "agent_directives": [
     "Leave changes staged; do not commit.",
@@ -173,25 +235,25 @@ infra/sevn.schema.json           — CW-5
                      │  agent reports done / adapter stream closes
                      ▼
               ┌─────────────┐
-              │  verifying  │  ← engine runs make targets + scope-breach check
+              │  verifying  │  ← engine runs outcome contracts + make targets
               └──────┬──────┘
                      │
-           ┌─────────┴──────────┐
-           │                    │
-           ▼                    ▼
-       ┌──────┐           ┌──────────┐
-       │ done │           │  failed  │  ← attempt N < 3 → retry (queued again)
-       └──────┘           └────┬─────┘   attempt 3 → escalate
-                               │
-                               ▼
-                        ┌─────────┐
-                        │ blocked │  ← 3rd failure; human review required
-                        └────┬────┘
-                              │  tripll approve <run-id> --node <node-id>
-                              ▼
-                       ┌──────────┐
-                        │ queued   │  ← re-entered with corrected brief
-                        └──────────┘
+           ┌─────────┼──────────┐
+           │         │          │
+           ▼         ▼          ▼
+       ┌──────┐ ┌───────────┐ ┌──────────┐
+       │ done │ │ unverified│ │  failed  │  ← attempt N < 5 → retry (queued again)
+       └──────┘ └───────────┘ └────┬─────┘   attempt 5 → escalate
+                                   │
+                                   ▼
+                            ┌─────────┐
+                            │ blocked │  ← 5th failure; human review required
+                            └────┬────┘
+                                 │  tripll approve <run-id> --node <node-id>
+                                 ▼
+                          ┌──────────┐
+                          │ queued   │  ← re-entered with corrected brief
+                          └──────────┘
 
        ┌──────────┐
        │ deferred │  ← explicit deferral annotation in wave plan;
@@ -203,7 +265,8 @@ infra/sevn.schema.json           — CW-5
 ```
 
 **Terminal states:** `done`, `blocked`, `deferred`
-**Resumable states:** All non-terminal states persist in SQLite ledger (D8).
+**Honest non-terminal:** `unverified` — required grader could not run (never promoted to `done`)
+**Resumable states:** All non-terminal states persist in SQLite ledger (D6).
 
 ---
 

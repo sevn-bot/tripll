@@ -615,3 +615,37 @@ Terminal and dashboard read the **same** `orchestrator-status.md` content — no
 ### W0 review gate (W0.8)
 
 Operator sign-off required on §11 layout, `OrchestratorConfig` (design-note §8.6), `orchestrator-status.md` schema (§8.7), and agent split (`wave-orchestrator` vs `wave-runner`) before W1 implementation.
+
+---
+
+## 12. LangGraph execution seam (code factory L1)
+
+**Status:** W6/W12 — optional `graph` extra
+**Depends on:** §1 process model (engine remains authority), §5 events table
+
+When the `graph` extra is installed (`uv sync --extra graph`), wave and PR loops may run
+through LangGraph compiled graphs in `src/tripll/loops/`:
+
+| Loop | Module | Role |
+|------|--------|------|
+| L1 outer | `l1_outer.py` | Wave dispatch + verify + retry |
+| L1 PR | `l1_pr.py` | Push, open PR, fix CI/review, merge gate |
+
+**Checkpointing:** `AsyncSqliteSaver` with `thread_id == run_id`, `durability="sync"`.
+Checkpoints are **derived** — the ledger (`ledger.db`) stays the system of record (D6).
+If a checkpoint is lost, replay state from the ledger and task graph.
+
+**Degradation without `graph` extra:** Linear batch execution via `Engine` continues to work.
+Cyclic plans and the PR fix loop require LangGraph — install `graph` or use `tripll[all]`.
+
+**Dashboard (§12 telemetry):** Run detail includes L1 panels — graph subgraph for the
+focus wave, findings grouped by state, exit caps near firing — see `_l1_panels.html`.
+
+**CLI parity:**
+
+```bash
+tripll run …                           # engine path (default)
+tripll pr shepherd <run-id>            # PR loop (requires graph extra for full loop)
+```
+
+See [`docs/design-note.md`](design-note.md) §0 and [`docs/harness-checks.md`](harness-checks.md).

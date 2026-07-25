@@ -121,6 +121,8 @@ known-first-party = ["tripll"]
 [tool.ruff.lint.per-file-ignores]
 # Spike scripts: print() OK, not in app tree
 "spike/**" = ["T20", "F401", "E402"]
+# Repo scripts: CLI-style stderr/stdout
+"scripts/**" = ["T20"]
 # Tests: print() OK
 "tests/**" = ["T20", "TC003", "ASYNC240"]
 "src/tripll/loops/**" = ["TC003"]

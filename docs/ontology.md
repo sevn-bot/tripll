@@ -1,36 +1,56 @@
-# Code KG ontology and extraction metrics
+# Code KG ontology — three layers
 
-Authoritative ontology: `src/tripll/ontology/ontology.yaml`.
+Authoritative schema: `src/tripll/ontology/ontology.yaml`
+Competency questions: `src/tripll/ontology/competency.md`
 
-## Extraction pipeline (W3)
+## Layers
 
-Deterministic extractors run first (`ast_python`, `tests_cov`, `specs_docs`, `make_ci`) with
-`confidence = 1.0` and `evidence = file:line`. Semantic predicates (`IMPLEMENTS`, `ABOUT`) use
-batched CLI adapter turns only — no in-process LLM or API keys (P6).
+### `code` — target repository (commit-scoped)
 
-CLI entry points:
+| Kind | Natural key | Predicates (sample) |
+|------|-------------|---------------------|
+| `Module` | `<repo>#<path>` | `DECLARES`, `IMPORTS`, `OWNS` |
+| `Symbol` | `<repo>#<path>::<qualname>` | `CALLS`, `IMPLEMENTS` |
+| `Test` | `<repo>#<path>::<testname>` | `COVERS` |
+| `Spec` / `Requirement` | `<repo>#<path>` / `<repo>#<spec>::<FR-id>` | `SPECIFIES` |
+| `MakeTarget` / `CIcheck` | `<repo>#make:<name>` / `<repo>#check:<name>` | `VERIFIES`, `RUNS` |
+
+Extractors: `src/tripll/extract/` (`ast_python`, `tests_cov`, `specs_docs`, `make_ci`, semantic fuse).
+
+### `task` — run execution graph
+
+Replaces flat `graph.json` over time; written **alongside** the ledger (D6).
+
+Kinds: `Plan`, `Wave`, `Attempt`, `Gate`, `VerifyRun`, `Branch`, `PullRequest`, `AgentDef`,
+`PromptDef`, `ModelRef`, `EnvFingerprint`.
+
+Predicates: `PART_OF`, `DEPENDS_ON` (typed `reason`), `TARGETS`, `DISPATCHED`, `GRADED_BY`, …
+
+Sync: `src/tripll/graphstore/task_sync.py`
+
+### `finding` — CI and review outcomes
+
+| Kind | Source |
+|------|--------|
+| `Finding` | GitHub check-runs, review comments, verifier output |
+
+Predicates: `ABOUT` (→ symbol), `RAISED_BY`, `FIXED_BY`, `SUPERSEDES`.
+
+Ingestion: `src/tripll/github/` · CLI: `tripll findings sync|list|triage`
+
+## Provenance (mandatory)
+
+Every node and edge carries: `source`, `extractor`, `extractor_version`, `confidence`,
+`extracted_at`, `evidence`. Unmodelled relations accumulate in `candidate_relations` until
+promoted via reviewed ontology bump.
+
+## CLI
 
 ```bash
-tripll graph extract [--repo tripll] [--sha HEAD] [--db .tripll/graph.db]
-tripll graph fuse [--db .tripll/graph.db]
-tripll graph gate [--predicate IMPLEMENTS] [--precision 0.95]
-tripll graph query <node_id> [--hops 2] [--at-sha …]
+tripll graph extract [--repo .] [--db .tripll/graph.db]
+tripll graph fuse
+tripll graph gate --predicate IMPLEMENTS --precision 0.90
+tripll graph query <node_id> [--hops 2]
 ```
 
-## §15.2 — IMPLEMENTS pass on tripll (2026-07-25)
-
-Measured on branch `wave/code-factory-l1` @ W3 against the tripll checkout itself:
-
-| Metric | Value |
-|--------|-------|
-| Wall-clock (deterministic extract, 137 `.py` files) | ~14 s |
-| Nodes / edges (deterministic) | 3971 / 3313 |
-| Semantic batch turns (`--semantic`, stub mode) | 1 turn (offline stub; batched CLI path verified) |
-| Quality gate threshold | precision ≥ 0.90 on 50-item sample |
-
-Re-run after changing semantic prompts or rules; never patch the graph to pass the gate.
-
-## Ontology drift
-
-Unmodelled repeated relations accumulate in the `candidate_relations` side table. Promotion to
-`ontology.yaml` is a reviewed act with a version bump — never auto-accepted.
+See [`graph-serving.md`](graph-serving.md) for brief packing and D23 verdict.
