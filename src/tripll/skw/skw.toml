@@ -1,0 +1,55 @@
+# tripll skw — per-project defaults (read by validate.py, render.py, Makefile)
+
+base = "main"
+max_turns = 3
+
+[agent]
+bin = "cursor-agent"
+model = "auto"
+perms = "--force"
+plugin_dir = ""
+
+[agent.models.wave-runner]
+model = "auto"
+
+[agent.models.test-creator]
+model = "auto"
+
+[agent.models.reviewer]
+model = "auto"
+thinking = "high"
+
+[agent.models.post-review-wave-generator]
+model = "auto"
+
+[agent.models.wave-generator]
+model = "auto"
+
+[verify]
+make_only = true
+
+[git]
+commit_per_wave = true
+push_per_wave = true
+remote = "origin"
+
+[tracing]
+enabled = false
+
+[logging]
+enabled = false
+
+[context]
+glossary      = "docs/ontology.md"
+decisions_dir = "docs/decisions"
+wayfinder_maps_dir = "spec/{slug}/wayfinder"
+
+[wayfinder]
+maps_dir      = "spec/{slug}/wayfinder"
+
+[github]
+default_repo   = ""
+triage_policy  = "src/tripll/skw/skills/github-issue-triage/references/triage-policy.md"
+wave_plans_dir = ".ignorelocal/waves"
+contributing   = "CONTRIBUTING.md"
+security       = "SECURITY.md"

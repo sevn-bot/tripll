@@ -29,6 +29,7 @@ from tripll.ledger import list_waves, open_ledger
 from tripll.obs import configure_observability
 from tripll.pipeline import PlanPathValidationError, RunsRoot, make_run_id
 from tripll.repo_root import resolve_repo_root
+from tripll.skw.cli import app as skw_legacy_app
 
 if TYPE_CHECKING:
     from tripll.adapters.options import BackendOptions
@@ -1455,6 +1456,159 @@ def serve(
     else:
         typer.echo("  Auth      : NONE (dev mode — set TRIPLL_API_TOKEN for production)")
     uvicorn.run(fastapi_app, host=host, port=port)
+
+
+# spec-kit-wave (absorbed skw) — doc gates and deprecated alias
+# ---------------------------------------------------------------------------
+
+app.add_typer(skw_legacy_app, name="skw")
+
+
+def _skw_kit_root() -> Path:
+    from tripll.skw.paths import kit_root
+
+    return kit_root()
+
+
+def _docs_repo_root(repo_root: Path | None) -> Path:
+    return (repo_root or resolve_repo_root()).resolve()
+
+
+def _run_docs(kind: str, directory: Path, *, repo_root: Path | None, mode: str) -> None:
+    from tripll.skw.doc_folder import run_docs_command
+
+    result = run_docs_command(
+        mode,
+        kind=kind,
+        directory=directory.resolve(),
+        repo_root=_docs_repo_root(repo_root),
+        kit_root=_skw_kit_root(),
+    )
+    for file_result in result.files:
+        for err in file_result.errors:
+            typer.echo(err, err=True)
+        for warn in file_result.warnings:
+            typer.echo(f"warning: {warn}", err=True)
+    if result.exit_code != 0:
+        raise typer.Exit(result.exit_code)
+
+
+spec_app = typer.Typer(
+    name="spec", help="Spec folder validate, score, and sync.", no_args_is_help=True
+)
+prd_app = typer.Typer(
+    name="prd", help="PRD folder validate, score, and sync.", no_args_is_help=True
+)
+changelog_app = typer.Typer(
+    name="changelog",
+    help="CHANGELOG.md structural and diff gates.",
+    no_args_is_help=True,
+)
+app.add_typer(spec_app, name="spec")
+app.add_typer(prd_app, name="prd")
+app.add_typer(changelog_app, name="changelog")
+
+
+@spec_app.command("validate")
+def spec_validate_cmd(
+    directory: Annotated[Path, typer.Argument(help="Specs directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Validate every spec in a directory."""
+    _run_docs("spec", directory, repo_root=repo_root, mode="validate")
+
+
+@spec_app.command("score")
+def spec_score_cmd(
+    directory: Annotated[Path, typer.Argument(help="Specs directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Score every spec in a directory."""
+    _run_docs("spec", directory, repo_root=repo_root, mode="score")
+
+
+@spec_app.command("sync")
+def spec_sync_cmd(
+    directory: Annotated[Path, typer.Argument(help="Specs directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Refresh frontmatter and scaffold missing specs."""
+    _run_docs("spec", directory, repo_root=repo_root, mode="sync")
+
+
+@prd_app.command("validate")
+def prd_validate_cmd(
+    directory: Annotated[Path, typer.Argument(help="PRD directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Validate every PRD in a directory."""
+    _run_docs("prd", directory, repo_root=repo_root, mode="validate")
+
+
+@prd_app.command("score")
+def prd_score_cmd(
+    directory: Annotated[Path, typer.Argument(help="PRD directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Score every PRD in a directory."""
+    _run_docs("prd", directory, repo_root=repo_root, mode="score")
+
+
+@prd_app.command("sync")
+def prd_sync_cmd(
+    directory: Annotated[Path, typer.Argument(help="PRD directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Refresh frontmatter and scaffold missing PRDs."""
+    _run_docs("prd", directory, repo_root=repo_root, mode="sync")
+
+
+@app.command("doc-score")
+def doc_score_cmd(
+    kind: Annotated[str, typer.Option("--kind", help="Doc kind: spec or prd.")] = "spec",
+    directory: Annotated[Path, typer.Option("--dir", help="Folder of markdown docs.")] = Path(
+        "docs"
+    ),
+    repo_root: Annotated[
+        Path | None,
+        typer.Option("--repo-root", help="Target repository root."),
+    ] = None,
+) -> None:
+    """Score every doc in a folder for the given kind."""
+    _run_docs(kind, directory, repo_root=repo_root, mode="score")
+
+
+@changelog_app.command("check")
+def changelog_check_cmd(
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+    base: Annotated[str, typer.Option("--base", help="Diff base ref.")] = "origin/main",
+    changelog: Annotated[Path | None, typer.Option("--changelog")] = None,
+) -> None:
+    """Run deterministic CHANGELOG.md structural + diff gate."""
+    from tripll.skw.changelog_validate import validate_changelog
+
+    root = _docs_repo_root(repo_root)
+    changelog_path = (changelog or root / "CHANGELOG.md").resolve()
+    errors, warnings = validate_changelog(root, base, changelog_path=changelog_path)
+    for warn in warnings:
+        typer.echo(f"warning: {warn}", err=True)
+    if errors:
+        for err in errors:
+            typer.echo(err, err=True)
+        raise typer.Exit(1)
+    typer.echo(f"OK — {changelog_path}")
+
+
+@changelog_app.command("eval")
+def changelog_eval_cmd(
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+    base: Annotated[str, typer.Option("--base")] = "origin/main",
+) -> None:
+    """Advisory LLM double-score for Unreleased entries (not used in CI)."""
+    from tripll.skw.changelog_eval import main as changelog_eval_main
+
+    root = _docs_repo_root(repo_root)
+    raise typer.Exit(changelog_eval_main(["--repo", str(root), "--base", base, "--json"]))
 
 
 def main() -> None:
