@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from tests.conftest import require_module
@@ -17,6 +19,27 @@ def test_external_actions_idempotent_under_replay(action: str) -> None:
     assert first["executed"] is True
     assert second["executed"] is False
     assert second["replayed"] is True
+    assert first.get("dry_run") is True
+    assert (first.get("result") or {}).get("dry_run") is True
+
+
+def test_push_invokes_git_when_not_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When TRIPLL_PR_DRY_RUN is off, push must call git push (not silent stub)."""
+    monkeypatch.delenv("TRIPLL_PR_DRY_RUN", raising=False)
+    run_pr_action = require_module("tripll.github.pr", attr="run_pr_action")
+    with patch("tripll.github.pr._git", return_value="") as git_mock:
+        result = run_pr_action(
+            "push",
+            idempotency_key="push:live:1",
+            context={"run_id": "live", "branch": "wave/test", "repo_root": "/tmp/repo"},
+        )
+    git_mock.assert_called_once_with(
+        ["push", "origin", "wave/test"],
+        cwd="/tmp/repo",
+    )
+    assert result["executed"] is True
+    assert result.get("dry_run") is False
+    assert (result.get("result") or {}).get("dry_run") is not True
 
 
 def test_loop_dispatches_investigator_then_fixer() -> None:

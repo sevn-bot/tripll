@@ -220,17 +220,21 @@ def _node_push(state: L1OuterState) -> L1OuterState:
 
     run_id = str(state.get("run_id") or state.get("thread_id") or "default")
     key = f"push:{run_id}"
-    github_pr.push(idempotency_key=key, context={"run_id": run_id})
+    push_result = github_pr.push(idempotency_key=key, context={"run_id": run_id})
+    result_payload = push_result.get("result") or {}
     delta = graph_delta_hash({"node": "push", "run_id": run_id})
-    return cast(
-        "L1OuterState",
-        {
-            "step": "push",
-            "history": ["push"],
-            "graph_delta_hash": delta,
-            "turn_hashes": [delta],
-        },
-    )
+    out: dict[str, Any] = {
+        "step": "push",
+        "history": ["push"],
+        "graph_delta_hash": delta,
+        "turn_hashes": [delta],
+    }
+    if push_result.get("dry_run") or result_payload.get("dry_run"):
+        out["dry_run"] = True
+        out["push_warning"] = (
+            "TRIPLL_PR_DRY_RUN=1 — push recorded but no git remote mutation occurred"
+        )
+    return cast("L1OuterState", out)
 
 
 def _node_poll(state: L1OuterState) -> L1OuterState:
