@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Plan format v3 (`waveorch_format = 3`) with typed `depends_on`, per-wave `targets` and
+  `[waves.outcome]` contracts; v1/v2 compat readers; compile-time fake-edge, stop-rule, and
+  one-writer shape checks; task-graph compiler with cross-layer `TARGETS` edges.
 - Deterministic code KG extractors (`ast_python`, `tests_cov`, `specs_docs`, `make_ci`), batched
   semantic extraction (`IMPLEMENTS`, `ABOUT`), fusion with reversible merges, quality gate, and
   `tripll graph extract|fuse|gate|query` CLI subcommands.
@@ -17,6 +20,8 @@ All notable changes to this project are documented here. The format is based on
 - GitHub Actions CI (lint + typecheck + test + build) and tag-triggered release workflow.
 
 ### Changed
+- `graph.CW_HOTSPOTS` is derived from plan-corpus replay (legacy buckets retained as reference);
+  `docs/wave-plan-template.md` rewritten for format v3.
 - Renamed package, CLI, and env prefix from `waveorch` / `WAVEORCH_*` to
   `tripll` / `TRIPLL_*`.
 - `TRIPLL_REPO_ROOT` no longer defaults to the parent directory; the target repo is the
