@@ -99,7 +99,7 @@ dry-run-build-plan-from-errors: sync ## Preview argv only — FOLDER=<dir> [PROV
 ##@ Setup
 
 sync: ## Install deps (tripll CLI in uv project env)
-	$(UV_RUN) sync --extra dev
+	$(UV_RUN) sync --extra dev --extra graph
 
 sync-api: ## Install dev + api extras (required for make serve / API tests)
 	$(UV_RUN) sync --extra dev --extra api

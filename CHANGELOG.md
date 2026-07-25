@@ -7,9 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- LangGraph control plane under `src/tripll/loops/` (`graph` extra): durable
+  `AsyncSqliteSaver` checkpoints (`thread_id == run_id`, `durability="sync"`),
+  L1 outer loop seam, all eight loop exits, ledger-backed recovery, and checkpoint TTL purge.
 - Absorbed **spec-kit-wave** as `src/tripll/skw/` — doc validators (`spec`, `prd`, `changelog`),
   LangGraph wave pipeline, prompt templates, and skills; unified CLI (`tripll spec|prd|changelog|doc-score`,
-  deprecated `skw` / `tripll skw` alias); `langgraph` declared as a first-class dependency.
+  deprecated `skw` / `tripll skw` alias).
 - Plan format v3 (`waveorch_format = 3`) with typed `depends_on`, per-wave `targets` and
   `[waves.outcome]` contracts; v1/v2 compat readers; compile-time fake-edge, stop-rule, and
   one-writer shape checks; task-graph compiler with cross-layer `TARGETS` edges.
@@ -23,6 +26,8 @@ All notable changes to this project are documented here. The format is based on
 - GitHub Actions CI (lint + typecheck + test + build) and tag-triggered release workflow.
 
 ### Changed
+- `langgraph` moved from core dependencies to the optional `graph` extra; dev/CI sync
+  installs `--extra graph`. Linear batch runs work without it; cyclic plans fail fast.
 - `graph.CW_HOTSPOTS` is derived from plan-corpus replay (legacy buckets retained as reference);
   `docs/wave-plan-template.md` rewritten for format v3.
 - Renamed package, CLI, and env prefix from `waveorch` / `WAVEORCH_*` to

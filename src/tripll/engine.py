@@ -1482,6 +1482,12 @@ class Engine:
 
     async def _drive(self, run_id: str, graph: RunGraph) -> RunResult:
         """Main run loop: batches, concurrent dispatch, gates, and terminal state."""
+        from tripll.loops import graph_available, require_graph
+        from tripll.loops.l1_outer import plan_requires_langgraph, record_loop_snapshot
+
+        if plan_requires_langgraph(graph):
+            require_graph(feature="cyclic run plan")
+
         self._scaffold_w0_worktrees(run_id, graph)
         # Pre-0 human gate (W5.4).
         if graph.pre0_gates and not self._is_approved(run_id):
@@ -1513,6 +1519,16 @@ class Engine:
                     transition_wave(lc, run_id, w.node_id, "queued")
 
             transition_run(lc, run_id, "active")
+
+            if graph_available():
+                record_loop_snapshot(
+                    lc,
+                    run_id=run_id,
+                    step="validate",
+                    history=[],
+                    next_node="waves",
+                    extra={"thread_id": run_id},
+                )
 
             # Resumability: skip waves already marked done or blocked in the ledger.
             for w in list_waves(lc, run_id):
