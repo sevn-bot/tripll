@@ -986,6 +986,20 @@ class Engine:
 
         self.runs_root.graph_path(run_id).write_text(json.dumps(graph.to_dict(), indent=2))
 
+        from tripll.graphstore.task_sync import TaskGraphWriter
+
+        task_writer = TaskGraphWriter(self.runs_root.graph_db_path(run_id))
+        try:
+            task_writer.sync_run_start(
+                run_id=run_id,
+                graph=graph,
+                backend=self.adapter.name,
+                model=adapter_model,
+                agent=adapter_agent,
+            )
+        finally:
+            task_writer.close()
+
         with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
             insert_run(
                 lc,
@@ -2156,6 +2170,8 @@ class Engine:
                         backend=self.adapter.name,
                         brief_path=str(self.runs_root.briefs_dir(run_id)),
                         log_path=str(log_path),
+                        model=node.model or getattr(self.adapter, "model", None),
+                        agent=getattr(self.adapter, "agent", None),
                     )
                     attempts_used += 1
                     transition_wave(lc, run_id, node.node_id, "dispatched")

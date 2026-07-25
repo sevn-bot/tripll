@@ -1,0 +1,174 @@
+version: 1
+
+vague_verbs:
+  - RELATED_TO
+  - HAS_LINK
+  - ASSOCIATED_WITH
+  - LINKED_TO
+
+layers:
+  code:
+    description: Target repo facts, commit-scoped.
+    kinds:
+      Repo:
+        natural_key: "{host}/{owner}/{name}"
+      Module:
+        natural_key: "{repo}#{path}"
+      Symbol:
+        natural_key: "{repo}#{path}::{qualname}"
+      Test:
+        natural_key: "{repo}#{path}::{testname}"
+      Spec:
+        natural_key: "{repo}#{path}"
+      Requirement:
+        natural_key: "{repo}#{spec}::{fr_id}"
+      MakeTarget:
+        natural_key: "{repo}#make:{name}"
+      CIcheck:
+        natural_key: "{repo}#check:{name}"
+      Commit:
+        natural_key: "{repo}#{sha}"
+    predicates:
+      DECLARES:
+        domain: Module
+        range: Symbol
+      IMPORTS:
+        domain: Module
+        range: Module
+      CALLS:
+        domain: Symbol
+        range: Symbol
+      COVERS:
+        domain: Test
+        range: Symbol
+      IMPLEMENTS:
+        domain: Symbol
+        range: Requirement
+      SPECIFIES:
+        domain: Spec
+        range: Requirement
+      VERIFIES:
+        domain: MakeTarget
+        range: Test
+      RUNS:
+        domain: CIcheck
+        range: MakeTarget
+      TOUCHED:
+        domain: Commit
+        range: Module
+      OWNS:
+        domain: Spec
+        range: Module
+
+  task:
+    description: Run graph — coexists with the ledger; replaces graph.json over time.
+    kinds:
+      Plan:
+        natural_key: "{run_id}#{plan_id}"
+      Wave:
+        natural_key: "{run_id}#{node_id}"
+      Attempt:
+        natural_key: "{run_id}#{attempt_id}"
+      Gate:
+        natural_key: "{run_id}#{gate_id}"
+      VerifyRun:
+        natural_key: "{run_id}#{verify_id}"
+      Branch:
+        natural_key: "{run_id}#{branch_name}"
+      PullRequest:
+        natural_key: "{run_id}#{pr_number}"
+      AgentDef:
+        natural_key: "{agent_slug}#{content_hash}"
+      PromptDef:
+        natural_key: "{prompt_path}#{content_hash}"
+      ModelRef:
+        natural_key: "{provider}#{model_id}"
+      EnvFingerprint:
+        natural_key: "{run_id}#{attempt_id}#{fingerprint_hash}"
+    predicates:
+      PART_OF:
+        domain: Wave
+        range: Plan
+      DEPENDS_ON:
+        domain: Wave
+        range: Wave
+        requires_reason: true
+      TARGETS:
+        domain: Wave
+        range: Module
+      ATTEMPT_OF:
+        domain: Attempt
+        range: Wave
+      RAN_AGENT:
+        domain: Attempt
+        range: AgentDef
+      USED_PROMPT:
+        domain: Attempt
+        range: PromptDef
+      USED_MODEL:
+        domain: Attempt
+        range: ModelRef
+      RAN_IN:
+        domain: Attempt
+        range: EnvFingerprint
+      PRODUCED:
+        domain: Attempt
+        range: Commit
+      ON_BRANCH:
+        domain: Wave
+        range: Branch
+      GATED_BY:
+        domain: Wave
+        range: Gate
+      PR_FOR:
+        domain: PullRequest
+        range: Branch
+
+  finding:
+    description: Outcomes, verdicts, and (later) experiments.
+    kinds:
+      Finding:
+        natural_key: "{run_id}#{finding_id}"
+      Fix:
+        natural_key: "{run_id}#{fix_id}"
+      Verdict:
+        natural_key: "{run_id}#{verdict_id}"
+      Escalation:
+        natural_key: "{run_id}#{escalation_id}"
+      Metric:
+        natural_key: "{name}#{version}"
+      Hypothesis:
+        natural_key: "{run_id}#{hypothesis_id}"
+      Experiment:
+        natural_key: "{run_id}#{experiment_id}"
+    predicates:
+      RAISED_BY:
+        domain: Finding
+        range: CIcheck
+      ABOUT:
+        domain: Finding
+        range: Symbol
+      FIXED_BY:
+        domain: Finding
+        range: Fix
+      FIX_IN:
+        domain: Fix
+        range: Attempt
+      SUPERSEDED_BY:
+        domain: Finding
+        range: Finding
+      CAUSED:
+        domain: Finding
+        range: Escalation
+      GRADED_BY:
+        domain: Verdict
+        range: Wave
+      MEASURES:
+        domain: Metric
+        range: AgentDef
+      PREDICTED:
+        domain: Experiment
+        range: Metric
+      REALIZED:
+        domain: Experiment
+        range: Metric

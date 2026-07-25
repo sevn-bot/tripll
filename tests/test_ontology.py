@@ -6,10 +6,7 @@ import pytest
 
 from tests.conftest import require_module
 
-_XFAIL = pytest.mark.xfail(reason="green after W2: ontology.yaml + types", strict=False)
 
-
-@_XFAIL
 def test_ontology_yaml_loads() -> None:
     load_ontology = require_module("tripll.ontology.types", attr="load_ontology")
     ont = load_ontology()
@@ -18,7 +15,6 @@ def test_ontology_yaml_loads() -> None:
         assert layer in ont["layers"]
 
 
-@_XFAIL
 def test_every_predicate_has_domain_and_range() -> None:
     load_ontology = require_module("tripll.ontology.types", attr="load_ontology")
     validate_predicates = require_module("tripll.ontology.types", attr="validate_predicates")
@@ -27,7 +23,6 @@ def test_every_predicate_has_domain_and_range() -> None:
     assert errors == []
 
 
-@_XFAIL
 @pytest.mark.parametrize("verb", ["RELATED_TO", "HAS_LINK"])
 def test_vague_verbs_rejected(verb: str) -> None:
     validate_predicate_name = require_module(
@@ -37,7 +32,6 @@ def test_vague_verbs_rejected(verb: str) -> None:
         validate_predicate_name(verb)
 
 
-@_XFAIL
 def test_competency_questions_traversable() -> None:
     load_competency_questions = require_module(
         "tripll.ontology.types", attr="load_competency_questions"

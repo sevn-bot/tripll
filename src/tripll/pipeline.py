@@ -306,6 +306,17 @@ class RunsRoot:
         """
         return self.run_dir(run_id) / "graph.json"
 
+    def graph_db_path(self, run_id: str) -> Path:
+        """Return the ``processing/<run-id>/graph.db`` path.
+
+        Args:
+            run_id (str): Run identifier.
+
+        Returns:
+            Path: Path to the SQLite task/code graph store.
+        """
+        return self.run_dir(run_id) / "graph.db"
+
     # -- Pipeline transitions -----------------------------------------------
 
     def claim_input(self, source: Path, *, run_id: str | None = None) -> str:

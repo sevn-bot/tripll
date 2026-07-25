@@ -8,8 +8,6 @@ import pytest
 
 from tests.conftest import require_module
 
-_XFAIL = pytest.mark.xfail(reason="green after W2: GraphStore + schema", strict=False)
-
 _PROV: dict[str, Any] = {
     "source": "test",
     "evidence": "tests/test_graphstore.py:1",
@@ -25,7 +23,6 @@ def _store() -> Any:
     return SqliteGraphStore(":memory:")
 
 
-@_XFAIL
 def test_upsert_idempotent_same_natural_key() -> None:
     store = _store()
     node = {
@@ -42,7 +39,6 @@ def test_upsert_idempotent_same_natural_key() -> None:
     assert store.get("code:Module:tripll.graph") is not None
 
 
-@_XFAIL
 def test_provenance_required_raises_when_omitted() -> None:
     store = _store()
     with pytest.raises((TypeError, ValueError)):
@@ -60,14 +56,12 @@ def test_provenance_required_raises_when_omitted() -> None:
         )
 
 
-@_XFAIL
 def test_neighbors_at_sha_filter() -> None:
     store = _store()
     out = store.neighbors("code:Symbol:foo", predicates=["CALLS"], at_sha="abc123")
     assert isinstance(out, list)
 
 
-@_XFAIL
 def test_subgraph_at_sha_filter() -> None:
     store = _store()
     sg = store.subgraph(
@@ -79,7 +73,6 @@ def test_subgraph_at_sha_filter() -> None:
     assert hasattr(sg, "nodes") or isinstance(sg, dict)
 
 
-@_XFAIL
 def test_paths_recursive_cte_finding_chain() -> None:
     store = _store()
     # Seed finding → symbol → requirement chain per design §7.2.2 CTE example.
@@ -142,7 +135,6 @@ def test_paths_recursive_cte_finding_chain() -> None:
     assert "Requirement" in terminal_kinds or any("Requirement" in str(p) for p in paths)
 
 
-@_XFAIL
 def test_merge_and_unmerge_reversible() -> None:
     store = _store()
     merge_id = store.merge("code:Symbol:a", "code:Symbol:b", reason="rename")
