@@ -1,0 +1,40 @@
+{
+  "derived": {
+    "CW-1": [
+      "src/sevn/gateway/agent_turn.py"
+    ],
+    "CW-2": [
+      "src/sevn/gateway/http_server.py"
+    ],
+    "CW-3": [
+      "Makefile (ci: line)"
+    ],
+    "CW-4": [
+      "src/sevn/ui/dashboard/app.js",
+      "src/sevn/ui/dashboard/api/tab_registry.py"
+    ],
+    "CW-5": [
+      "infra/sevn.schema.json"
+    ]
+  },
+  "legacy": {
+    "CW-1": [
+      "src/sevn/gateway/agent_turn.py"
+    ],
+    "CW-2": [
+      "src/sevn/gateway/http_server.py"
+    ],
+    "CW-3": [
+      "Makefile (ci: line)"
+    ],
+    "CW-4": [
+      "src/sevn/ui/dashboard/app.js",
+      "src/sevn/ui/dashboard/api/tab_registry.py"
+    ],
+    "CW-5": [
+      "infra/sevn.schema.json"
+    ]
+  },
+  "diff": {},
+  "empty": true
+}
