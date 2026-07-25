@@ -72,9 +72,25 @@ from typing import TYPE_CHECKING, Protocol
 from loguru import logger
 
 from tripll.adapters.quota import quota_message
-from tripll.brief import extract_wave_summary, render_json_brief, write_brief
+from tripll.brief import (
+    enrich_brief_with_graph_pack,
+    extract_wave_summary,
+    render_json_brief,
+    write_brief,
+)
 from tripll.git_commit import commit_and_push_wave
 from tripll.graph import CW_HOTSPOTS, Batch, OrchestratorConfig, RunGraph, WaveNode, paths_overlap
+from tripll.harness.boundary import (
+    assert_verify_isolation,
+    build_verify_dispatch,
+    materialize_verify_worktree,
+    remove_verify_worktree,
+)
+from tripll.harness.fingerprint import (
+    capture_env_fingerprint,
+    fingerprint_hash,
+    fingerprint_to_json,
+)
 from tripll.hitl import GateKind, write_form_for_run
 from tripll.ledger import (
     ORCHESTRATOR_NODE_ID,
@@ -920,6 +936,7 @@ class Engine:
         cost_budget_usd: float = 0.0,
         max_parallel: int | None = None,
         role_dispatch: bool | None = None,
+        grep_brief: bool = False,
     ) -> None:
         """Initialize engine state from constructor arguments."""
         self.adapter = adapter
@@ -934,6 +951,7 @@ class Engine:
         )
         self._role_dispatch_cli: bool | None = role_dispatch
         self._role_dispatch_effective: bool = False
+        self._grep_brief = grep_brief
         # Single asyncio.Lock guarding all ledger-mutating sequences so that
         # concurrent _execute_node coroutines cannot interleave transactions.
         self._ledger_lock: asyncio.Lock = asyncio.Lock()
@@ -947,6 +965,7 @@ class Engine:
         self._orchestrator_turns: list[OrchestratorTurn] = []
         self._last_dispatch_result_text: str = ""
         self._last_worktree_path: Path | None = None
+        self._last_checkpoint_sha: str = ""
 
     # -- public API ---------------------------------------------------------
 
@@ -985,6 +1004,20 @@ class Engine:
         import json
 
         self.runs_root.graph_path(run_id).write_text(json.dumps(graph.to_dict(), indent=2))
+
+        from tripll.graphstore.task_sync import TaskGraphWriter
+
+        task_writer = TaskGraphWriter(self.runs_root.graph_db_path(run_id))
+        try:
+            task_writer.sync_run_start(
+                run_id=run_id,
+                graph=graph,
+                backend=self.adapter.name,
+                model=adapter_model,
+                agent=adapter_agent,
+            )
+        finally:
+            task_writer.close()
 
         with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
             insert_run(
@@ -1409,6 +1442,42 @@ class Engine:
                 )
         return False, evidence
 
+    def _run_isolated_verify(
+        self,
+        *,
+        run_id: str,
+        node: WaveNode,
+        implementer_worktree: Path,
+        commit_sha: str,
+        targets: list[str],
+        transcript: str = "",
+    ) -> tuple[bool, str]:
+        """Dispatch isolated verify and always clean up the verify worktree."""
+        verify_path: Path | None = None
+        implementer = {
+            "process_id": os.getpid(),
+            "worktree": str(implementer_worktree),
+            "transcript": transcript or None,
+        }
+        verify_ctx = build_verify_dispatch(
+            implementer=implementer,
+            wave={"node_id": node.node_id, "commit_sha": commit_sha or "HEAD"},
+            runs_root=self.runs_root.run_dir(run_id) / "verify-wts",
+        )
+        assert_verify_isolation(implementer=implementer, verifier=verify_ctx)
+        run_path = implementer_worktree
+        if commit_sha and commit_sha not in {"", "unknown", "HEAD"}:
+            try:
+                run_path = materialize_verify_worktree(self.repo_root, verify_ctx)
+                verify_path = run_path
+            except RuntimeError as exc:
+                logger.warning("engine: isolated verify worktree failed — {}", exc)
+        try:
+            return self._verify_with_retries(run_path, targets)
+        finally:
+            if verify_path is not None:
+                remove_verify_worktree(self.repo_root, verify_path)
+
     def _end_attempt_with_usage(
         self,
         lc: LedgerConnection,
@@ -1468,6 +1537,12 @@ class Engine:
 
     async def _drive(self, run_id: str, graph: RunGraph) -> RunResult:
         """Main run loop: batches, concurrent dispatch, gates, and terminal state."""
+        from tripll.loops import graph_available, require_graph
+        from tripll.loops.l1_outer import plan_requires_langgraph, record_loop_snapshot
+
+        if plan_requires_langgraph(graph):
+            require_graph(feature="cyclic run plan")
+
         self._scaffold_w0_worktrees(run_id, graph)
         # Pre-0 human gate (W5.4).
         if graph.pre0_gates and not self._is_approved(run_id):
@@ -1499,6 +1574,16 @@ class Engine:
                     transition_wave(lc, run_id, w.node_id, "queued")
 
             transition_run(lc, run_id, "active")
+
+            if graph_available():
+                record_loop_snapshot(
+                    lc,
+                    run_id=run_id,
+                    step="validate",
+                    history=[],
+                    next_node="waves",
+                    extra={"thread_id": run_id},
+                )
 
             # Resumability: skip waves already marked done or blocked in the ledger.
             for w in list_waves(lc, run_id):
@@ -2147,6 +2232,14 @@ class Engine:
                 pre_dispatch_owned = self._owned_changed_paths(worktree, node.owned_paths)
 
                 # --- mutating sequence: insert_attempt + transition_wave x2 ---
+                task_id = f"{run_id}:{node.node_id}"
+                env_fp = capture_env_fingerprint(
+                    task_id=task_id,
+                    model_id=node.model or getattr(self.adapter, "model", None) or "",
+                    repo_root=self.repo_root,
+                )
+                fp_json = fingerprint_to_json(env_fp)
+                fp_hash = fingerprint_hash(env_fp)
                 async with self._ledger_lock:
                     attempt_id = insert_attempt(
                         lc,
@@ -2156,6 +2249,10 @@ class Engine:
                         backend=self.adapter.name,
                         brief_path=str(self.runs_root.briefs_dir(run_id)),
                         log_path=str(log_path),
+                        model=node.model or getattr(self.adapter, "model", None),
+                        agent=getattr(self.adapter, "agent", None),
+                        env_fingerprint_json=fp_json,
+                        env_fingerprint_hash=fp_hash,
                     )
                     attempts_used += 1
                     transition_wave(lc, run_id, node.node_id, "dispatched")
@@ -2331,7 +2428,14 @@ class Engine:
                         async with self._ledger_lock:
                             transition_wave(lc, run_id, node.node_id, "verifying")
                             append_event(lc, run_id=run_id, node_id=node.node_id, phase="verifying")
-                        ok, ev = self._verify_with_retries(worktree.path, node.verify_targets)
+                        ok, ev = self._run_isolated_verify(
+                            run_id=run_id,
+                            node=node,
+                            implementer_worktree=worktree.path,
+                            commit_sha=self._last_checkpoint_sha,
+                            targets=node.verify_targets,
+                            transcript=result.result_text,
+                        )
                         if ok:
                             if (
                                 self._orchestrator_mode
@@ -2542,6 +2646,7 @@ class Engine:
             )
             return
         if sha:
+            self._last_checkpoint_sha = sha
             logger.info(
                 "engine: {} {} attempt {} checkpoint {}",
                 run_id,
@@ -2639,6 +2744,19 @@ class Engine:
                     "do not reset or delete unrelated files."
                 )
                 brief["agent_directives"] = directives
+        graph_db = self.runs_root.graph_db_path(run_id)
+        if not graph_db.is_file():
+            graph_db = self.repo_root / ".tripll" / "graph.db"
+        at_sha = self._last_checkpoint_sha or "HEAD"
+        targets = list(node.owned_paths)
+        brief = enrich_brief_with_graph_pack(
+            brief,
+            wave_targets=targets,
+            graph_store=str(graph_db),
+            at_sha=at_sha,
+            grep_brief=self._grep_brief,
+            run_dir=worktree.path.parent.parent / "brief-spill",
+        )
         return brief
 
 

@@ -19,14 +19,26 @@ import json
 import re
 from typing import TYPE_CHECKING
 
+from tripll.serve.handoff import HANDOFF_GOVERNING_RULE, format_handoff_block
 from tripll.workspace import compute_workspace_scope
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from tripll.graph import OrchestratorConfig, WaveNode
+    from tripll.graphstore import GraphStore
 
 BRIEF_VERSION = "1.1"
+
+GREP_EXPLORATION_DIRECTIVE = (
+    "Stay within workspace_scope paths; no repo-wide grep, graphify, or architecture "
+    "tours unless blocked."
+)
+
+GRAPH_PACKED_DIRECTIVE = (
+    "Use the packed subgraph section below for context; do not run repo-wide grep, "
+    "graphify, or architecture tours unless the packed context is insufficient."
+)
 
 AGENT_DIRECTIVES: list[str] = [
     "Leave changes staged; do not commit.",
@@ -36,7 +48,7 @@ AGENT_DIRECTIVES: list[str] = [
     "Do not edit forbidden_paths listed above.",
     "No src/sevn/ edits outside owned_paths.",
     "Read only the staged wave slice under plan/tripll/ for this wave.",
-    "Stay within workspace_scope paths; no repo-wide grep, graphify, or architecture tours unless blocked.",
+    GRAPH_PACKED_DIRECTIVE,
     "Run shell/make via the Shell tool in-process; do not spawn Task/shell subagents "
     "(Cursor CLI rejects shell subagent_type).",
 ]
@@ -113,6 +125,41 @@ def extract_wave_summary(result_text: str, *, limit: int = 2000) -> str:
     return text[:limit]
 
 
+def enrich_brief_with_graph_pack(
+    brief: dict[str, object],
+    *,
+    wave_targets: list[str],
+    graph_store: GraphStore | str,
+    at_sha: str,
+    grep_brief: bool = False,
+    run_dir: Path | None = None,
+    open_findings: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    """Attach a graph-packed subgraph to *brief*, or restore grep-brief directives."""
+    directives = _brief_str_list(brief, "agent_directives")
+    if grep_brief:
+        brief["grep_brief"] = True
+        if directives:
+            brief["agent_directives"] = [
+                GREP_EXPLORATION_DIRECTIVE if d == GRAPH_PACKED_DIRECTIVE else d for d in directives
+            ]
+        return brief
+
+    from tripll.serve.brief_packer import pack_brief
+
+    wave_id = str(brief.get("wave_id") or "")
+    packed = pack_brief(
+        wave={"id": wave_id, "targets": wave_targets},
+        graph_store=graph_store,
+        at_sha=at_sha,
+        open_findings=open_findings,
+        run_dir=run_dir,
+    )
+    brief["graph_pack"] = packed
+    brief["grep_brief"] = False
+    return brief
+
+
 def _brief_str_list(brief: dict[str, object], key: str) -> list[str]:
     """Return *key* from *brief* as a list of strings (empty when missing or wrong type)."""
     raw = brief.get(key)
@@ -135,6 +182,8 @@ def render_json_brief(
     model: str | None = None,
     orchestrator: OrchestratorConfig | None = None,
     role_dispatch: bool | None = None,
+    handoff_in: dict[str, object] | None = None,
+    outcome_contract: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build the JSON dispatch-brief dict for *node* (design-note §2 schema).
 
@@ -152,6 +201,8 @@ def render_json_brief(
         orchestrator (OrchestratorConfig | None): Orchestrator-mode config for directives/agents.
         role_dispatch (bool | None): Resolved toggle from engine; ``None`` implies
             orchestrator mode when ``orchestrator.enabled``.
+        handoff_in (dict[str, object] | None): Prior-wave 10-field handoff block.
+        outcome_contract (dict[str, object] | None): ``[waves.outcome]`` contract.
 
     Returns:
         dict[str, object]: The dispatch brief.
@@ -200,7 +251,12 @@ def render_json_brief(
         "retry_policy": {"max_attempts": 5, "on_5th_failure": "escalate"},
         "agent_directives": directives,
         "model": wave_model,
+        "handoff_governing_rule": HANDOFF_GOVERNING_RULE,
     }
+    if handoff_in:
+        brief["handoff_in"] = handoff_in
+    if outcome_contract:
+        brief["outcome_contract"] = outcome_contract
     if role_dispatch is None:
         inject_agent = bool(orchestrator and orchestrator.enabled)
     else:
@@ -334,6 +390,36 @@ def render_dispatch_prompt(brief: dict[str, object]) -> str:
     if directives:
         lines += ["", "Agent directives:"]
         lines += [f"- {d}" for d in directives]
+    graph_pack = brief.get("graph_pack")
+    if isinstance(graph_pack, dict) and graph_pack and not brief.get("grep_brief"):
+        lines += ["", "## Packed subgraph"]
+        seeds = graph_pack.get("seeds") or []
+        if seeds:
+            lines.append("Seeds: " + ", ".join(str(s) for s in seeds))
+        finding_paths = graph_pack.get("finding_paths") or []
+        if finding_paths:
+            lines.append("")
+            lines.append("Finding paths:")
+            for item in finding_paths:
+                if isinstance(item, dict):
+                    lines.append(f"- {item.get('finding_id')}: {item.get('path')}")
+        triple_table = str(graph_pack.get("triple_table") or "").strip()
+        if triple_table:
+            lines += ["", triple_table]
+    handoff = brief.get("handoff_in")
+    if isinstance(handoff, dict) and handoff:
+        lines += ["", format_handoff_block(handoff)]
+    else:
+        lines += ["", f"> {HANDOFF_GOVERNING_RULE}"]
+    outcome = brief.get("outcome_contract")
+    if isinstance(outcome, dict) and outcome:
+        req_items = outcome.get("required") or []
+        forbid_items = outcome.get("forbidden") or []
+        lines += ["", "## Outcome contract"]
+        if req_items:
+            lines.append("Required: " + "; ".join(str(x) for x in req_items))
+        if forbid_items:
+            lines.append("Forbidden: " + "; ".join(str(x) for x in forbid_items))
     if isinstance(orch_ctx, dict):
         lines += [
             "",

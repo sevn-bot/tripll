@@ -1,0 +1,52 @@
+# Machine-readable spec validation rules for spec-kit-wave.
+# Consumed by skw.spec_validate — keep in sync with spec-body-template and SPEC-KIT-STANDARDS.md.
+
+[frontmatter]
+required = [
+  "id",
+  "kind",
+  "title",
+  "status",
+  "owner",
+  "summary",
+  "last_updated",
+  "parent_prd",
+  "sources",
+  "fingerprint",
+]
+id_pattern = '^spec-\d{2}-[a-z0-9-]+$'
+kind = "spec"
+status_enum = ["draft", "scaffold", "done", "rejected"]
+summary_max_len = 200
+parent_prd_pattern = '^prd-\d{2}-[a-z0-9-]+$'
+forbidden_whole_repo_sources = ["src/sevn/**"]
+
+[sections]
+# Required H2 sections in document order (after frontmatter).
+required = [
+  "Purpose",
+  "Public Interface",
+  "Data Model",
+  "Internal Architecture",
+  "Behavior",
+  "Failure Modes",
+  "Test Strategy",
+]
+
+[scaffold]
+# Placeholder phrases that fail validation when status is done.
+forbidden_when_ready = [
+  "Offline scaffold for",
+  "[NEEDS CLARIFICATION:",
+  "TBD",
+  "Initial draft for",
+]
+
+[score]
+# Deterministic validity score weights (D5) — must sum to 100.
+frontmatter_completeness = 20
+required_sections = 15
+no_scaffold_phrase = 25
+status_honesty = 15
+interfaces_sources_resolve = 15
+link_id_hygiene = 10

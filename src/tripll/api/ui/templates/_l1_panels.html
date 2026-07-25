@@ -1,0 +1,70 @@
+<section class="l1-panels">
+  <h2>Code factory L1</h2>
+  <div class="l1-panels-grid">
+    <div class="l1-panel">
+      <h3>Graph — wave {{ l1.graph.wave_id or "—" }}</h3>
+      {% if l1.graph.available %}
+      <p class="muted">{{ l1.graph.node_count }} nodes · {{ l1.graph.edge_count }} edges
+        {% if l1.graph.db_path %}<br><code>{{ l1.graph.db_path }}</code>{% endif %}
+      </p>
+      {% if l1.graph.sample_nodes %}
+      <table class="compact-table">
+        <thead><tr><th>Layer</th><th>Kind</th><th>Key</th></tr></thead>
+        <tbody>
+          {% for node in l1.graph.sample_nodes %}
+          <tr>
+            <td>{{ node.layer }}</td>
+            <td>{{ node.kind }}</td>
+            <td><code>{{ node.key }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% else %}
+      <p class="muted">{{ l1.graph.message or "Graph unavailable." }}</p>
+      {% endif %}
+    </div>
+
+    <div class="l1-panel">
+      <h3>Findings ({{ l1.findings.total }})</h3>
+      {% if l1.findings.available and l1.findings.groups %}
+      {% for state, items in l1.findings.groups.items() %}
+      <details class="findings-group">
+        <summary>{{ state }} ({{ items|length }})</summary>
+        <ul class="findings-list">
+          {% for f in items %}
+          <li>
+            <code>{{ f.rule_id }}</code>
+            {% if f.file %} — {{ f.file }}{% endif %}
+            <span class="muted">[{{ f.severity }}]</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endfor %}
+      {% else %}
+      <p class="muted">{{ l1.findings.message or "No findings synced yet." }}</p>
+      {% endif %}
+    </div>
+
+    <div class="l1-panel">
+      <h3>Exits — caps</h3>
+      <table class="compact-table">
+        <thead><tr><th>Exit</th><th>Current</th><th>Cap</th><th></th></tr></thead>
+        <tbody>
+          {% for exit in l1.exits %}
+          <tr class="{% if exit.near %}exit-near{% endif %}">
+            <td>{{ exit.exit_id }}. {{ exit.label }}</td>
+            <td>{{ exit.current }}</td>
+            <td>{{ exit.cap }}</td>
+            <td>
+              <span class="exit-bar" style="--ratio: {{ exit.ratio }}"></span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

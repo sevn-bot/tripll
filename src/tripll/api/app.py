@@ -834,6 +834,55 @@ def create_app(
         _spawn_tripll(["resume", run_id, *extra, "--runs-root", str(rr.root)])
         return {"message": f"Resuming run {run_id}"}
 
+    @app.get("/api/runs/{run_id}/pr/status", tags=["pr"])
+    async def get_pr_status(
+        run_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, Any]:
+        """Return PR phase state and merge-gate markers for a run."""
+        from tripll.loops.l1_pr import pr_status
+
+        rr: RunsRoot = app.state.runs_root
+        run_dir = rr.find_run_dir(run_id)
+        if run_dir is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+        return pr_status(run_dir=run_dir)
+
+    @app.post("/api/runs/{run_id}/pr/shepherd", status_code=202, tags=["pr"])
+    async def pr_shepherd(
+        run_id: str,
+        phase: str = "investigate_and_fix",
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, str]:
+        """Spawn ``tripll pr shepherd --run <id>`` for one PR loop step."""
+        rr: RunsRoot = app.state.runs_root
+        _assert_run_exists(rr, run_id)
+        _spawn_tripll(
+            ["pr", "shepherd", "--run", run_id, "--phase", phase, "--runs-root", str(rr.root)]
+        )
+        return {"message": f"PR shepherd started for {run_id}"}
+
+    @app.post("/api/runs/{run_id}/pr/approve-merge", status_code=202, tags=["pr"])
+    async def pr_approve_merge(
+        run_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, Any]:
+        """Approve the human merge gate — never auto-merges without this call."""
+        from tripll.loops.l1_pr import approve_merge_gate, pr_status
+
+        rr: RunsRoot = app.state.runs_root
+        run_dir = rr.find_run_dir(run_id)
+        if run_dir is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+        try:
+            approve_merge_gate(run_dir=run_dir)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {
+            "message": f"Merge gate approved for {run_id}",
+            "status": pr_status(run_dir=run_dir),
+        }
+
     @app.post("/api/runs/{run_id}/pause", status_code=202, tags=["runs"])
     async def pause_run(
         run_id: str,

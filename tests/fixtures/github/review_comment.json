@@ -1,0 +1,9 @@
+{
+  "id": 5678,
+  "path": "src/tripll/demo.py",
+  "line": 10,
+  "body": "Please remove the unused import.",
+  "user": {"login": "pullfrog"},
+  "commit_id": "abc123def456",
+  "html_url": "https://github.com/sevn-bot/tripll/pull/1#discussion_r5678"
+}

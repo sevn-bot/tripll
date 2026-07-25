@@ -1,0 +1,18 @@
+# pullfrog-py per-repo settings (https://github.com/alexhawat/pullfrog-py).
+#
+# Only keys with no action-input equivalent belong here. `model`, `push`,
+# `shell`, and `status_checks` are set in .github/workflows/pullfrog.yml and win
+# over this file.
+#
+# A sibling `learnings.md` holds durable review memory, including the
+# `## Withdrawn review findings (known non-issues)` section a reviewer consults
+# before re-raising a finding the author already refuted. tripll exports rejected
+# findings from the Finding graph via `tripll findings triage` (D13).
+
+staticChecks:
+  - name: lint
+    command: make lint
+  - name: typecheck
+    command: make typecheck
+  - name: check
+    command: make check

@@ -6,7 +6,7 @@ Headless parallel wave-plan execution pipeline. Drop a folder of plan files into
 1. Parse the set into a **RunGraph** (lanes, batches, Pre-0 gates, CW seams).
 2. Dispatch each wave to an agent backend in dependency order.
 3. Stop at the **Pre-0 human gate** until you approve.
-4. Retry failed waves (2 retries, then escalate).
+4. Retry failed waves (**5 attempts** for impl waves, then escalate).
 5. Optionally **integrate** each batch on one branch (`--integrate`).
 
 Deep dives: [`docs/design-note.md`](docs/design-note.md) (graph model),
@@ -23,12 +23,40 @@ Run all commands from this directory (the `tripll` checkout).
 | **uv** | `uv sync` installs the `tripll` CLI into this project's env — it is **not** on global PATH. Use **`make`** targets below. |
 | **Backend** | Default `claude_code` needs `claude` on PATH. See [`.env.example`](.env.example) — tripll has **no API keys**; auth lives in the backend toolchain. |
 | **Target repo** | Dispatch runs against a target git checkout (worktrees, verify commands). Point at it with `TRIPLL_REPO_ROOT`, or run from inside it. |
+| **Extras** | `graph` (LangGraph loops), `kg` (NetworkX replica), `api` (dashboard), `obs` (Logfire). See [Optional extras](#optional-extras) below. |
 
 ```bash
 cp .env.example .env    # optional: TRIPLL_RUNS, TRIPLL_DEBUG
-make setup              # uv sync (dev/api/obs) + git hooks
+make setup              # uv sync (dev/api/obs/graph) + git hooks
 make init               # once: creates runs/{input,processing,processed,failed}/
 ```
+
+### Optional extras
+
+Install with `uv sync --extra <name>` or `make setup` (includes dev + api + obs + graph):
+
+| Extra | Purpose |
+|-------|---------|
+| `graph` | LangGraph L1 outer + PR loops, durable checkpoints |
+| `kg` | NetworkX graph replica for analytics |
+| `api` | FastAPI control plane + live dashboard |
+| `obs` | Logfire/OpenTelemetry tracing (no-op without `LOGFIRE_TOKEN`) |
+| `all` | `graph` + `kg` + `api` + `obs` |
+
+**Code KG** (no extra beyond core CLI):
+
+```bash
+tripll graph extract --repo .     # build .tripll/graph.db
+tripll graph query <node_id>      # 2-hop neighbourhood
+tripll findings sync --pr <n>     # CI + review → Finding nodes
+```
+
+Graph-packed briefs are the default dispatch path; use `--grep-brief` for legacy A/B.
+See [`docs/graph-serving.md`](docs/graph-serving.md) and [`docs/ontology.md`](docs/ontology.md).
+
+**No API keys in tripll** — auth lives in backend toolchains (`claude`, `cursor-agent`).
+PR review CI uses optional `CLAUDE_CODE_OAUTH_TOKEN` (`.github/workflows/pullfrog.yml`).
+Local advisory review: `make review`.
 
 ---
 
@@ -290,7 +318,9 @@ All targets run from **`wave-orchestrator/`**. Variables:
 | `make approve-run RUN=<id>` | Mark Pre-0 approved after decisions |
 | `make resume-run RUN=<id>` | Resume a paused run (`BACKEND=` optional) |
 | `make tripll ARGS='…'` | Any subcommand (`approve`, `resume`, `plan`, …) |
-| `make check` | Lint + typecheck + test |
+| `make check` | Lint + typecheck + pullfrog pin + about-site + test |
+| `make review` | Advisory pullfrog-py diff review vs `origin/main` |
+| `make about-site` | Regenerate `about-tripll/` HTML from `_sources/` |
 | `make seed-orchestrator-smoke-set` | Copy W0 orchestrator example → `runs/input/orchestrator-mode-smoke/` |
 | `make smoke-orchestrator-w0` | Orchestrator W0 smoke — validate + plan + pytest |
 | `make orchestrator-watch RUN=<id>` | Tail `orchestrator-status.md` only (orchestrator mode, D12) |
@@ -355,7 +385,7 @@ runs/input/<set>/  ──run──►  runs/processing/<run-id>/
 
 1. **`run-set`** claims the input folder into `processing/<run-id>/`.
 2. Engine stops at **Pre-0** — run `make pre0-interview RUN=<run-id>` (or edit `pre0-decisions.md`), then `approve-run` + `resume-run`.
-3. Each wave: dispatch → verify → `done` or retry (max 3 attempts → `blocked`).
+3. Each wave: dispatch → verify → `done`, `unverified`, or retry (max **5** attempts → `blocked`).
 4. **`status RUN=<id>`** shows wave states; failures write `escalation.md` + `report.md`.
 
 ---
@@ -389,7 +419,7 @@ Swagger API docs at `http://localhost:8765/docs`.
 | Page | What you see |
 |------|----------------|
 | **Runs** (`/`) | Runs table (state, cost, live badge); **Launch run** form (input set + profile); backend availability summary |
-| **Run detail** (`/runs/{id}`) | Hydrated wave table on first paint; SSE live updates; run header (state, cost, live/offline, pause/escalation banners); batch timeline swimlanes; event timeline sidebar (500-event replay + SSE tail); Approve / Resume / Pause buttons; collapsible `report.md` embed |
+| **Run detail** (`/runs/{id}`) | Hydrated wave table on first paint; SSE live updates; run header (state, cost, live/offline, pause/escalation banners); batch timeline swimlanes; **L1 panels** (graph subgraph, findings, exit caps); event timeline sidebar (500-event replay + SSE tail); Approve / Resume / Pause buttons; collapsible `report.md` embed |
 | **Wave expander** (per row) | Attempt history + "starting attempt N" badge; wave-task checklist with active bullet; git worktree status + diff stat (5 s poll while running); read-only log tail viewer |
 | **Agents** (`/agents`) | Profile list; create/edit forms (backend, model, agent, skills) — no curl required |
 | **Settings** (`/settings`) | Runtime config form (`max_parallel`, cost budget, etc.) |

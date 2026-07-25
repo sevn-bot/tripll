@@ -28,16 +28,14 @@ from typing import Literal
 # Coordination-wave hotspot paths (design-note.md §2.1)
 # ---------------------------------------------------------------------------
 
-CW_HOTSPOTS: dict[str, list[str]] = {
-    "CW-1": ["src/sevn/gateway/agent_turn.py"],
-    "CW-2": ["src/sevn/gateway/http_server.py"],
-    "CW-3": ["Makefile (ci: line)"],
-    "CW-4": [
-        "src/sevn/ui/dashboard/app.js",
-        "src/sevn/ui/dashboard/api/tab_registry.py",
-    ],
-    "CW-5": ["infra/sevn.schema.json"],
-}
+
+def _load_cw_hotspots() -> dict[str, list[str]]:
+    from tripll.plan.cw_buckets import default_cw_hotspots
+
+    return default_cw_hotspots()
+
+
+CW_HOTSPOTS: dict[str, list[str]] = _load_cw_hotspots()
 
 ALL_CW_PATHS: list[str] = [p for paths in CW_HOTSPOTS.values() for p in paths]
 

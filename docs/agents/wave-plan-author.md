@@ -1,5 +1,8 @@
 # wave-plan-author
 
+> **Successor:** [`plan-author.md`](plan-author.md) — v3 wave plans with typed `depends_on` and
+> outcome contracts (design §11.5). This file remains for **v1 conversion** guidance.
+
 Convert or author **tripll v1** wave-plan files for `wave-orchestrator`.
 
 ## Path convention

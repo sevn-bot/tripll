@@ -1,0 +1,47 @@
+# Changelog enforcement rules for sevn.bot (spec-kit-wave SSOT).
+#
+# Consumed by `skw.changelog_validate` (deterministic gate) and `skw.changelog_eval`
+# (LLM double-score). Keep a Changelog format with a rolling `## [Unreleased]` section.
+# Tune values here — the validator merges this file over its built-in defaults.
+
+[structure]
+# The six Keep-a-Changelog category headings (exact spelling, order-independent).
+categories = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
+# The rolling section heading that new entries land under: `## [Unreleased]`.
+unreleased_heading = "Unreleased"
+
+[entry]
+# Minimum meaningful body length (characters after the `- ` bullet marker).
+min_len = 12
+# Reject entries that end with a period.
+forbid_trailing_period = true
+# Require sentence case (uppercase first letter unless it opens with a `code` span).
+require_sentence_case = true
+# Any issue/PR reference must match this pattern (advisory warning otherwise).
+ref_pattern = "#\\d+"
+# Unreleased bullets must start with a leading datestamp (D10).
+require_datestamp = true
+datestamp_pattern = "^\\[\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}Z)?\\]"
+
+[diff_gate]
+# Default base ref; override with $SEVN_CI_BASE. A leading `origin/` is tried both ways.
+base = "origin/main"
+# Code paths that REQUIRE a new Unreleased entry when changed.
+required_globs = ["src/sevn/**", "scripts/**"]
+# Paths that never require an entry (tests, docs, design surfaces, the changelog itself).
+exempt_globs = [
+    "**/tests/**",
+    "*.md",
+    "docs/**",
+    "specs/**",
+    "about-sevn.bot/**",
+    "CHANGELOG.md",
+]
+# Commit-trailer/text escape hatch (case-insensitive) that skips the diff gate.
+skip_trailer = "changelog: skip"
+
+[eval]
+# Consumed by the LLM double-score module (skw.changelog_eval) — NOT the deterministic gate.
+structured_min = 7
+unstructured_min = 7
+rubric_dimensions = ["specificity", "user_impact_clarity", "category_correctness", "diff_equivalence"]

@@ -1,0 +1,13 @@
+{
+  "task_id": "harness-fingerprint",
+  "description": "EnvFingerprint 13-field snapshot for RAN_IN — real W7 failure",
+  "base_sha": "a91d4c2",
+  "wave_id": "W7",
+  "targets": ["src/tripll/harness/fingerprint.py"],
+  "owned_paths": ["src/tripll/harness/"],
+  "outcome_contract": {
+    "required": ["EnvFingerprint serialises 13 fields", "verifier dispatch isolated"],
+    "forbidden": ["implementer transcript in verify dispatch"]
+  },
+  "verify": ["make lint", "make typecheck", "make test"]
+}
