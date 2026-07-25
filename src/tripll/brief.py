@@ -19,6 +19,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 
+from tripll.serve.handoff import HANDOFF_GOVERNING_RULE, format_handoff_block
 from tripll.workspace import compute_workspace_scope
 
 if TYPE_CHECKING:
@@ -135,6 +136,8 @@ def render_json_brief(
     model: str | None = None,
     orchestrator: OrchestratorConfig | None = None,
     role_dispatch: bool | None = None,
+    handoff_in: dict[str, object] | None = None,
+    outcome_contract: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build the JSON dispatch-brief dict for *node* (design-note §2 schema).
 
@@ -152,6 +155,8 @@ def render_json_brief(
         orchestrator (OrchestratorConfig | None): Orchestrator-mode config for directives/agents.
         role_dispatch (bool | None): Resolved toggle from engine; ``None`` implies
             orchestrator mode when ``orchestrator.enabled``.
+        handoff_in (dict[str, object] | None): Prior-wave 10-field handoff block.
+        outcome_contract (dict[str, object] | None): ``[waves.outcome]`` contract.
 
     Returns:
         dict[str, object]: The dispatch brief.
@@ -200,7 +205,12 @@ def render_json_brief(
         "retry_policy": {"max_attempts": 5, "on_5th_failure": "escalate"},
         "agent_directives": directives,
         "model": wave_model,
+        "handoff_governing_rule": HANDOFF_GOVERNING_RULE,
     }
+    if handoff_in:
+        brief["handoff_in"] = handoff_in
+    if outcome_contract:
+        brief["outcome_contract"] = outcome_contract
     if role_dispatch is None:
         inject_agent = bool(orchestrator and orchestrator.enabled)
     else:
@@ -334,6 +344,20 @@ def render_dispatch_prompt(brief: dict[str, object]) -> str:
     if directives:
         lines += ["", "Agent directives:"]
         lines += [f"- {d}" for d in directives]
+    handoff = brief.get("handoff_in")
+    if isinstance(handoff, dict) and handoff:
+        lines += ["", format_handoff_block(handoff)]
+    else:
+        lines += ["", f"> {HANDOFF_GOVERNING_RULE}"]
+    outcome = brief.get("outcome_contract")
+    if isinstance(outcome, dict) and outcome:
+        req_items = outcome.get("required") or []
+        forbid_items = outcome.get("forbidden") or []
+        lines += ["", "## Outcome contract"]
+        if req_items:
+            lines.append("Required: " + "; ".join(str(x) for x in req_items))
+        if forbid_items:
+            lines.append("Forbidden: " + "; ".join(str(x) for x in forbid_items))
     if isinstance(orch_ctx, dict):
         lines += [
             "",

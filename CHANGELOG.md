@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Harness pillars under `src/tripll/harness/` — 13-field `EnvFingerprint`, reset receipts,
+  outcome contracts with `unverified` wave state, pre-commit reconciliation, and 8-layer tool
+  boundary with isolated verifier dispatch (D16/D17).
+- `src/tripll/loops/idempotency.py` — idempotency keys, decide/commit split, destructive retry refusal.
+- `src/tripll/serve/handoff.py` — 10-field handoff block integrated into dispatch briefs.
 - LangGraph control plane under `src/tripll/loops/` (`graph` extra): durable
   `AsyncSqliteSaver` checkpoints (`thread_id == run_id`, `durability="sync"`),
   L1 outer loop seam, all eight loop exits, ledger-backed recovery, and checkpoint TTL purge.
