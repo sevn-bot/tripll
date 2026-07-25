@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- PR phase under `src/tripll/github/pr.py` and `src/tripll/loops/l1_pr.py` — idempotent
+  push/open/comment/resolve/merge commit nodes, CI and review fix loop with fan-out dispatch,
+  wired loop exits, human merge gate (never auto-merge), and `tripll pr shepherd|status|approve-merge`
+  CLI plus dashboard API routes.
+- GitHub ingestion under `src/tripll/github/` — check-runs and review threads normalize
+  into `Finding` nodes with dedup, `ABOUT` resolution, staleness via `valid_to_sha`, and
+  rejected-finding export to `.pullfrog/learnings.md`; `tripll findings sync|list|triage` CLI.
 - Harness pillars under `src/tripll/harness/` — 13-field `EnvFingerprint`, reset receipts,
   outcome contracts with `unverified` wave state, pre-commit reconciliation, and 8-layer tool
   boundary with isolated verifier dispatch (D16/D17).
