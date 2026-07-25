@@ -72,7 +72,7 @@ PLANS_ENV := .env.agent-native
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
-	plans-up plans-down plans-logs
+	plans-up plans-down plans-logs spec-check prd-check changelog-check changelog-eval docs-score spec-sync prd-sync
 
 help: ## Show targets (default goal — use `make` or `make help`, not GNU `make --help`)
 	@printf '\033[1mtripll\033[0m — operator targets (run from this directory)\n'
@@ -280,7 +280,7 @@ typecheck: ## mypy strict for tripll
 	$(MYPY) --config-file pyproject.toml src/tripll
 
 test: ## pytest
-	$(UV_RUN) run --extra dev --extra api pytest tests -v --tb=short
+	$(UV_RUN) run --extra dev --extra api --extra obs pytest tests -v --tb=short
 
 log-redact-check: sync ## Validate log-hide-keys.toml + redaction unit tests
 	@test -f config/log-hide-keys.toml || (echo "Missing config/log-hide-keys.toml" >&2; exit 1)
@@ -308,3 +308,36 @@ OUT ?= scaffold-out
 scaffold-package: ## Scaffold + normalize a new package (NAME=<project> [OUT=<dir>]) via cookiecutter
 	@test -n "$(NAME)" || { echo "usage: make scaffold-package NAME=<project-name> [OUT=<dir>]"; exit 1; }
 	$(UV_RUN) run --extra scaffold python -c "from tripll.scaffold import scaffold_package; print('scaffolded:', scaffold_package(project_name='$(NAME)', output_dir='$(OUT)'))"
+
+##@ Doc gates (absorbed spec-kit-wave / skw)
+
+SPEC_DIR ?= docs
+PRD_DIR ?= docs/prd
+KIND ?= spec
+DOCS_DIR ?= $(if $(filter prd,$(KIND)),$(PRD_DIR),$(SPEC_DIR))
+REPO_ROOT ?= $(CURDIR)
+
+spec-check: sync ## Validate+score specs in SPEC_DIR (default docs/)
+	$(TRIPLL_CLI) spec validate "$(SPEC_DIR)" --repo-root "$(REPO_ROOT)"
+
+prd-check: sync ## Validate+score PRDs in PRD_DIR (SCORE=1 for score-only gate)
+	@if [ "$(SCORE)" = "1" ]; then \
+		$(TRIPLL_CLI) prd score "$(PRD_DIR)" --repo-root "$(REPO_ROOT)"; \
+	else \
+		$(TRIPLL_CLI) prd validate "$(PRD_DIR)" --repo-root "$(REPO_ROOT)"; \
+	fi
+
+docs-score: sync ## Score docs in DOCS_DIR for KIND=spec|prd
+	$(TRIPLL_CLI) doc-score --kind $(KIND) --dir "$(DOCS_DIR)" --repo-root "$(REPO_ROOT)"
+
+spec-sync: sync ## Refresh frontmatter + scaffold missing specs in SPEC_DIR
+	$(TRIPLL_CLI) spec sync "$(SPEC_DIR)" --repo-root "$(REPO_ROOT)"
+
+prd-sync: sync ## Refresh frontmatter + scaffold missing PRDs in PRD_DIR
+	$(TRIPLL_CLI) prd sync "$(PRD_DIR)" --repo-root "$(REPO_ROOT)"
+
+changelog-check: sync ## Deterministic CHANGELOG.md gate (BASE=origin/main)
+	$(TRIPLL_CLI) changelog check --repo-root "$(REPO_ROOT)" --base "$(or $(BASE),origin/main)"
+
+changelog-eval: sync ## Advisory LLM double-score for Unreleased entries (not in CI)
+	$(TRIPLL_CLI) changelog eval --repo-root "$(REPO_ROOT)" --base "$(or $(BASE),origin/main)"

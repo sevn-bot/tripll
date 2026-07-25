@@ -15,6 +15,8 @@ dependencies = [
     "typer>=0.25.1",
     "pydantic>=2.13.3",
     "pyyaml>=6.0",
+    "langgraph>=1.2.9,<2",
+    "langgraph-checkpoint-sqlite>=3.1.0,<4",
 ]
 
 [project.optional-dependencies]
@@ -69,6 +71,7 @@ dev = [
 
 [project.scripts]
 tripll = "tripll.cli:main"
+skw = "tripll.skw.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tripll"]
@@ -77,6 +80,8 @@ packages = ["src/tripll"]
 "src/tripll/graphstore/schema.sql" = "tripll/graphstore/schema.sql"
 "src/tripll/ontology/ontology.yaml" = "tripll/ontology/ontology.yaml"
 "src/tripll/ontology/competency.md" = "tripll/ontology/competency.md"
+"src/tripll/skw/skw.toml" = "tripll/skw/skw.toml"
+"src/tripll/skw/changelog-rules.toml" = "tripll/skw/changelog-rules.toml"
 
 # ---------------------------------------------------------------------------
 # Ruff — mirrors root pyproject.toml rule set; spike/ and tests/ exempt T20
@@ -116,6 +121,10 @@ known-first-party = ["tripll"]
 "spike/**" = ["T20", "F401", "E402"]
 # Tests: print() OK
 "tests/**" = ["T20", "TC003", "ASYNC240"]
+# Absorbed spec-kit-wave (skw): CLI scripts use print(); stdlib typing kept explicit
+"src/tripll/skw/**" = ["T20", "TC003", "TC001", "TC002", "PIE810", "UP047", "SIM102", "RUF001", "SIM105"]
+# Absorbed skw tests mirror upstream layout
+"tests/skw/**" = ["T20", "TC003", "TC001", "TC002"]
 
 # ---------------------------------------------------------------------------
 # mypy — strict, aligned with root repo

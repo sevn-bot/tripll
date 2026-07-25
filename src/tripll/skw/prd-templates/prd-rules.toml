@@ -1,0 +1,69 @@
+# Machine-readable PRD validation rules for spec-kit-wave.
+# Consumed by skw.prd_validate — keep in sync with prd-template.md and PRD-STANDARDS.md.
+
+[frontmatter]
+required = ["id", "kind", "title", "status", "owner", "summary", "last_updated", "parent_prd"]
+id_pattern = '^(prd|spec)-\d{2}-[a-z0-9-]+$'
+kind = "prd"
+status_enum = ["draft", "scaffold", "ready", "done", "rejected"]
+summary_max_len = 200
+parent_prd_pattern = '^prd-\d{2}-[a-z0-9-]+$'
+spec_id_pattern = '^spec-\d{2}-[a-z0-9-]+$'
+doc_id_pattern = '^(prd|spec)-\d{2}-[a-z0-9-]+$'
+profile_enum = ["standard", "ai-native"]
+forbidden_keys = ["depends_on", "build_phase", "interfaces"]
+
+[sections]
+# Required H2 sections in document order (after frontmatter).
+required = [
+  "Problem & Motivation",
+  "Users & Use Cases",
+  "Goals",
+  "Non-Goals",
+  "Experience",
+  "Success Metrics",
+  "Traceability",
+]
+
+# Recommended when status is ready or done.
+recommended_ready = ["Open Questions"]
+
+# Required when frontmatter prd_profile = ai-native.
+ai_native = [
+  "AI Behavior & Eval",
+  "Failure & Degradation",
+]
+
+[sections.traceability]
+# Required H3 subsections under ## Traceability.
+required_h3 = ["Implementing Specs", "Change Log"]
+
+[ids]
+# Optional stable IDs in body (PRD-CE inspired). Validated when present.
+uj = '^UJ-\d{3,}$'
+fr = '^FR-\d{3,}$'
+kpi = '^KPI-\d{3,}$'
+risk = '^RISK-\d{3,}$'
+oq = '^OQ-\d{3,}$'
+
+[change_log]
+# OpenSpec-inspired delta tokens in Change Log table cells.
+delta_pattern = '^(ADDED|MODIFIED|REMOVED|RENAMED)\s+'
+
+[scaffold]
+# Placeholder phrases that fail validation when status is ready or done.
+forbidden_when_ready = [
+  "Offline scaffold for",
+  "[NEEDS CLARIFICATION:",
+  "TBD",
+  "{placeholder}",
+]
+
+[score]
+# Deterministic validity score weights (D5) — must sum to 100.
+frontmatter_completeness = 20
+required_sections = 15
+no_scaffold_phrase = 25
+status_honesty = 15
+interfaces_sources_resolve = 15
+link_id_hygiene = 10

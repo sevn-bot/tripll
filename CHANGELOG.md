@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Absorbed **spec-kit-wave** as `src/tripll/skw/` — doc validators (`spec`, `prd`, `changelog`),
+  LangGraph wave pipeline, prompt templates, and skills; unified CLI (`tripll spec|prd|changelog|doc-score`,
+  deprecated `skw` / `tripll skw` alias); `langgraph` declared as a first-class dependency.
 - Plan format v3 (`waveorch_format = 3`) with typed `depends_on`, per-wave `targets` and
   `[waves.outcome]` contracts; v1/v2 compat readers; compile-time fake-edge, stop-rule, and
   one-writer shape checks; task-graph compiler with cross-layer `TARGETS` edges.
