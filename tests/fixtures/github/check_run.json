@@ -1,0 +1,12 @@
+{
+  "id": 1234,
+  "name": "lint",
+  "conclusion": "failure",
+  "head_sha": "abc123def456",
+  "output": {
+    "title": "ruff failed",
+    "summary": "F401 unused import",
+    "text": "src/tripll/demo.py:10:1 F401 `os` imported but unused"
+  },
+  "html_url": "https://github.com/sevn-bot/tripll/runs/1234"
+}
