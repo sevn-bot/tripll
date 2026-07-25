@@ -47,3 +47,15 @@ CREATE TABLE merges (                              -- reversibility (§5.1)
   merge_id TEXT PRIMARY KEY, kept TEXT NOT NULL, dropped TEXT NOT NULL,
   reason TEXT NOT NULL, payload TEXT NOT NULL, merged_at TEXT NOT NULL
 );
+
+CREATE TABLE candidate_relations (               -- ontology drift (§7.4.3)
+  relation_id   TEXT PRIMARY KEY,
+  predicate     TEXT NOT NULL,
+  src_kind      TEXT NOT NULL,
+  dst_kind      TEXT NOT NULL,
+  count         INTEGER NOT NULL DEFAULT 1,
+  evidence      TEXT,
+  first_seen    TEXT NOT NULL,
+  last_seen     TEXT NOT NULL
+);
+CREATE INDEX candidate_relations_pred ON candidate_relations(predicate);

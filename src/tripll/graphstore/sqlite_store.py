@@ -369,6 +369,63 @@ class SqliteGraphStore:
             )
         return merge_id
 
+    def close_valid_at_sha(self, sha: str) -> None:
+        """Close live code-layer rows at *sha* before re-extraction (incremental by sha)."""
+        now = datetime.now(tz=UTC).isoformat()
+        with self._conn:
+            self._conn.execute(
+                """UPDATE nodes SET valid_to_sha = ?, valid_to = ?
+                   WHERE layer = 'code' AND valid_to IS NULL AND valid_to_sha IS NULL
+                     AND (valid_from_sha IS NULL OR valid_from_sha != ?)""",
+                (sha, now, sha),
+            )
+            self._conn.execute(
+                """UPDATE edges SET valid_to_sha = ?, valid_to = ?
+                   WHERE valid_to IS NULL AND valid_to_sha IS NULL
+                     AND src IN (SELECT node_id FROM nodes WHERE layer = 'code')
+                     AND (valid_from_sha IS NULL OR valid_from_sha != ?)""",
+                (sha, now, sha),
+            )
+
+    def record_candidate_relation(
+        self,
+        *,
+        predicate: str,
+        src_kind: str,
+        dst_kind: str,
+        evidence: str,
+        count: int = 1,
+    ) -> None:
+        """Accumulate an unmodelled relation for ontology drift review (§7.4.3)."""
+        now = datetime.now(tz=UTC).isoformat()
+        relation_id = f"{predicate}:{src_kind}:{dst_kind}"
+        with self._conn:
+            row = self._conn.execute(
+                "SELECT relation_id, count FROM candidate_relations WHERE relation_id = ?",
+                (relation_id,),
+            ).fetchone()
+            if row is None:
+                self._conn.execute(
+                    """INSERT INTO candidate_relations (
+                           relation_id, predicate, src_kind, dst_kind, count,
+                           evidence, first_seen, last_seen
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (relation_id, predicate, src_kind, dst_kind, count, evidence, now, now),
+                )
+            else:
+                self._conn.execute(
+                    """UPDATE candidate_relations
+                          SET count = count + ?, evidence = ?, last_seen = ?
+                        WHERE relation_id = ?""",
+                    (count, evidence, now, relation_id),
+                )
+
+    def list_candidate_relations(self) -> list[dict[str, object]]:
+        rows = self._conn.execute(
+            "SELECT * FROM candidate_relations ORDER BY count DESC, predicate"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def unmerge(self, merge_id: str) -> None:
         row = self._conn.execute(
             "SELECT payload, dropped FROM merges WHERE merge_id = ?", (merge_id,)

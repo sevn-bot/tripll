@@ -4,16 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from tests.conftest import require_module
-
-_XFAIL = pytest.mark.xfail(reason="green after W3: ast_python extractor", strict=False)
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "extract_pkg"
 
 
-@_XFAIL
 def test_declares_imports_calls_on_fixture() -> None:
     extract_module = require_module("tripll.extract.ast_python", attr="extract_module")
     result = extract_module(_FIXTURE / "sample.py", repo="tripll", sha="abc")
@@ -21,7 +16,6 @@ def test_declares_imports_calls_on_fixture() -> None:
     assert {"DECLARES", "IMPORTS", "CALLS"} <= predicates
 
 
-@_XFAIL
 def test_covers_edge_from_test_fixture() -> None:
     extract_module = require_module("tripll.extract.ast_python", attr="extract_module")
     extract_tests = require_module("tripll.extract.tests_cov", attr="extract_tests")
@@ -31,7 +25,6 @@ def test_covers_edge_from_test_fixture() -> None:
     assert "COVERS" in predicates
 
 
-@_XFAIL
 def test_deterministic_confidence_and_evidence() -> None:
     extract_module = require_module("tripll.extract.ast_python", attr="extract_module")
     result = extract_module(_FIXTURE / "sample.py", repo="tripll", sha="abc")

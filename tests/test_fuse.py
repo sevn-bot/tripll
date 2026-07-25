@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tests.conftest import require_module
 
-_XFAIL = pytest.mark.xfail(reason="green after W3: fuse.py", strict=False)
 
-
-@_XFAIL
 def test_blocking_reduces_candidate_pairs() -> None:
     block_candidates = require_module("tripll.extract.fuse", attr="block_candidates")
     nodes = [
@@ -22,7 +17,6 @@ def test_blocking_reduces_candidate_pairs() -> None:
     assert 0 < len(pairs) < all_pairs
 
 
-@_XFAIL
 def test_disjoint_neighbourhoods_do_not_merge() -> None:
     should_merge = require_module("tripll.extract.fuse", attr="should_merge")
     ctx = {
@@ -34,7 +28,6 @@ def test_disjoint_neighbourhoods_do_not_merge() -> None:
     assert should_merge("code:Symbol:a", "code:Symbol:b", context=ctx) is False
 
 
-@_XFAIL
 def test_renamed_symbol_merges() -> None:
     should_merge = require_module("tripll.extract.fuse", attr="should_merge")
     ctx = {
@@ -47,7 +40,6 @@ def test_renamed_symbol_merges() -> None:
     assert should_merge("code:Symbol:old", "code:Symbol:new", context=ctx) is True
 
 
-@_XFAIL
 def test_conflicting_attributes_retained_with_provenance() -> None:
     merge_nodes = require_module("tripll.extract.fuse", attr="merge_nodes")
     kept, _dropped = merge_nodes(
@@ -60,7 +52,6 @@ def test_conflicting_attributes_retained_with_provenance() -> None:
     assert kept.get("merged_from") or kept.get("provenance")
 
 
-@_XFAIL
 def test_every_merge_is_reversible() -> None:
     fuse_merge = require_module("tripll.extract.fuse", attr="fuse_merge")
     unmerge = require_module("tripll.extract.fuse", attr="unmerge")

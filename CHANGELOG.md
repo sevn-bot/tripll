@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Deterministic code KG extractors (`ast_python`, `tests_cov`, `specs_docs`, `make_ci`), batched
+  semantic extraction (`IMPLEMENTS`, `ABOUT`), fusion with reversible merges, quality gate, and
+  `tripll graph extract|fuse|gate|query` CLI subcommands.
 - SQLite graph store (`GraphStore` port, three-layer ontology, task-layer sync alongside ledger).
 - Initial standalone release of **tripll**, extracted from the sevn.bot
   `wave-orchestrator/` subtree.
