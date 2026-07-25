@@ -5,16 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from tests.conftest import require_module
-
-_XFAIL = pytest.mark.xfail(reason="green after W8: github findings", strict=False)
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "github"
 
 
-@_XFAIL
 def test_check_run_normalizes_to_finding_schema() -> None:
     normalize_check_run = require_module("tripll.github.findings", attr="normalize_check_run")
     raw = json.loads((_FIXTURES / "check_run.json").read_text())
@@ -25,7 +20,6 @@ def test_check_run_normalizes_to_finding_schema() -> None:
     assert finding["extractor"] == "github.findings"
 
 
-@_XFAIL
 def test_review_comment_normalizes_to_finding_schema() -> None:
     normalize_review_comment = require_module(
         "tripll.github.findings", attr="normalize_review_comment"
@@ -36,7 +30,6 @@ def test_review_comment_normalizes_to_finding_schema() -> None:
     assert finding["file"] == "src/tripll/demo.py"
 
 
-@_XFAIL
 def test_dedup_key_collapses_duplicates() -> None:
     dedup_findings = require_module("tripll.github.findings", attr="dedup_findings")
     base = {
@@ -50,7 +43,6 @@ def test_dedup_key_collapses_duplicates() -> None:
     assert len(collapsed) == 1
 
 
-@_XFAIL
 def test_about_resolves_to_symbol() -> None:
     resolve_about = require_module("tripll.github.findings", attr="resolve_about")
     finding = {"file": "src/tripll/demo.py", "line_range": [10, 10]}
@@ -58,14 +50,12 @@ def test_about_resolves_to_symbol() -> None:
     assert symbol_id.startswith("code:Symbol:")
 
 
-@_XFAIL
 def test_finding_stale_when_about_target_has_valid_to_sha() -> None:
     is_stale = require_module("tripll.github.findings", attr="is_stale")
     finding = {"head_sha": "abc", "about_target": {"valid_to_sha": "def"}}
     assert is_stale(finding, current_head="xyz") is True
 
 
-@_XFAIL
 def test_rejected_findings_export_to_learnings(tmp_path: Path) -> None:
     export_learnings = require_module("tripll.github.learnings", attr="export_learnings")
     out = tmp_path / ".pullfrog" / "learnings.md"
