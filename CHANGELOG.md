@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Graph-packed brief under `src/tripll/serve/brief_packer.py` — TARGETS seeds, 2-hop
+  subgraph, finding paths, triple tables with provenance, token spill-to-file; integrated
+  into dispatch briefs with `--grep-brief` A/B flag (D23).
+- Frozen benchmark suite under `bench/{tasks,baselines,METRICS.md}` and
+  `tripll bench run` for metric deltas vs baseline; D23 verdict recorded in
+  `docs/graph-serving.md`.
 - PR phase under `src/tripll/github/pr.py` and `src/tripll/loops/l1_pr.py` — idempotent
   push/open/comment/resolve/merge commit nodes, CI and review fix loop with fan-out dispatch,
   wired loop exits, human merge gate (never auto-merge), and `tripll pr shepherd|status|approve-merge`
@@ -38,6 +44,8 @@ All notable changes to this project are documented here. The format is based on
 - GitHub Actions CI (lint + typecheck + test + build) and tag-triggered release workflow.
 
 ### Changed
+- Dispatch briefs default to graph-packed context instead of the legacy no-exploration
+  directive; grep briefs remain available via `--grep-brief`.
 - `langgraph` moved from core dependencies to the optional `graph` extra; dev/CI sync
   installs `--extra graph`. Linear batch runs work without it; cyclic plans fail fast.
 - `graph.CW_HOTSPOTS` is derived from plan-corpus replay (legacy buckets retained as reference);

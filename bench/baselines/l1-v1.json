@@ -1,0 +1,17 @@
+{
+  "label": "l1-v1",
+  "recorded_at": "2026-07-25",
+  "agent_set": "wave-plan-executor@l1-bootstrap",
+  "metrics": {
+    "first_attempt_pass_rate": 0.67,
+    "attempts_to_green": 1.67,
+    "tokens_to_green": 12400,
+    "wall_clock_to_green_s": 540.0,
+    "escalation_rate": 0.11,
+    "finding_density_per_kloc": 2.4,
+    "stale_finding_rate": 0.05,
+    "scope_breach_rate": 0.02,
+    "graph_brief_win_rate": 0.67
+  },
+  "d23_notes": "Graph-packed brief wins 2/3 tasks on tokens-to-green vs grep-brief at bootstrap."
+}

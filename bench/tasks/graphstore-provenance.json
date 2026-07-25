@@ -1,0 +1,13 @@
+{
+  "task_id": "graphstore-provenance",
+  "description": "GraphStore upsert requires provenance fields — real W2 failure",
+  "base_sha": "4a8b41a",
+  "wave_id": "W2",
+  "targets": ["src/tripll/graphstore/sqlite_store.py"],
+  "owned_paths": ["src/tripll/graphstore/"],
+  "outcome_contract": {
+    "required": ["validate_provenance raises when fields omitted"],
+    "forbidden": ["defaulted provenance kwargs"]
+  },
+  "verify": ["make lint", "make typecheck", "make test"]
+}

@@ -138,6 +138,7 @@ def _engine_for(
     model: str | None = None,
     agent: str | None = None,
     role_dispatch: bool | None = None,
+    grep_brief: bool = False,
 ) -> Engine:
     """Build an :class:`~tripll.engine.Engine` with resolved repo root."""
     from tripll.adapters import get_adapter
@@ -152,6 +153,7 @@ def _engine_for(
         repo_root=repo_root,
         cost_budget_usd=_cost_budget_usd(),
         role_dispatch=role_dispatch,
+        grep_brief=grep_brief,
     )
 
 
@@ -790,6 +792,13 @@ def run(
             help="Enable per-role agent dispatch (test-author→test-creator, impl→wave-runner).",
         ),
     ] = None,
+    grep_brief: Annotated[
+        bool,
+        typer.Option(
+            "--grep-brief",
+            help="Emit legacy grep brief instead of graph-packed subgraph (D23 A/B).",
+        ),
+    ] = False,
     runs_root: RunsRootOpt = None,
 ) -> None:
     """Start (or dry-run) the wave-orchestrator pipeline on an input directory.
@@ -838,7 +847,14 @@ def run(
         typer.echo(f"Model: {model}")
     if agent:
         typer.echo(f"Agent: {agent}")
-    engine = _engine_for(rr, backend=backend, model=model, agent=agent, role_dispatch=role_dispatch)
+    engine = _engine_for(
+        rr,
+        backend=backend,
+        model=model,
+        agent=agent,
+        role_dispatch=role_dispatch,
+        grep_brief=grep_brief,
+    )
     try:
         result = asyncio.run(engine.start(input_path))
     except PlanPathValidationError as exc:
@@ -896,6 +912,13 @@ def resume(
             help="Enable per-role agent dispatch (test-author→test-creator, impl→wave-runner).",
         ),
     ] = None,
+    grep_brief: Annotated[
+        bool,
+        typer.Option(
+            "--grep-brief",
+            help="Emit legacy grep brief instead of graph-packed subgraph (D23 A/B).",
+        ),
+    ] = False,
     runs_root: RunsRootOpt = None,
 ) -> None:
     """Resume a paused or in-progress run from its on-disk state.
@@ -943,7 +966,14 @@ def resume(
     if agent:
         typer.echo(f"Agent: {agent}")
     typer.echo(f"Logs: {rr.run_dir(run_id) / 'logs'}")
-    engine = _engine_for(rr, backend=backend, model=model, agent=agent, role_dispatch=role_dispatch)
+    engine = _engine_for(
+        rr,
+        backend=backend,
+        model=model,
+        agent=agent,
+        role_dispatch=role_dispatch,
+        grep_brief=grep_brief,
+    )
     result = asyncio.run(engine.resume(run_id))
     _finalize_run_result(
         rr,
@@ -1261,6 +1291,41 @@ findings_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(findings_app, name="findings")
+
+bench_app = typer.Typer(
+    name="bench",
+    help="Frozen L1 benchmark replay and metric deltas (§9.4).",
+    no_args_is_help=True,
+)
+app.add_typer(bench_app, name="bench")
+
+
+@bench_app.command("run")
+def bench_run_cmd(
+    bench_dir: Annotated[
+        Path | None,
+        typer.Option("--bench-dir", help="Path to bench/ (default: auto-detect)."),
+    ] = None,
+    graph_db: Annotated[
+        Path | None,
+        typer.Option("--db", help="GraphStore SQLite path for graph-brief replay."),
+    ] = None,
+) -> None:
+    """Replay sealed tasks and emit metric deltas vs baseline."""
+    from tripll.bench import run_benchmark
+
+    result = run_benchmark(
+        bench_dir=bench_dir,
+        graph_db=graph_db,
+    )
+    typer.echo(f"tasks: {result.task_count}")
+    typer.echo(f"d23_verdict: {result.d23_verdict}")
+    for key in sorted(result.metrics):
+        delta = result.deltas[key]
+        sign = "+" if delta >= 0 else ""
+        typer.echo(
+            f"{key}: {result.metrics[key]:.4f} (baseline {result.baseline[key]:.4f}, {sign}{delta:.4f})"
+        )
 
 
 @graph_app.command("extract")
