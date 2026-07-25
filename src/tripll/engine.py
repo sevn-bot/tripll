@@ -72,7 +72,12 @@ from typing import TYPE_CHECKING, Protocol
 from loguru import logger
 
 from tripll.adapters.quota import quota_message
-from tripll.brief import extract_wave_summary, render_json_brief, write_brief
+from tripll.brief import (
+    enrich_brief_with_graph_pack,
+    extract_wave_summary,
+    render_json_brief,
+    write_brief,
+)
 from tripll.git_commit import commit_and_push_wave
 from tripll.graph import CW_HOTSPOTS, Batch, OrchestratorConfig, RunGraph, WaveNode, paths_overlap
 from tripll.harness.boundary import (
@@ -931,6 +936,7 @@ class Engine:
         cost_budget_usd: float = 0.0,
         max_parallel: int | None = None,
         role_dispatch: bool | None = None,
+        grep_brief: bool = False,
     ) -> None:
         """Initialize engine state from constructor arguments."""
         self.adapter = adapter
@@ -945,6 +951,7 @@ class Engine:
         )
         self._role_dispatch_cli: bool | None = role_dispatch
         self._role_dispatch_effective: bool = False
+        self._grep_brief = grep_brief
         # Single asyncio.Lock guarding all ledger-mutating sequences so that
         # concurrent _execute_node coroutines cannot interleave transactions.
         self._ledger_lock: asyncio.Lock = asyncio.Lock()
@@ -2737,6 +2744,19 @@ class Engine:
                     "do not reset or delete unrelated files."
                 )
                 brief["agent_directives"] = directives
+        graph_db = self.runs_root.graph_db_path(run_id)
+        if not graph_db.is_file():
+            graph_db = self.repo_root / ".tripll" / "graph.db"
+        at_sha = self._last_checkpoint_sha or "HEAD"
+        targets = list(node.owned_paths)
+        brief = enrich_brief_with_graph_pack(
+            brief,
+            wave_targets=targets,
+            graph_store=str(graph_db),
+            at_sha=at_sha,
+            grep_brief=self._grep_brief,
+            run_dir=worktree.path.parent.parent / "brief-spill",
+        )
         return brief
 
 
