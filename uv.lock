@@ -1186,15 +1186,15 @@ resolution-markers = [
     "python_full_version < '3.14' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "filelock", marker = "python_full_version < '3.15'" },
-    { name = "fsspec", marker = "python_full_version < '3.15'" },
-    { name = "hf-xet", marker = "(python_full_version < '3.15' and platform_machine == 'AMD64') or (python_full_version < '3.15' and platform_machine == 'aarch64') or (python_full_version < '3.15' and platform_machine == 'amd64') or (python_full_version < '3.15' and platform_machine == 'arm64') or (python_full_version < '3.15' and platform_machine == 'x86_64')" },
-    { name = "httpx", marker = "python_full_version < '3.15'" },
-    { name = "packaging", marker = "python_full_version < '3.15'" },
-    { name = "pyyaml", marker = "python_full_version < '3.15'" },
-    { name = "tqdm", marker = "python_full_version < '3.15'" },
-    { name = "typer", version = "0.26.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
-    { name = "typing-extensions", marker = "python_full_version < '3.15'" },
+    { name = "filelock" },
+    { name = "fsspec" },
+    { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'" },
+    { name = "httpx" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+    { name = "tqdm" },
+    { name = "typer", version = "0.26.7", source = { registry = "https://pypi.org/simple" } },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/48/0f/ed994dbade67a54407c28cab96ef845e0e6d25500be56aca6394f8bfc9dd/huggingface_hub-1.16.1.tar.gz", hash = "sha256:7f1dc4c5ec21aed69be630ad0c3378616be16f3de1a47b141c0e812965d9c832", size = 792534, upload-time = "2026-05-21T18:40:00.908Z" }
 wheels = [
@@ -1209,16 +1209,16 @@ resolution-markers = [
     "python_full_version >= '3.15'",
 ]
 dependencies = [
-    { name = "click", marker = "python_full_version >= '3.15'" },
-    { name = "filelock", marker = "python_full_version >= '3.15'" },
-    { name = "fsspec", marker = "python_full_version >= '3.15'" },
-    { name = "hf-xet", marker = "(python_full_version >= '3.15' and platform_machine == 'AMD64') or (python_full_version >= '3.15' and platform_machine == 'aarch64') or (python_full_version >= '3.15' and platform_machine == 'amd64') or (python_full_version >= '3.15' and platform_machine == 'arm64') or (python_full_version >= '3.15' and platform_machine == 'x86_64')" },
-    { name = "httpx", marker = "python_full_version >= '3.15'" },
-    { name = "packaging", marker = "python_full_version >= '3.15'" },
-    { name = "pyyaml", marker = "python_full_version >= '3.15'" },
-    { name = "tqdm", marker = "python_full_version >= '3.15'" },
-    { name = "typer", version = "0.25.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.15'" },
+    { name = "click" },
+    { name = "filelock" },
+    { name = "fsspec" },
+    { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'" },
+    { name = "httpx" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+    { name = "tqdm" },
+    { name = "typer", version = "0.25.1", source = { registry = "https://pypi.org/simple" } },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fb/d8/748ea0a47f0fa15227fe682f7a80826b4b7c096e4818044b8f56d6cb66d6/huggingface_hub-1.18.0.tar.gz", hash = "sha256:f0c5ecd1ef8c6a60f86f61ee278f2c1570ba9e279c9f54de9094210723b3613b", size = 812699, upload-time = "2026-06-05T09:26:33.401Z" }
 wheels = [
@@ -1879,6 +1879,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8dac321cda606860fa4548858c0cc45d9d1d4ca2628b/mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558", size = 6343, upload-time = "2025-04-22T14:54:24.164Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
+]
+
+[[package]]
+name = "networkx"
+version = "3.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/51/63fe664f3908c97be9d2e4f1158eb633317598cfa6e1fc14af5383f17512/networkx-3.6.1.tar.gz", hash = "sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509", size = 2517025, upload-time = "2025-12-08T17:02:39.908Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl", hash = "sha256:d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762", size = 2068504, upload-time = "2025-12-08T17:02:38.159Z" },
 ]
 
 [[package]]
@@ -3032,8 +3041,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography", marker = "python_full_version >= '3.15' or sys_platform != 'win32'" },
-    { name = "jeepney", marker = "python_full_version >= '3.15' or sys_platform != 'win32'" },
+    { name = "cryptography" },
+    { name = "jeepney" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -3238,6 +3247,7 @@ source = { editable = "." }
 dependencies = [
     { name = "loguru" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "typer", version = "0.25.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "typer", version = "0.26.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
 ]
@@ -3268,6 +3278,9 @@ dev = [
     { name = "pyyaml" },
     { name = "ruff" },
 ]
+kg = [
+    { name = "networkx" },
+]
 obs = [
     { name = "logfire" },
 ]
@@ -3287,6 +3300,7 @@ requires-dist = [
     { name = "logfire", marker = "extra == 'obs'", specifier = ">=4.32.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = "==1.20.2" },
+    { name = "networkx", marker = "extra == 'kg'", specifier = ">=3.4" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = "==4.6.0" },
     { name = "pydantic", specifier = ">=2.13.3" },
     { name = "pydantic-ai", marker = "extra == 'ai'", specifier = ">=1.106,<2" },
@@ -3294,13 +3308,14 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.3.0" },
     { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.9" },
     { name = "python-multipart", marker = "extra == 'dev'", specifier = ">=0.0.9" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.12" },
     { name = "sevn", marker = "extra == 'cloud'" },
     { name = "typer", specifier = ">=0.25.1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.34.0" },
 ]
-provides-extras = ["cloud", "obs", "ai", "scaffold", "api", "dev"]
+provides-extras = ["cloud", "obs", "ai", "scaffold", "api", "kg", "dev"]
 
 [[package]]
 name = "truststore"
@@ -3319,10 +3334,10 @@ resolution-markers = [
     "python_full_version >= '3.15'",
 ]
 dependencies = [
-    { name = "annotated-doc", marker = "python_full_version >= '3.15'" },
-    { name = "click", marker = "python_full_version >= '3.15'" },
-    { name = "rich", marker = "python_full_version >= '3.15'" },
-    { name = "shellingham", marker = "python_full_version >= '3.15'" },
+    { name = "annotated-doc" },
+    { name = "click" },
+    { name = "rich" },
+    { name = "shellingham" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e4/51/9aed62104cea109b820bbd6c14245af756112017d309da813ef107d42e7e/typer-0.25.1.tar.gz", hash = "sha256:9616eb8853a09ffeabab1698952f33c6f29ffdbceb4eaeecf571880e8d7664cc", size = 122276, upload-time = "2026-04-30T19:32:16.964Z" }
 wheels = [
@@ -3340,10 +3355,10 @@ resolution-markers = [
     "python_full_version < '3.14' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "annotated-doc", marker = "python_full_version < '3.15'" },
-    { name = "colorama", marker = "python_full_version < '3.15' and sys_platform == 'win32'" },
-    { name = "rich", marker = "python_full_version < '3.15'" },
-    { name = "shellingham", marker = "python_full_version < '3.15'" },
+    { name = "annotated-doc" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "rich" },
+    { name = "shellingham" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5e/ed/ef06584ccdd5c410df0837951ecd7e15d9a6144ea1bd4c73cecab1a89891/typer-0.26.7.tar.gz", hash = "sha256:e314a34c617e419c091b2830dda3ea1f257134ff593061a8f5b9717ab8dddb3a", size = 201709, upload-time = "2026-06-03T07:18:06.843Z" }
 wheels = [

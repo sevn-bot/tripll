@@ -299,8 +299,9 @@ class LedgerConnection:
         (0,)
     """
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, *, path: object | None = None) -> None:
         self.conn = conn
+        self.path = path
 
     def close(self) -> None:
         """Close the underlying connection."""
@@ -345,7 +346,7 @@ def open_ledger(path: object) -> LedgerConnection:
     _migrate_event_metadata(conn)
     conn.commit()
     logger.debug("ledger: opened {}", path)
-    return LedgerConnection(conn)
+    return LedgerConnection(conn, path=None if path == ":memory:" else path)
 
 
 def _migrate_attempt_outcomes(conn: sqlite3.Connection) -> None:
@@ -502,6 +503,25 @@ def insert_wave(
     logger.debug("ledger: inserted wave {}/{}", run_id, node_id)
 
 
+def _maybe_sync_wave_transition(
+    lc: LedgerConnection, run_id: str, node_id: str, new_state: WaveState
+) -> None:
+    if lc.path is None:
+        return
+    from pathlib import Path
+
+    from tripll.graphstore.task_sync import TaskGraphWriter
+
+    db_path = Path(str(lc.path)).parent / "graph.db"
+    if not db_path.is_file():
+        return
+    writer = TaskGraphWriter(db_path)
+    try:
+        writer.sync_wave_transition(run_id=run_id, node_id=node_id, new_state=new_state)
+    finally:
+        writer.close()
+
+
 def insert_attempt(
     lc: LedgerConnection,
     *,
@@ -511,6 +531,8 @@ def insert_attempt(
     backend: str,
     brief_path: str | None = None,
     log_path: str | None = None,
+    model: str | None = None,
+    agent: str | None = None,
 ) -> str:
     """Record a new dispatch attempt; returns the generated ``attempt_id``.
 
@@ -524,6 +546,8 @@ def insert_attempt(
         backend (str): Backend name (e.g. ``'claude_code'``).
         brief_path (str | None): Path to the emitted dispatch brief JSON.
         log_path (str | None): Path to the attempt log file.
+        model (str | None): Provider model id for task-graph sync.
+        agent (str | None): Agent slug for task-graph sync.
 
     Returns:
         str: The generated ``attempt_id`` UUID.
@@ -553,6 +577,26 @@ def insert_attempt(
             (now, run_id, node_id),
         )
     logger.debug("ledger: inserted attempt {} for {}/{}", attempt_id, run_id, node_id)
+    if lc.path is not None:
+        from pathlib import Path
+
+        from tripll.graphstore.task_sync import TaskGraphWriter
+
+        db_path = Path(str(lc.path)).parent / "graph.db"
+        if db_path.is_file():
+            writer = TaskGraphWriter(db_path)
+            try:
+                writer.sync_attempt(
+                    run_id=run_id,
+                    node_id=node_id,
+                    attempt_id=attempt_id,
+                    attempt_n=attempt_n,
+                    backend=backend,
+                    model=model,
+                    agent=agent,
+                )
+            finally:
+                writer.close()
     return attempt_id
 
 
@@ -637,6 +681,7 @@ def transition_wave(lc: LedgerConnection, run_id: str, node_id: str, new_state: 
     )
     lc.conn.commit()
     logger.debug("ledger: wave {}/{} → {}", run_id, node_id, new_state)
+    _maybe_sync_wave_transition(lc, run_id, node_id, new_state)
 
 
 def delete_attempts_for_node(lc: LedgerConnection, run_id: str, node_id: str) -> int:

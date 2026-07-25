@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- SQLite graph store (`GraphStore` port, three-layer ontology, task-layer sync alongside ledger).
 - Initial standalone release of **tripll**, extracted from the sevn.bot
   `wave-orchestrator/` subtree.
 - Optional Logfire/OpenTelemetry observability (`obs` extra, `tripll.obs`).
