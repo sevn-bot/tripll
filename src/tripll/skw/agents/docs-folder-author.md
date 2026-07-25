@@ -64,3 +64,8 @@ as the Cursor subagent (wave-plan-executor dispatches it for W7–W9).
 | [`docs-folder-author.md`](docs-folder-author.md) | Whole `specs/` or `prd/` folder |
 
 See [`README.md`](README.md) for the full auxiliary-agent index.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

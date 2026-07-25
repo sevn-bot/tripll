@@ -37,3 +37,8 @@ Headless: `make prd-author-run PRD=…` (renders `spec-kit-wave/prompts/prd-auth
 Validate: `make prd-validate PRD=…` · batch: `make prd-check`.
 
 Agent reference: [`.cursor/agents/prd-author.md`](../../.cursor/agents/prd-author.md).
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

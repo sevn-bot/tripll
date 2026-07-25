@@ -38,3 +38,8 @@ Headless: `make verifier-setup-run [CONTEXT=] [PATHS=]` (renders
 Cursor agent: `.cursor/agents/verifier-setup.md`.
 
 After setup, operators use the generated **`verify`** skill (`/verify`) before PRs.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

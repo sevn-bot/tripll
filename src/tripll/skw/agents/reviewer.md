@@ -59,3 +59,8 @@ Driver: `claude -p` (set `SKW_AGENT_BIN=claude`).
 - Fabricate findings not present in the plugin report.
 - Edit code, tests, or wave-files.
 - Skip writing `review-result.json` — the driver depends on it.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

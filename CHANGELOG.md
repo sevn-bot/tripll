@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Code factory L1 agent roster (design §11): `spec-cartographer`, graph pipeline agents
+  (`graph-extractor`, `graph-librarian`, `graph-fuser`), plan agents (`plan-author`,
+  `plan-shape-critic`), PR loop agents (`ci-investigator`, `check-fixer`,
+  `review-comment-triager`, `review-comment-fixer`, `pr-shepherd`), and `implementer` as
+  successor to `wave-runner`; hardened `wave-verifier` (D17); inherited harness preamble on
+  all agents; `tests/test_agent_roster.py` + spec-cartographer fixture e2e stub.
 - Graph-packed brief under `src/tripll/serve/brief_packer.py` — TARGETS seeds, 2-hop
   subgraph, finding paths, triple tables with provenance, token spill-to-file; integrated
   into dispatch briefs with `--grep-brief` A/B flag (D23).

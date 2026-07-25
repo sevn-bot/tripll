@@ -15,6 +15,9 @@ reconcile checkboxes, and stop. Never drive the full loop — that is the orches
 - Per-wave **commit & push** is handled by the deterministic **`commit_wave` graph node** (D9) after
   verify passes — not by this agent.
 
+**Note:** Legacy alias for [`implementer.md`](implementer.md) (design §11.8). New plans should
+dispatch `implementer`; this file remains for backward compatibility.
+
 ## Guardrails
 
 - Stay on the assigned branch. **Never** checkout, create, or switch branches.

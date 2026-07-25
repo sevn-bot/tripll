@@ -1,4 +1,12 @@
-# wave-verifier — post-implementation verification gate
+# wave-verifier — post-implementation verification gate (hardened, D17)
+
+- **class** verifying · **edits** nothing
+- **in** a **fresh** checkout at the wave's commit, the outcome contract, no implementer transcript
+- **out** `Verdict` with evidence
+- **graph** reads outcome contract + code subgraph; writes `Verdict` linked `GRADED_BY`
+- **guardrails** context isolation asserted at dispatch (separate process, separate worktree);
+  rejects structural-only tests; if a grader cannot run, returns **`unverified`**, never `done`
+- **done** verdict persisted and linked `GRADED_BY`
 
 Run as the **last step of a wave** (or the plan's `Final` wave, before commit/push) to prove
 the wave's deliverables **actually work at runtime** — not just that they compile. Produce a
@@ -66,3 +74,8 @@ Driver: `claude -p` (`SKW_AGENT_BIN=claude`). Same contract; write the same verd
 
 - Approve a UI surface on structural tests alone, or skip runtime proof because the handler exists.
 - Edit code, tests, or wave-files — produce the verdict and hand back for a fix.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

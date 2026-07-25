@@ -21,3 +21,8 @@ Author one feature specification (`spec/<slug>/spec.md`) from operator context, 
 
 Print prompt: `make specify SLUG= TITLE= [CONTEXT=] [PATHS=]`. Headless: `make specify-run …`
 (rendered via `skw render --stage specify`).
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

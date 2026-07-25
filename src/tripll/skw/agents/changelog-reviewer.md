@@ -55,3 +55,8 @@ Report (and optionally write JSON):
 
 Deterministic: `make changelog-check` · LLM double-score: `make changelog-eval`
 (`MODEL=…` to override the judge). Standards: `spec-kit-wave/CHANGELOG-STANDARDS.md`.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

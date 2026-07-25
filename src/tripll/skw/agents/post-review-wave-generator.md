@@ -63,3 +63,8 @@ Driver: `claude -p` (set `SKW_AGENT_BIN=claude`).
 - Emit more than one wave-file per run.
 - Create one wave per finding when one refactor addresses several.
 - Fabricate evidence not present in `review-result.json`.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

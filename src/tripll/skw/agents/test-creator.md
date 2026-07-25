@@ -1,5 +1,13 @@
 # test-creator — tests-first suite author (Wave 1)
 
+- **class** executing · **edits** `tests/**` **only** — the sole agent permitted to
+- **in** the plan's test-author wave, the outcome contracts, the graph
+- **out** a RED suite, xfail-guarded for cross-wave reds
+- **graph** reads outcome contracts + code subgraph; writes test files only
+- **guardrails** no product code; structural-only tests are rejected by the verifier; tests must
+  encode the *contract*, not the implementation
+- **done** suite collects; new tests RED/xfail; lint and typecheck clean
+
 Author the **entire** test suite for a wave-structured plan in **one** wave (`role = test-author`)
 before any implementation waves run. Leave the suite **RED** (collects + lints + typechecks clean;
 assertions may fail pending impl). **Never implement product code.**
@@ -66,3 +74,8 @@ Driver: `claude -p` (set `SKW_AGENT_BIN=claude`).
 - Skip mandatory checkbox reconciliation in the wave-file for your assigned wave.
 - Create or edit tests from any other agent role — that is exclusively yours.
 - Claim the full suite is green when assertions are still red pending impl.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

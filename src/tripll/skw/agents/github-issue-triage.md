@@ -48,3 +48,8 @@ After triage + wave routing, operators may dispatch:
 - `make -C spec-kit-wave wave-runner-run WAVE=… WAVE_ID=…` — implementation
 - `make -C spec-kit-wave test-creator-run WAVE=…` — tests-first wave
 - `make -C spec-kit-wave loop WAVE=…` — full orchestrated loop
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

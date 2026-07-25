@@ -35,3 +35,8 @@ the kit `grilling` and `domain-modeling` skills. Resolve glossary/ADR/map paths 
 
 Print prompt: `make wayfinder SLUG= TITLE= [CONTEXT=]`. Headless: `make wayfinder-run …`
 (renders `spec-kit-wave/prompts/wayfinder.md` via `skw render --stage wayfinder`).
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

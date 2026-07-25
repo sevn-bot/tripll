@@ -37,3 +37,8 @@ Standards: `spec-kit-wave/CHANGELOG-STANDARDS.md` · templates:
 `spec-kit-wave/changelog-templates/entry-template.md`.
 
 Review: hand off to [`changelog-reviewer`](changelog-reviewer.md) to run the gates.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.
