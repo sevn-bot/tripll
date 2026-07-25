@@ -96,9 +96,9 @@ evidence. Per-attempt logs live in `runs/processing/<run-id>/logs/`.
 
 ## 4. Escalation handling
 
-Each wave gets up to **3 attempts** (2 retries; D7). The corrected brief appends
-prior-attempt failure evidence on each retry. On the 3rd failure the wave is
-marked `blocked`, the run moves to `runs/failed/<run-id>/`, and:
+Each wave gets up to **5 attempts** (4 retries; tests-first model, D1). The corrected brief
+appends prior-attempt failure evidence on each retry. On the 5th failure the wave is marked
+`blocked`, the run moves to `runs/failed/<run-id>/`, and:
 
 - `escalation.md` lists the blocked waves and evidence.
 - `report.md` summarises phases, wave states, escalations, and deferred/manual
@@ -138,7 +138,30 @@ make tripll ARGS='run <set> --integrate'             # merge → docs → make c
 Pre-0 / review-gate batches never auto-commit; a failing gate aborts the batch
 before committing.
 
-## 8. Orchestrator mode (headless Multitask parity)
+## 8. PR loop and merge gate (code factory L1)
+
+After implementation waves, the **PR phase** pushes the branch, opens a pull request,
+ingests CI failures and review comments as `Finding` nodes, and dispatches fix agents until
+required checks pass. The loop **stops at the human merge gate** — tripll never auto-merges.
+
+```bash
+tripll pr shepherd <run-id>              # idempotent push/open/fix loop
+tripll findings sync --pr <n>            # check-runs + review threads → graph
+tripll findings list [--state open]      # inspect findings
+tripll pr status <run-id>                # checks + pullfrog-approval
+tripll pr approve-merge <run-id>         # operator merge gate
+```
+
+Dashboard run detail shows **Code factory L1** panels: wave subgraph, findings grouped by
+state, and exit caps approaching limits (§12).
+
+Rejected findings export to `.pullfrog/learnings.md` (D13). Optional CI review:
+`.github/workflows/pullfrog.yml` (requires `CLAUDE_CODE_OAUTH_TOKEN` secret).
+Local advisory review: `make review`.
+
+See [`../harness-checks.md`](../harness-checks.md) and [`../graph-serving.md`](../graph-serving.md).
+
+## 9. Orchestrator mode (headless Multitask parity)
 
 Orchestrator mode is **opt-in** when an input set contains `*-orchestrator-prompt.md`
 and the wave plan declares serial orchestration (design-note §8, D1). The engine
@@ -218,7 +241,7 @@ Automated W0 smoke: `make smoke-orchestrator-w0`.
 After resume, the next serial wave dispatches on the single integration branch recorded
 in the orchestrator prompt.
 
-## 9. Agent-Native Plans sidecar (hybrid)
+## 10. Agent-Native Plans sidecar (hybrid)
 
 Optional **Docker sidecar** for pre-dispatch plan review and post-change recap via
 `/visual-plan` and `/visual-recap` skills. **tripll remains the live-ops control

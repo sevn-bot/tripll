@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- W12 docs and operator guides: L1 design-note §0 (task graph, `unverified`, exits, ledger vs
+  checkpoint), control-plane §12 (LangGraph seam), `docs/ontology.md`, `docs/harness-checks.md`,
+  PR-loop runbook, updated `about-tripll` architecture page.
+- Dashboard L1 panels on run detail — graph subgraph, findings by state, exit caps (§12).
+- pullfrog-py CI (`.github/workflows/pullfrog.yml`), `.pullfrog/config.yaml`, `make review`,
+  and `pullfrog-ref-check` pin parity gate.
 - Code factory L1 agent roster (design §11): `spec-cartographer`, graph pipeline agents
   (`graph-extractor`, `graph-librarian`, `graph-fuser`), plan agents (`plan-author`,
   `plan-shape-critic`), PR loop agents (`ci-investigator`, `check-fixer`,

@@ -1,45 +1,60 @@
 title: Architecture
 nav_label: Architecture
 nav_order: 30
-summary: How tripll turns wave-plan files into a RunGraph and executes it with worktree isolation, human gates, retries, and integration.
+summary: Code factory L1 — three-layer graph, task-graph execution, harness pillars, PR loop, and observability.
 body: |
-  <h2>The RunGraph</h2>
-  <p>A plan set is parsed into a <strong>RunGraph</strong> of waves. Each wave has dependencies,
-  an optional review gate, owned paths, and verify targets. The graph is layered into
-  <strong>batches</strong> that run in order; waves within a batch can run in parallel.</p>
+  <h2>Overview</h2>
+  <p>tripll is a <strong>level-1 code factory</strong>: it parses wave plans into a
+  <strong>RunGraph</strong>, dispatches agents in dependency order, verifies outcomes with
+  isolated graders, maintains a queryable <strong>Code KG</strong>, and runs an idempotent
+  <strong>PR fix loop</strong> that stops at a human merge gate.</p>
+
+  <h2>Three graph layers</h2>
+  <table class="table">
+    <tr><th>Layer</th><th>Contents</th></tr>
+    <tr><td><code>code</code></td><td>Modules, symbols, tests, specs, requirements, CI checks — extracted from the target repo</td></tr>
+    <tr><td><code>task</code></td><td>Plans, waves, attempts, gates, PRs — synced alongside the ledger</td></tr>
+    <tr><td><code>finding</code></td><td>CI failures and review comments ingested from GitHub</td></tr>
+  </table>
+  <p>Store: <code>.tripll/graph.db</code> (SQLite). Ontology:
+  <code>src/tripll/ontology/ontology.yaml</code>.</p>
+
+  <h2>RunGraph and batches</h2>
   <ul>
-    <li><strong>Lanes</strong> — independent streams of work, isolated by owned paths.</li>
+    <li><strong>Waves</strong> — atomic units with typed <code>depends_on</code>, owned paths, and outcome contracts.</li>
+    <li><strong>Lanes</strong> — path-disjoint streams on dedicated worktrees.</li>
     <li><strong>Batches</strong> — dependency layers executed sequentially.</li>
-    <li><strong>Pre-0 gate</strong> — a human approval stop derived from <code>## Wave W0</code>
-      sections and decision rows marked for W0.</li>
-    <li><strong>CW seams</strong> — content-window hotspots forbidden to lanes that do not own them.</li>
+    <li><strong>Pre-0 gate</strong> — human approval before implementation waves dispatch.</li>
   </ul>
 
-  <h2>Execution engine</h2>
-  <p>The engine dispatches each wave to a backend adapter inside a dedicated
-  <strong>git worktree</strong>, enforces owned-path scope (reverting out-of-scope changes),
-  runs verify commands, retries failures up to a limit, and escalates when exhausted. Batches can
-  be <strong>integrated</strong> onto a single branch.</p>
+  <h2>Harness pillars</h2>
+  <ul>
+    <li><strong>Env fingerprint</strong> — 13 fields per attempt for reproducibility.</li>
+    <li><strong>Outcome contracts</strong> — <code>passed</code> / <code>failed</code> / <code>unverified</code>; never self-reported.</li>
+    <li><strong>Verifier isolation</strong> — fresh checkout, no implementer transcript (D17).</li>
+    <li><strong>Idempotency</strong> — decide/commit split; no duplicate PRs on retry.</li>
+    <li><strong>Eight loop exits</strong> — turn cap (5 attempts), budget, wall clock, no-progress, circuit breaker, …</li>
+  </ul>
 
-  <h2>Backends (adapters)</h2>
+  <h2>PR phase</h2>
+  <p>Push branch → open PR → sync findings → dispatch fix agents → stop when
+  <code>pullfrog-approval</code> and required checks are green → <strong>human merge gate</strong>.
+  Rejected findings export to <code>.pullfrog/learnings.md</code>.</p>
+
+  <h2>Backends and extras</h2>
   <table class="table">
-    <tr><th>Adapter</th><th>Notes</th></tr>
-    <tr><td><code>claude_code</code></td><td>Default; drives the <code>claude</code> CLI.</td></tr>
-    <tr><td><code>cursor_local</code></td><td>Local Cursor agent dispatch.</td></tr>
-    <tr><td><code>cursor_cloud</code></td><td>Optional cloud dispatch via the <code>cloud</code>
-      extra; degrades gracefully when unavailable.</td></tr>
+    <tr><th>Extra</th><th>Purpose</th></tr>
+    <tr><td><code>graph</code></td><td>LangGraph loops + durable checkpoints</td></tr>
+    <tr><td><code>kg</code></td><td>NetworkX replica for analytics</td></tr>
+    <tr><td><code>api</code></td><td>FastAPI control plane + dashboard</td></tr>
+    <tr><td><code>obs</code></td><td>Logfire/OpenTelemetry (no-op without token)</td></tr>
   </table>
+  <p><strong>No API keys required</strong> in tripll itself — auth lives in backend toolchains
+  (<code>claude</code>, <code>cursor-agent</code>). Set <code>TRIPLL_REPO_ROOT</code> to point at
+  the target git checkout.</p>
 
-  <h2>Tests-first model</h2>
-  <p>An optional <code>role</code> column drives a tests-first flow:
-  <code>W0 (gate) → W1 test-creator (full RED suite) → impl waves (green) → Final</code>. W1 is the
-  single owner of <code>tests/</code>; implementation waves are forbidden from editing tests and get
-  extra attempts before escalation.</p>
-
-  <h2>State &amp; observability</h2>
-  <p>Run state is tracked in a SQLite ledger with an atomic state machine. Logs go through loguru;
-  optional Logfire/OpenTelemetry tracing is enabled by the <code>obs</code> extra and is a no-op
-  without <code>LOGFIRE_TOKEN</code>.</p>
-
-  <p>Deep dive: <code>docs/design-note.md</code> (graph model) and
-  <code>docs/control-plane-design.md</code> (dashboard IA).</p>
+  <h2>Observability</h2>
+  <p>SQLite ledger for run state; optional LangGraph checkpoints (derived). Dashboard panels:
+  graph subgraph, findings by state, exit caps. Deep dives:
+  <code>docs/design-note.md</code>, <code>docs/harness-checks.md</code>,
+  <code>docs/control-plane-design.md</code>.</p>

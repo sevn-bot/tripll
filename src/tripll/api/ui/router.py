@@ -62,6 +62,7 @@ from tripll.api._artefacts import (
     tail_log_file,
 )
 from tripll.api._auth import require_auth
+from tripll.api._l1_panels import build_l1_panels
 from tripll.api._orchestrator_ui import build_orchestrator_view
 from tripll.api._runs import RunSummary, _find_ledger, _is_run_live, _list_all_runs
 from tripll.api._worktree_status import (
@@ -1085,8 +1086,15 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         )
 
     from tripll import hitl
+    from tripll.repo_root import resolve_repo_root
 
     hitl_info = hitl.hitl_status(run_dir) if run_dir is not None else {"pending": False}
+    l1 = build_l1_panels(
+        run_dir=run_dir,
+        waves=waves,
+        run_cost=run_cost,
+        repo_root=resolve_repo_root(),
+    )
 
     return {
         "run_id": run_id,
@@ -1102,6 +1110,7 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         "orch": orch,
         "wave_summary": orch.wave_summary,
         "hitl": hitl_info,
+        "l1": l1,
     }
 
 
