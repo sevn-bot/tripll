@@ -1,9 +1,25 @@
 # tripll runtime artefacts — not committed
 runs/
+.tripll/
+
+# Secrets (keep *.example tracked)
 .env
+.env.*
+!.env.example
+
+# Operator-private local trees
+.ignorelocal/
+
+# Verification / harness output
+evidence/
+
+# IDE agent config (local-only; never commit)
+.claude/
+.cursor/
 
 # Virtualenv
 .venv/
+venv/
 
 # Python caches
 __pycache__/
@@ -12,6 +28,9 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
 
 # Egg / build info
 *.egg-info/
@@ -19,5 +38,9 @@ dist/
 build/
 .hatch/
 
-# macOS
+# Editor / OS noise
 .DS_Store
+.idea/
+.vscode/
+.cursorignore
+.cursorindexingignore
