@@ -326,6 +326,29 @@ local-files replaces **both** hosted and sidecar when you want zero plan DB at a
 
 ---
 
+## Git safety (git clean guard)
+
+tripll ships a repo-local `bin/git` wrapper that blocks `git clean -x` and `git clean -X`.
+Those flags delete gitignored operator trees (`.ignorelocal/`, wave plans, design docs).
+
+**Before any git operations in this checkout**, prepend the repo `bin/` directory to PATH:
+
+```bash
+export PATH="$PWD/bin:$PATH"
+```
+
+Then use plain `git` — the wrapper delegates to your real git binary and intercepts
+`git clean` to reject `-x`/`-X`. Safe cleanup remains available:
+
+```bash
+git clean -fd              # tracked + untracked dirs, no gitignored files
+git clean -fd -- path/to/  # scoped cleanup
+```
+
+Do **not** call `/opt/homebrew/bin/git clean -fdx` or similar — that bypasses the guard.
+
+---
+
 ## Deferred / manual items
 
 - **Cloud live dispatch + poll loop** — `cursor_cloud` dispatch and the
