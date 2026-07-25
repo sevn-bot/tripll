@@ -2,8 +2,8 @@
 
 **Source plan:** `.ignorelocal/waves/tripll-code-factory-wave-plan.md`
 **Design:** `.ignorelocal/design/plan/tripll-code-factory-design.md`
-**Wave:** W1 (`role: test-author`; RED / xfail expected)
-**Date:** 2026-07-25
+**Wave:** Final (all contracts green; 0 xfails)
+**Date:** 2026-07-25 (Final sweep 2026-07-25)
 
 ## Contract-to-test matrix
 
@@ -151,17 +151,17 @@ Fixtures: `tests/fixtures/github/`
 
 ## xfail schedule (reconciliation)
 
-| Impl wave | Un-xfail tests in |
-|-----------|-------------------|
-| W2 | W1.1, W1.2 |
-| W3 | W1.3, W1.4, W1.5 |
-| W4 | W1.6, W1.7 |
-| W6 | W1.10, W1.14 |
-| W7 | W1.8, W1.9, W1.15 |
-| W8 | W1.11 |
-| W9 | W1.12 |
-| W10 | W1.13 |
-| Final | test-creator drops all satisfied xfails |
+| Impl wave | Un-xfail tests in | Status |
+|-----------|-------------------|--------|
+| W2 | W1.1, W1.2 | ✅ green @ 4a8b41a |
+| W3 | W1.3, W1.4, W1.5 | ✅ green @ 4096e7b |
+| W4 | W1.6, W1.7 | ✅ green @ 9650722 |
+| W6 | W1.10, W1.14 | ✅ green @ 78a4873 |
+| W7 | W1.8, W1.9, W1.15 | ✅ green @ a5da5b3 |
+| W8 | W1.11 | ✅ green @ a83307c |
+| W9 | W1.12 | ✅ green @ 723d272 |
+| W10 | W1.13 | ✅ green @ 7ecef00 |
+| Final | all satisfied xfails dropped | ✅ **0 xfails** — 905 passed @ e0a0ccb+ |
 
 ## Shared helpers
 
