@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Final L1 gate: xfail sweep complete (0 xfails); `make ci` green (905 passed, 25 skipped);
+  tripll self-graph extracted (6310 nodes, 5412 edges @ HEAD).
 - W12 docs and operator guides: L1 design-note §0 (task graph, `unverified`, exits, ledger vs
   checkpoint), control-plane §12 (LangGraph seam), `docs/ontology.md`, `docs/harness-checks.md`,
   PR-loop runbook, updated `about-tripll` architecture page.
