@@ -20,3 +20,8 @@ the spec-kit-wave front end. Not part of the LangGraph run/review/generate loop.
 
 Print prompt: `make clarify SLUG= TITLE= [CONTEXT=] [PATHS=]`. Headless: `make clarify-run …`
 (renders `spec-kit-wave/prompts/clarify.md` via `skw render --stage clarify`).
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.

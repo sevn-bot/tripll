@@ -65,3 +65,8 @@ Driver: `claude -p` (`SKW_AGENT_BIN=claude`). Same contract and verdict JSON.
 - Approve a PR shipping an operator-visible surface with only structural tests.
 - Trust green CI as proof a feature works.
 - Fabricate findings or post comments without explicit instruction.
+
+## Inherited harness
+
+See [`_inherited-harness.md`](_inherited-harness.md) — tool boundary, handoff contract, loop exits,
+idempotency, graph-packed brief.
