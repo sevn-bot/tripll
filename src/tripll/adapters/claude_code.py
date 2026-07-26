@@ -233,7 +233,11 @@ class ClaudeCodeAdapter(AgentAdapter):
         budget_raw = brief.get("max_budget_usd")
         budget = self.max_budget_usd
         if budget_raw is not None:
-            budget = float(budget_raw) if isinstance(budget_raw, (int, float, str)) else self.max_budget_usd
+            budget = (
+                float(budget_raw)
+                if isinstance(budget_raw, (int, float, str))
+                else self.max_budget_usd
+            )
         if budget is not None and budget > 0:
             argv += ["--max-budget-usd", str(budget)]
         argv.append(prompt)

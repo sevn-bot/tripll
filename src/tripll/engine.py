@@ -140,6 +140,16 @@ if TYPE_CHECKING:
     from tripll.ledger import AttemptOutcome, RunState
     from tripll.pipeline import RunsRoot
 
+
+def _resolve_grep_brief(grep_brief: bool | None) -> bool:
+    """Default graph-packed briefs when the kg extra is installed (P2.3)."""
+    if grep_brief is not None:
+        return grep_brief
+    from tripll.plan.code_graph import kg_extra_available
+
+    return not kg_extra_available()
+
+
 # Late-coordination hotspots that must serialise within a phase (CW-4/CW-5).
 _LATE_CW_PATHS: frozenset[str] = frozenset(CW_HOTSPOTS["CW-4"] + CW_HOTSPOTS["CW-5"])
 
@@ -938,7 +948,7 @@ class Engine:
         cost_budget_usd: float = 0.0,
         max_parallel: int | None = None,
         role_dispatch: bool | None = None,
-        grep_brief: bool = False,
+        grep_brief: bool | None = None,
     ) -> None:
         """Initialize engine state from constructor arguments."""
         self.adapter = adapter
@@ -953,7 +963,7 @@ class Engine:
         )
         self._role_dispatch_cli: bool | None = role_dispatch
         self._role_dispatch_effective: bool = False
-        self._grep_brief = grep_brief
+        self._grep_brief = _resolve_grep_brief(grep_brief)
         self._ledger_lock: asyncio.Lock = asyncio.Lock()
         self._pools: ProviderPoolRegistry | None = None
         self._default_provider: str = "claude_code"
@@ -1004,6 +1014,12 @@ class Engine:
         import json
 
         self.runs_root.graph_path(run_id).write_text(json.dumps(graph.to_dict(), indent=2))
+
+        graph_db = self.runs_root.graph_db_path(run_id)
+        from tripll.plan.code_graph import refresh_code_graph
+
+        if refresh_code_graph(graph_db, self.repo_root):
+            logger.info("engine: refreshed code graph at {}", graph_db)
 
         from tripll.graphstore.task_sync import TaskGraphWriter
 
@@ -2939,6 +2955,18 @@ class Engine:
             grep_brief=self._grep_brief,
             run_dir=worktree.path.parent.parent / "brief-spill",
         )
+        from tripll.plan.code_graph import kg_extra_available, routing_hints_for_wave
+
+        if kg_extra_available() and graph_db.is_file():
+            provider = node.provider or self._default_provider
+            provider_cfg = self._pools.configs.get(provider) if self._pools else None
+            brief["routing_hints"] = routing_hints_for_wave(
+                targets=targets,
+                graph_store=str(graph_db),
+                provider=provider,
+                provider_config=provider_cfg,
+                repo=self.repo_root.name,
+            )
         return brief
 
 

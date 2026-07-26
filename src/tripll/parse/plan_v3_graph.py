@@ -24,16 +24,12 @@ def _wave_specs_from_v3(waves: list[dict[str, object]]) -> list[WaveSpec]:
             continue
         depends_raw = wave.get("depends_on")
         depends_on: list[dict[str, object]] = (
-            [d for d in depends_raw if isinstance(d, dict)]
-            if isinstance(depends_raw, list)
-            else []
+            [d for d in depends_raw if isinstance(d, dict)] if isinstance(depends_raw, list) else []
         )
         depends = [str(dep.get("wave", "")) for dep in depends_on]
         verify_raw = wave.get("verify")
         verify_targets = (
-            [str(v) for v in verify_raw]
-            if isinstance(verify_raw, list)
-            else ["make ci-affected"]
+            [str(v) for v in verify_raw] if isinstance(verify_raw, list) else ["make ci-affected"]
         )
         specs.append(
             WaveSpec(

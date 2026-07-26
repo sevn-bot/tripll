@@ -191,7 +191,13 @@ def check_stop_rule(
                 )
 
 
-def compile_plan(plan: dict[str, Any]) -> dict[str, Any]:
+def compile_plan(
+    plan: dict[str, Any],
+    *,
+    repo_root: Path | None = None,
+    graph_db: Path | str | None = None,
+    repo: str | None = None,
+) -> dict[str, Any]:
     """Run fake-edge cleanup, stop-rule, and one-writer checks on a plan dict."""
     waves = plan.get("waves") or []
     if not isinstance(waves, list):
@@ -202,7 +208,26 @@ def compile_plan(plan: dict[str, Any]) -> dict[str, Any]:
         entry = dict(wave)
         entry["depends_on"] = _valid_depends_on(wave)
         cleaned_waves.append(entry)
-    check_stop_rule(waves=cleaned_waves)
+    code_graph: dict[str, Any] | None = None
+    from tripll.plan.code_graph import (
+        analyze_parallel_calls,
+        default_graph_db_path,
+        kg_extra_available,
+    )
+
+    if kg_extra_available():
+        db = graph_db
+        if db is None and repo_root is not None:
+            candidate = default_graph_db_path(repo_root)
+            db = candidate if candidate.is_file() else None
+        if db is not None:
+            slug = repo or (repo_root.name if repo_root is not None else "tripll")
+            code_graph = analyze_parallel_calls(
+                cleaned_waves,
+                graph_store=str(db),
+                repo=slug,
+            )
+    check_stop_rule(waves=cleaned_waves, code_graph=code_graph)
     _check_one_writer(cleaned_waves)
     cleaned = dict(plan)
     cleaned["waves"] = cleaned_waves

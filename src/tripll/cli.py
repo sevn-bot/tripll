@@ -138,7 +138,7 @@ def _engine_for(
     model: str | None = None,
     agent: str | None = None,
     role_dispatch: bool | None = None,
-    grep_brief: bool = False,
+    grep_brief: bool | None = None,
 ) -> Engine:
     """Build an :class:`~tripll.engine.Engine` with resolved repo root."""
     from tripll.adapters import get_adapter
@@ -813,12 +813,12 @@ def run(
         ),
     ] = None,
     grep_brief: Annotated[
-        bool,
+        bool | None,
         typer.Option(
-            "--grep-brief",
-            help="Emit legacy grep brief instead of graph-packed subgraph (D23 A/B).",
+            "--grep-brief/--graph-brief",
+            help="Force legacy grep brief (default: graph-packed when kg extra installed).",
         ),
-    ] = False,
+    ] = None,
     runs_root: RunsRootOpt = None,
 ) -> None:
     """Start (or dry-run) the wave-orchestrator pipeline on an input directory.
@@ -933,12 +933,12 @@ def resume(
         ),
     ] = None,
     grep_brief: Annotated[
-        bool,
+        bool | None,
         typer.Option(
-            "--grep-brief",
-            help="Emit legacy grep brief instead of graph-packed subgraph (D23 A/B).",
+            "--grep-brief/--graph-brief",
+            help="Force legacy grep brief (default: graph-packed when kg extra installed).",
         ),
-    ] = False,
+    ] = None,
     runs_root: RunsRootOpt = None,
 ) -> None:
     """Resume a paused or in-progress run from its on-disk state.

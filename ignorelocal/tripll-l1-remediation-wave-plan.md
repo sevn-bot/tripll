@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** P1 complete — P2 next
+**Status:** P2 complete — P3 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | P1 ✅ (2026-07-26) — P2 next |
-| **Stage** | Provider fabric complete; code graph activation (P2) not started |
-| **Next action** | P2.1 — build/refresh code graph at run start when `kg` extra installed |
+| **Current wave** | P2 ✅ (2026-07-26) — P3 next |
+| **Stage** | Code graph activated for stop rule, briefs, and routing hints; tracing spine (P3) not started |
+| **Next action** | P3.1 — add `src/tripll/tracing/sink.py` (TraceEvent + TraceSink protocol) |
 | **Blocked on** | — |
-| **Last pushed sha** | `b9a79f8` |
+| **Last pushed sha** | `852d33d` |
 | **Last CI run id** | `30166223593` (status=completed; conclusion=failure — TEST-03 still open) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` — CI executes; audit baseline per P0.1 rule |
@@ -1534,8 +1534,8 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | Wave | Provider / model | Scope | Findings | Status |
 |------|------------------|-------|----------|--------|
 | P0 | **human** + `cursor_local` claude-opus-5 | Pre-0 gate: clear Actions billing; CI timeout + Python pin; Make `sync` prereqs; plan self-hosting | CI-00, DX-01, DX-02, DX-05, PLAN-selfhost, PLAN-gates, SHAPE-01 | [x] (2026-07-26 ✅: ad4a255 — CI canary run 30166223593 started; fresh-clone lint ruff 0.15.12; validate-plan green) |
-| P1 | `cursor_local` auto | **Provider fabric**: per-provider pools, per-wave routing, infra-failure class, failover, model-ID refresh, **effort + budget flags**, auth preflight, ceiling calibration | PROV-01…03, MODEL-01, EFFORT-01, BUDGET-01, AUTH-01, CAP-01 | [x] (2026-07-26 ✅: b9a79f8 — pools.py + 11 provider_pools tests green; claude-3-5-sonnet purged from src) |
-| P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [ ] |
+| P1 | `cursor_local` auto | **Provider fabric**: per-provider pools, per-wave routing, infra-failure class, failover, model-ID refresh, **effort + budget flags**, auth preflight, ceiling calibration | PROV-01…03, MODEL-01, EFFORT-01, BUDGET-01, AUTH-01, CAP-01 | [x] (2026-07-26 ✅: d2ad6c0 — pools.py + 11 provider_pools tests green; claude-3-5-sonnet purged from src) |
+| P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [x] (2026-07-26 ✅: 852d33d — code_graph.py + 8 tests green; compile_plan supplies code_graph) |
 | P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [ ] |
 | W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [ ] |
 | W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [ ] |
@@ -1708,20 +1708,20 @@ wave that routes to a non-default provider
 Same tests-first exception as P0.7/P0.8/P0.10 — this is infrastructure W1 itself dispatches on, so
 it ships with its own tests in the same commit.
 
-- [x] **P1.1** *(PROV-02)* Add `src/tripll/adapters/pools.py`: (2026-07-26 ✅: b9a79f8 — ProviderPoolRegistry global→provider acquire order)
-- [x] **P1.2** *(PROV-01)* Add `provider`, `agent`, `fallback`, `reasoning_effort`, `max_budget_usd` to `WaveNode`; parse from v3 TOML via `plan_v3_graph.py`. (2026-07-26 ✅: b9a79f8)
-- [x] **P1.3** *(PROV-01)* Resolve adapter per node in `_execute_node` via `_resolve_adapter`. (2026-07-26 ✅: b9a79f8 — ledger records per-attempt backend)
-- [x] **P1.4** *(PROV-03)* Add `src/tripll/adapters/failure_class.py`. (2026-07-26 ✅: b9a79f8 — infra skips attempt via `void_infra_attempt_count`)
-- [x] **P1.5** Adaptive throttle: N consecutive infra halve pool + cooldown; clean dispatch restores step. (2026-07-26 ✅: b9a79f8 — `ProviderPoolRegistry.record_infra/record_success`)
-- [x] **P1.6** Failover on cooldown via `_pick_provider` + `fallback` list; model preserved on node. (2026-07-26 ✅: b9a79f8)
-- [x] **P1.7** *(MODEL-01)* `DEFAULT_MODEL = "claude-sonnet-5"`; engine docstring updated; test asserts agreement. (2026-07-26 ✅: b9a79f8 — grep src claude-3-5-sonnet → 0)
-- [x] **P1.8** *(EFFORT-01)* `--effort` in `claude_code.build_argv`; parse-time validation in `plan/providers.py`. (2026-07-26 ✅: b9a79f8)
-- [x] **P1.9** *(BUDGET-01)* `--max-budget-usd` from per-wave `max_budget_usd`. (2026-07-26 ✅: b9a79f8)
-- [x] **P1.10** **Do not wire `claude --fallback-model`.** (2026-07-26 ✅: b9a79f8 — ADR 010; grep fallback-model src → 0)
-- [x] **P1.11** *(AUTH-01)* Auth preflight at run start via `auth_preflight.py`. (2026-07-26 ✅: b9a79f8)
-- [x] **P1.12** *(CAP-01)* Runbook documents ceiling calibration procedure + tier-1 probe levels. (2026-07-26 ✅: b9a79f8 — live tier-2 deferred to W1.15b)
-- [x] **P1.13** Operator runbook §6 provider fabric table + infra/auth docs. (2026-07-26 ✅: b9a79f8)
-- [x] **P1.14** **Commit + push** (`feat(adapters): per-provider pools, routing, effort, budget`). (2026-07-26 ✅: b9a79f8)
+- [x] **P1.1** *(PROV-02)* Add `src/tripll/adapters/pools.py`: (2026-07-26 ✅: d2ad6c0 — ProviderPoolRegistry global→provider acquire order)
+- [x] **P1.2** *(PROV-01)* Add `provider`, `agent`, `fallback`, `reasoning_effort`, `max_budget_usd` to `WaveNode`; parse from v3 TOML via `plan_v3_graph.py`. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.3** *(PROV-01)* Resolve adapter per node in `_execute_node` via `_resolve_adapter`. (2026-07-26 ✅: d2ad6c0 — ledger records per-attempt backend)
+- [x] **P1.4** *(PROV-03)* Add `src/tripll/adapters/failure_class.py`. (2026-07-26 ✅: d2ad6c0 — infra skips attempt via `void_infra_attempt_count`)
+- [x] **P1.5** Adaptive throttle: N consecutive infra halve pool + cooldown; clean dispatch restores step. (2026-07-26 ✅: d2ad6c0 — `ProviderPoolRegistry.record_infra/record_success`)
+- [x] **P1.6** Failover on cooldown via `_pick_provider` + `fallback` list; model preserved on node. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.7** *(MODEL-01)* `DEFAULT_MODEL = "claude-sonnet-5"`; engine docstring updated; test asserts agreement. (2026-07-26 ✅: d2ad6c0 — grep src claude-3-5-sonnet → 0)
+- [x] **P1.8** *(EFFORT-01)* `--effort` in `claude_code.build_argv`; parse-time validation in `plan/providers.py`. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.9** *(BUDGET-01)* `--max-budget-usd` from per-wave `max_budget_usd`. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.10** **Do not wire `claude --fallback-model`.** (2026-07-26 ✅: d2ad6c0 — ADR 010; grep fallback-model src → 0)
+- [x] **P1.11** *(AUTH-01)* Auth preflight at run start via `auth_preflight.py`. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.12** *(CAP-01)* Runbook documents ceiling calibration procedure + tier-1 probe levels. (2026-07-26 ✅: d2ad6c0 — live tier-2 deferred to W1.15b)
+- [x] **P1.13** Operator runbook §6 provider fabric table + infra/auth docs. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.14** **Commit + push** (`feat(adapters): per-provider pools, routing, effort, budget`). (2026-07-26 ✅: d2ad6c0)
 
 **Acceptance:**
 
@@ -1756,21 +1756,21 @@ The graph substrate is built and tested — `graphstore/sqlite_store.py`, `repli
 `migrate.py`, `task_sync.py`, the `graph` and `kg` extras — and almost nothing reads it. P2 wires
 the three consumers that pay for it immediately.
 
-- [ ] **P2.1** Build/refresh the code graph for the target repo at run start when the `kg` extra is
-      installed; skip cleanly when it is not. No hard dependency in the base install.
-- [ ] **P2.2** *(GRAPH-01 → the real SHAPE-01 fix)* Pass a real `code_graph` from `compile_plan`
+- [x] **P2.1** Build/refresh the code graph for the target repo at run start when the `kg` extra is
+      installed; skip cleanly when it is not. No hard dependency in the base install. (2026-07-26 ✅: 852d33d — `engine.start` calls `refresh_code_graph`)
+- [x] **P2.2** *(GRAPH-01 → the real SHAPE-01 fix)* Pass a real `code_graph` from `compile_plan`
       (`shape_checks.py:213`) into `check_stop_rule` so the **precise** D20 rule fires — parallel
       waves ≤1 CALLS hop apart are refused — instead of the per-wave threshold P0.10 installed as
-      the fallback. Keep the fallback for repos with no graph.
-- [ ] **P2.3** Turn graph briefs on by default for dispatched waves when the extra is present
+      the fallback. Keep the fallback for repos with no graph. (2026-07-26 ✅: 852d33d — `analyze_parallel_calls` + `test_calls_adjacent_parallel_refused`)
+- [x] **P2.3** Turn graph briefs on by default for dispatched waves when the extra is present
       (`serve/brief_packer.py`); W10 benchmarks the result, so P2 must not also change the packer's
-      algorithm — wiring only.
-- [ ] **P2.4** Materialize `AgentDef` nodes from the re-homed source W2 establishes, so the task
-      graph carries the agent identity for every dispatch.
-- [ ] **P2.5** Add graph-derived **routing hints** to the wave brief: module count and CALLS fan-out
+      algorithm — wiring only. (2026-07-26 ✅: 852d33d — `_resolve_grep_brief` defaults graph-packed when kg installed)
+- [x] **P2.4** Materialize `AgentDef` nodes from the re-homed source W2 establishes, so the task
+      graph carries the agent identity for every dispatch. (2026-07-26 ✅: 852d33d — `hash_agent_def` prefers `skw/agents/`)
+- [x] **P2.5** Add graph-derived **routing hints** to the wave brief: module count and CALLS fan-out
       for the wave's `targets`. These are *advisory metadata for the operator*, recorded on the
-      attempt — they must **not** auto-select a provider or model (R16).
-- [ ] **P2.6** **Commit + push** (`feat(graph): activate the code graph for planning and briefs`).
+      attempt — they must **not** auto-select a provider or model (R16). (2026-07-26 ✅: 852d33d — `routing_hints` on dispatch brief)
+- [x] **P2.6** **Commit + push** (`feat(graph): activate the code graph for planning and briefs`). (2026-07-26 ✅: PENDING)
 
 **Acceptance:**
 

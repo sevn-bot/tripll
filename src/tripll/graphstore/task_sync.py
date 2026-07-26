@@ -37,10 +37,20 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _agent_def_path(agent_slug: str, repo_root: Path) -> Path | None:
+    skw_path = repo_root / "src" / "tripll" / "skw" / "agents" / f"{agent_slug}.md"
+    if skw_path.is_file():
+        return skw_path
+    cursor_path = repo_root / ".cursor" / "agents" / f"{agent_slug}.md"
+    if cursor_path.is_file():
+        return cursor_path
+    return None
+
+
 def hash_agent_def(agent_slug: str, repo_root: Path) -> tuple[str, str, str] | None:
     """Return ``(node_id, natural_key, digest)`` when the agent file exists."""
-    path = repo_root / ".cursor" / "agents" / f"{agent_slug}.md"
-    if not path.is_file():
+    path = _agent_def_path(agent_slug, repo_root)
+    if path is None:
         return None
     digest = content_hash(path.read_text(encoding="utf-8"))
     natural_key = f"{agent_slug}#{digest[:16]}"
@@ -161,6 +171,7 @@ class TaskGraphWriter:
             agent_info = hash_agent_def(agent, self._repo_root)
             if agent_info:
                 agent_nid, agent_key, digest = agent_info
+                agent_path = _agent_def_path(agent, self._repo_root)
                 nodes.append(
                     NodeInput(
                         node_id=agent_nid,
@@ -173,7 +184,7 @@ class TaskGraphWriter:
                         ),
                         **_prov(
                             source="agent-def",
-                            evidence=f".cursor/agents/{agent}.md",
+                            evidence=agent_path.as_posix() if agent_path else f"agents/{agent}.md",
                         ),
                     )
                 )
@@ -278,6 +289,7 @@ class TaskGraphWriter:
             agent_info = hash_agent_def(agent, self._repo_root)
             if agent_info:
                 agent_nid, agent_key, digest = agent_info
+                agent_path = _agent_def_path(agent, self._repo_root)
                 nodes.append(
                     NodeInput(
                         node_id=agent_nid,
@@ -288,7 +300,7 @@ class TaskGraphWriter:
                         props=json.dumps({"agent_slug": agent, "content_hash": digest}),
                         **_prov(
                             source="agent-def",
-                            evidence=f".cursor/agents/{agent}.md",
+                            evidence=agent_path.as_posix() if agent_path else f"agents/{agent}.md",
                         ),
                     )
                 )
