@@ -437,52 +437,107 @@ class AgentAdapter(ABC):
             >>> inspect.iscoroutinefunction(AgentAdapter.dispatch)
             True
         """
-        caps = self.capabilities()
-        argv = self.build_argv(brief, worktree_path)
-        if not caps.available:
-            return DispatchResult(
-                outcome="failed",
-                result_text=f"backend {self.name!r} unavailable: {caps.detail}",
-                argv=argv,
-            )
-        max_output_tokens, max_tool_uses = runaway_limits_from_env()
-        rc, output, stop_reason = await run_streaming(
-            argv,
-            cwd=worktree_path,
-            log_path=log_path,
+        import time
+
+        from tripll.tracing.spans import trace_span
+
+        header = log_header or {}
+        run_id = str(header.get("run_id") or brief.get("run_id") or "")
+        node_id = str(header.get("node_id") or brief.get("node_id") or "")
+        attempt_raw = header.get("attempt")
+        attempt_id = str(header.get("attempt_id") or "")
+        model = str(brief.get("model") or getattr(self, "model", "") or "")
+        open_attrs = {
+            "backend": self.name,
+            "model": model,
+            "worktree": str(worktree_path),
+            "timeout_s": timeout_s,
+            "argv": self.build_argv(brief, worktree_path),
+        }
+        if attempt_raw is not None:
+            open_attrs["attempt_n"] = attempt_raw
+
+        started = time.perf_counter()
+        with trace_span(
+            "tripll.agent.dispatch",
+            run_id=run_id or None,
+            node_id=node_id or None,
+            attempt_id=attempt_id or None,
+            backend=self.name,
+            model=model,
+            worktree=str(worktree_path),
             timeout_s=timeout_s,
-            log_header=log_header,
-            max_output_tokens=max_output_tokens,
-            max_tool_uses=max_tool_uses,
-            on_event=on_event,
-        )
-        if stop_reason:
-            if stop_reason.startswith("runaway guard:"):
-                # Runaway guard triggered — treat as a failed (not quota) attempt
-                # so the engine's smarter-retry logic can decide whether to re-dispatch.
-                return DispatchResult(
+            argv=open_attrs["argv"],
+            attempt_n=open_attrs.get("attempt_n"),
+        ) as span_bag:
+            caps = self.capabilities()
+            argv = self.build_argv(brief, worktree_path)
+            if not caps.available:
+                result = DispatchResult(
                     outcome="failed",
-                    result_text=stop_reason,
-                    returncode=rc,
-                    log_path=str(log_path),
+                    result_text=f"backend {self.name!r} unavailable: {caps.detail}",
                     argv=argv,
                 )
-            # Quota/session cap detected in stream.
-            return DispatchResult(
-                outcome="quota_exhausted",
-                result_text=stop_reason,
-                returncode=rc,
+                span_bag.update(
+                    outcome=result.outcome,
+                    returncode=result.returncode,
+                    duration_s=time.perf_counter() - started,
+                    stop_reason="backend_unavailable",
+                )
+                return result
+            max_output_tokens, max_tool_uses = runaway_limits_from_env()
+            rc, output, stop_reason = await run_streaming(
+                argv,
+                cwd=worktree_path,
+                log_path=log_path,
+                timeout_s=timeout_s,
+                log_header=log_header,
+                max_output_tokens=max_output_tokens,
+                max_tool_uses=max_tool_uses,
+                on_event=on_event,
+            )
+            if stop_reason:
+                if stop_reason.startswith("runaway guard:"):
+                    result = DispatchResult(
+                        outcome="failed",
+                        result_text=stop_reason,
+                        returncode=rc,
+                        log_path=str(log_path),
+                        argv=argv,
+                    )
+                else:
+                    result = DispatchResult(
+                        outcome="quota_exhausted",
+                        result_text=stop_reason,
+                        returncode=rc,
+                        log_path=str(log_path),
+                        argv=argv,
+                    )
+                span_bag.update(
+                    outcome=result.outcome,
+                    returncode=result.returncode,
+                    duration_s=time.perf_counter() - started,
+                    stop_reason=stop_reason,
+                )
+                return result
+            parsed = self.parse_result(rc, output)
+            result = DispatchResult(
+                outcome=parsed.outcome,
+                result_text=parsed.result_text,
+                returncode=parsed.returncode,
                 log_path=str(log_path),
                 argv=argv,
+                cost_usd=parsed.cost_usd,
+                input_tokens=parsed.input_tokens,
+                output_tokens=parsed.output_tokens,
             )
-        result = self.parse_result(rc, output)
-        return DispatchResult(
-            outcome=result.outcome,
-            result_text=result.result_text,
-            returncode=result.returncode,
-            log_path=str(log_path),
-            argv=argv,
-            cost_usd=result.cost_usd,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-        )
+            span_bag.update(
+                outcome=result.outcome,
+                returncode=result.returncode,
+                cost_usd=result.cost_usd,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                duration_s=time.perf_counter() - started,
+                stop_reason=stop_reason,
+            )
+            return result

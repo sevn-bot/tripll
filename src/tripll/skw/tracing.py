@@ -1,13 +1,13 @@
-"""Logfire tracing for pipeline nodes and agent calls (Wave W4, D7).
+"""Logfire tracing for pipeline nodes and agent calls — thin forwarder to ``tripll.obs``.
 
-``logfire.configure()`` when ``SKW_TRACE=1`` or ``skw.toml [tracing].enabled``;
-spans wrap every graph node and driver call. Clean no-op when disabled.
+``SKW_TRACE=1`` or ``skw.toml [tracing].enabled`` gate SKW spans; configuration is
+delegated to :func:`tripll.obs.configure_observability` (R22 / TRACE-03).
 
 Exports:
-    configure_tracing — optional Logfire setup (W4).
+    configure_tracing — optional Logfire setup (forwarder).
     is_tracing_enabled — resolve tracing gate from env + config.
-    span — context manager for traced operations (W4).
-    trace_node — wrap a pipeline node callable in a span (W4).
+    span — context manager for traced operations.
+    trace_node — wrap a pipeline node callable in a span.
 """
 
 from __future__ import annotations
@@ -26,7 +26,6 @@ __all__: list[str] = ["configure_tracing", "is_tracing_enabled", "span", "trace_
 _T = TypeVar("_T")
 
 _tracing_active = False
-_configured = False
 
 
 def is_tracing_enabled(*, kit_root: Path | None = None) -> bool:
@@ -37,10 +36,6 @@ def is_tracing_enabled(*, kit_root: Path | None = None) -> bool:
 
     Returns:
         bool: ``True`` when ``SKW_TRACE=1`` or ``[tracing].enabled`` is set.
-
-    Examples:
-        >>> is_tracing_enabled()  # doctest: +SKIP
-        False
     """
     if os.environ.get("SKW_TRACE") == "1":
         return True
@@ -53,72 +48,42 @@ def is_tracing_enabled(*, kit_root: Path | None = None) -> bool:
 
 
 def configure_tracing(*, enabled: bool = False, kit_root: Path | None = None) -> bool:
-    """Configure Logfire when tracing is enabled (D7).
-
-    Token resolution: ``LOGFIRE_TOKEN`` env, then ``skw.toml [tracing].token``.
+    """Enable tracing via the shared :mod:`tripll.obs` configurator.
 
     Args:
         enabled (bool): Explicit enable flag (typically from ``is_tracing_enabled``).
-        kit_root (Path | None): Kit root for config lookup.
+        kit_root (Path | None): Kit root for config lookup (unused for SDK setup).
 
     Returns:
-        bool: ``True`` when Logfire was configured; ``False`` when tracing is off.
-
-    Examples:
-        >>> configure_tracing(enabled=False)
-        False
+        bool: ``True`` when tracing is active for SKW spans.
     """
-    global _tracing_active, _configured
+    global _tracing_active
 
     active = enabled or is_tracing_enabled(kit_root=kit_root)
     if not active:
         _tracing_active = False
         return False
 
-    if not _configured:
-        import logfire
+    from tripll.obs import configure_observability
 
-        token = os.environ.get("LOGFIRE_TOKEN", "").strip()
-        if not token and kit_root is not None:
-            cfg = load_skw_config(kit_root)
-            tracing = cfg.get("tracing", {})
-            if isinstance(tracing, dict):
-                cfg_token = tracing.get("token")
-                if isinstance(cfg_token, str) and cfg_token.strip():
-                    token = cfg_token.strip()
-
-        logfire.configure(
-            send_to_logfire="if-token-present",
-            token=token or None,
-            inspect_arguments=False,
-        )
-        _configured = True
-
+    configure_observability()
     _tracing_active = True
     return True
 
 
 @contextmanager
 def span(name: str, **attrs: Any) -> Iterator[dict[str, Any]]:
-    """Context manager for a traced operation; no-op when tracing is disabled.
-
-    Args:
-        name (str): Span name (e.g. ``pipeline.validate``, ``driver.run_agent``).
-        **attrs: Span attributes (agent, wave_id, role, prompt, …).
-
-    Yields:
-        dict[str, Any]: Mutable bag for callers to set ``output``, ``duration_s``, etc.
-
-    Examples:
-        >>> with span("pipeline.validate", wave_id="W1") as bag:
-        ...     bag["output"] = "ok"
-    """
+    """Context manager for a traced operation; no-op when tracing is disabled."""
     bag: dict[str, Any] = {}
     if not _tracing_active:
         yield bag
         return
 
-    import logfire
+    try:
+        import logfire
+    except ImportError:
+        yield bag
+        return
 
     start = time.perf_counter()
     with logfire.span(name, **attrs) as lf_span:
@@ -149,19 +114,6 @@ def trace_node(
     fn: Callable[[], _T],
     **attrs: Any,
 ) -> _T:
-    """Run *fn* inside a tracing span (pipeline graph nodes).
-
-    Args:
-        name (str): Span name (typically the graph node id).
-        fn (Callable[[], _T]): Node body to execute.
-        **attrs: Span attributes forwarded to :func:`span`.
-
-    Returns:
-        _T: Return value from *fn*.
-
-    Examples:
-        >>> trace_node("validate", lambda: 1)
-        1
-    """
+    """Run *fn* inside a tracing span (pipeline graph nodes)."""
     with span(name, **attrs):
         return fn()

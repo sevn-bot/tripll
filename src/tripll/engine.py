@@ -67,7 +67,7 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from loguru import logger
 
@@ -1266,14 +1266,9 @@ class Engine:
             )
             return
         from tripll.adapters.auth_preflight import run_auth_preflight
-        from tripll.plan.providers import plan_from_text, providers_used_by_graph
+        from tripll.plan.providers import providers_used_by_graph
 
-        plan: dict[str, object] = {}
-        for node in graph.nodes.values():
-            plan_path = (self.repo_root / node.plan_file).resolve()
-            if plan_path.is_file():
-                plan = plan_from_text(plan_path.read_text(encoding="utf-8"))
-                break
+        plan = self._plan_for_graph(graph)
         self._pools, self._default_provider = pools_from_plan(
             plan,
             global_limit=self._max_parallel,
@@ -1281,6 +1276,26 @@ class Engine:
         if not self._orchestrator_mode:
             providers = providers_used_by_graph(graph, self._default_provider)
             run_auth_preflight(providers)
+
+    def _plan_for_graph(self, graph: RunGraph) -> dict[str, object]:
+        """Return the first v3 plan dict referenced by *graph*."""
+        from tripll.plan.providers import plan_from_text
+
+        for node in graph.nodes.values():
+            plan_path = (self.repo_root / node.plan_file).resolve()
+            if plan_path.is_file():
+                return plan_from_text(plan_path.read_text(encoding="utf-8"))
+        return {}
+
+    def _init_run_tracing(self, run_id: str, graph: RunGraph) -> None:
+        """Bind local trace sinks for *run_id* using plan + env tracing config."""
+        from tripll.obs import configure_observability, get_tracing_config
+        from tripll.tracing.spans import init_run_tracing
+
+        plan = self._plan_for_graph(graph)
+        configure_observability(plan=plan)
+        run_dir = self.runs_root.run_dir(run_id)
+        init_run_tracing(run_dir, get_tracing_config(), run_id=run_id)
 
     def _provider_chain(self, node: WaveNode) -> list[str]:
         """Return primary provider followed by configured fallbacks."""
@@ -1711,92 +1726,121 @@ class Engine:
         done: set[str] = set()
         blocked: list[str] = []
 
-        with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
-            # Crash recovery: re-queue waves interrupted mid-dispatch.
-            for w in list_waves(lc, run_id):
-                if w.state in ("running", "dispatched", "verifying"):
-                    transition_wave(lc, run_id, w.node_id, "queued")
+        from tripll.tracing.spans import close_run_tracing, trace_span
 
-            transition_run(lc, run_id, "active")
+        self._init_run_tracing(run_id, graph)
+        slug = run_id.rsplit("-", 2)[0]
+        run_attrs: dict[str, Any] = {
+            "slug": slug,
+            "base": getattr(graph, "base", ""),
+            "branch": getattr(graph, "branch", ""),
+            "target_repo": getattr(graph, "target_repo", ""),
+        }
 
-            if graph_available():
-                record_loop_snapshot(
-                    lc,
-                    run_id=run_id,
-                    step="validate",
-                    history=[],
-                    next_node="waves",
-                    extra={"thread_id": run_id},
-                )
+        try:
+            with trace_span("tripll.run", run_id=run_id, **run_attrs) as run_bag:
+                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                    # Crash recovery: re-queue waves interrupted mid-dispatch.
+                    for w in list_waves(lc, run_id):
+                        if w.state in ("running", "dispatched", "verifying"):
+                            transition_wave(lc, run_id, w.node_id, "queued")
 
-            # Resumability: skip waves already marked done or blocked in the ledger.
-            for w in list_waves(lc, run_id):
-                if w.state == "done":
-                    done.add(w.node_id)
-                    results[w.node_id] = NodeResult(w.node_id, "done", w.attempt_count)
-                elif w.state == "blocked":
-                    blocked.append(w.node_id)
-                    results[w.node_id] = NodeResult(
-                        w.node_id, "blocked", w.attempt_count, "already blocked on resume"
+                    transition_run(lc, run_id, "active")
+
+                    if graph_available():
+                        record_loop_snapshot(
+                            lc,
+                            run_id=run_id,
+                            step="validate",
+                            history=[],
+                            next_node="waves",
+                            extra={"thread_id": run_id},
+                        )
+
+                    # Resumability: skip waves already marked done or blocked in the ledger.
+                    for w in list_waves(lc, run_id):
+                        if w.state == "done":
+                            done.add(w.node_id)
+                            results[w.node_id] = NodeResult(w.node_id, "done", w.attempt_count)
+                        elif w.state == "blocked":
+                            blocked.append(w.node_id)
+                            results[w.node_id] = NodeResult(
+                                w.node_id, "blocked", w.attempt_count, "already blocked on resume"
+                            )
+                    if done:
+                        logger.info(
+                            "engine: {} resuming — {} waves already done", run_id, len(done)
+                        )
+                    if blocked:
+                        logger.info(
+                            "engine: {} resuming — {} waves already blocked", run_id, len(blocked)
+                        )
+                    if self._is_approved(run_id):
+                        complete_human_gate_waves(
+                            lc,
+                            run_id,
+                            graph,
+                            done=done,
+                            blocked=blocked,
+                            results=results,
+                        )
+                    self._sync_report(run_id, graph, partial_results=results)
+
+                    self._role_dispatch_effective = self._resolve_role_dispatch(graph)
+                    if self._pools is None:
+                        self._init_provider_fabric(graph)
+                    self._configure_orchestrator(graph, run_id=run_id)
+                    if self._orchestrator_mode:
+                        result = await self._drive_orchestrator_serial(
+                            lc, run_id, graph, done, blocked, results
+                        )
+                        run_bag["exit_id"] = result.state
+                        run_bag["waves_done"] = len(done)
+                        run_bag["waves_parked"] = sum(
+                            1 for r in results.values() if r.state in ("blocked", "paused")
+                        )
+                        return result
+
+                    logs_dir = self.runs_root.logs_dir(run_id)
+                    logger.info(
+                        "engine: {} dispatching waves — logs in {}",
+                        run_id,
+                        logs_dir,
                     )
-            if done:
-                logger.info("engine: {} resuming — {} waves already done", run_id, len(done))
-            if blocked:
-                logger.info("engine: {} resuming — {} waves already blocked", run_id, len(blocked))
-            if self._is_approved(run_id):
-                complete_human_gate_waves(
-                    lc,
-                    run_id,
-                    graph,
-                    done=done,
-                    blocked=blocked,
-                    results=results,
-                )
-            self._sync_report(run_id, graph, partial_results=results)
 
-            self._role_dispatch_effective = self._resolve_role_dispatch(graph)
-            if self._pools is None:
-                self._init_provider_fabric(graph)
-            self._configure_orchestrator(graph, run_id=run_id)
-            if self._orchestrator_mode:
-                return await self._drive_orchestrator_serial(
-                    lc, run_id, graph, done, blocked, results
-                )
+                    for batch in graph.batches:
+                        if batch.is_human_gate:
+                            continue
+                        logger.info(
+                            "engine: {} batch {} — lanes {}", run_id, batch.batch_id, batch.lanes
+                        )
+                        batch_nodes = nodes_for_batch(graph, batch)
 
-            logs_dir = self.runs_root.logs_dir(run_id)
-            logger.info(
-                "engine: {} dispatching waves — logs in {}",
-                run_id,
-                logs_dir,
-            )
+                        pause_result = await self._drain_batch(
+                            lc, run_id, graph, batch_nodes, done, blocked, results
+                        )
+                        if pause_result is not None:
+                            run_bag["exit_id"] = pause_result.state
+                            return pause_result
 
-            for batch in graph.batches:
-                if batch.is_human_gate:
-                    continue
-                logger.info("engine: {} batch {} — lanes {}", run_id, batch.batch_id, batch.lanes)
-                batch_nodes = nodes_for_batch(graph, batch)
+                    state: RunState = "failed" if blocked else "done"
+                    if blocked:
+                        self._write_escalation(run_id, blocked, results)
+                    transition_run(lc, run_id, state)
 
-                # Drain the batch iteratively: each iteration selects the
-                # maximal pairwise-disjoint ready set, runs it concurrently,
-                # then repeats until the batch is empty.
-                pause_result = await self._drain_batch(
-                    lc, run_id, graph, batch_nodes, done, blocked, results
-                )
-                if pause_result is not None:
-                    return pause_result
+                self._sync_report(run_id, graph, partial_results=results)
 
-            state: RunState = "failed" if blocked else "done"
-            if blocked:
-                self._write_escalation(run_id, blocked, results)
-            transition_run(lc, run_id, state)
-
-        self._sync_report(run_id, graph, partial_results=results)
-
-        if blocked:
-            self.runs_root.fail_run(run_id)
-            return RunResult(run_id=run_id, state="failed", nodes=results)
-        self.runs_root.complete_run(run_id)
-        return RunResult(run_id=run_id, state="done", nodes=results)
+                if blocked:
+                    self.runs_root.fail_run(run_id)
+                    run_bag["exit_id"] = "failed"
+                    run_bag["waves_done"] = len(done)
+                    return RunResult(run_id=run_id, state="failed", nodes=results)
+                self.runs_root.complete_run(run_id)
+                run_bag["exit_id"] = "done"
+                run_bag["waves_done"] = len(done)
+                return RunResult(run_id=run_id, state="done", nodes=results)
+        finally:
+            close_run_tracing()
 
     async def _handle_review_gate(
         self,
@@ -2490,23 +2534,42 @@ class Engine:
                         sys.stderr.flush()
 
                 # --- long await: no lock held ---
-                result = await adapter.dispatch(
-                    brief,
-                    worktree_path=worktree.path,
-                    log_path=log_path,
-                    timeout_s=node.wall_clock_limit_s,
-                    log_header={
-                        "run_id": run_id,
-                        "node_id": node.node_id,
-                        "attempt": attempt,
-                        "backend": adapter.name,
-                    },
-                    on_event=_on_stream_event,
-                )
+                from tripll.tracing.spans import trace_span
+
+                wave_model = node.model or getattr(adapter, "model", None)
+                with trace_span(
+                    "tripll.wave",
+                    run_id=run_id,
+                    node_id=node.node_id,
+                    attempt_id=attempt_id,
+                    wave_id=node.wave_id,
+                    lane=node.lane,
+                    provider=provider,
+                    model=wave_model,
+                    reasoning_effort=node.reasoning_effort,
+                    attempt_n=attempt,
+                ) as wave_bag:
+                    result = await adapter.dispatch(
+                        brief,
+                        worktree_path=worktree.path,
+                        log_path=log_path,
+                        timeout_s=node.wall_clock_limit_s,
+                        log_header={
+                            "run_id": run_id,
+                            "node_id": node.node_id,
+                            "attempt": attempt,
+                            "attempt_id": attempt_id,
+                            "backend": adapter.name,
+                        },
+                        on_event=_on_stream_event,
+                    )
+                    wave_bag["fallback_used"] = fallback_used
                 self._last_dispatch_result_text = result.result_text or ""
                 from tripll.adapters.failure_class import classify_dispatch
 
                 failure_class = classify_dispatch(result)
+                wave_bag["failure_class"] = failure_class
+                wave_bag["state"] = result.outcome
                 if failure_class == "infra":
                     if pools is not None:
                         pools.record_infra(provider)

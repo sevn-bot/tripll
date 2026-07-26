@@ -744,6 +744,30 @@ def _run_dry_run(
         for line in render_dry_run(plan):
             typer.echo(line)
 
+    trace_env = os.environ.get("TRIPLL_TRACE", "1").strip().lower()
+    if trace_env not in {"0", "false", "no", "off"}:
+        from tripll.obs import configure_observability, get_tracing_config
+        from tripll.plan.providers import plan_from_text
+        from tripll.tracing.spans import close_run_tracing, init_run_tracing, trace_span
+
+        plan_text = ""
+        if input_path.is_file() and input_path.suffix == ".md":
+            plan_text = input_path.read_text(encoding="utf-8")
+        elif input_path.is_dir():
+            for md in sorted(input_path.glob("*.md")):
+                plan_text = md.read_text(encoding="utf-8")
+                break
+        plan_dict = plan_from_text(plan_text) if plan_text else {}
+        configure_observability(plan=plan_dict)
+        rr = _resolve_runs_root(None)
+        run_dir = rr.run_dir(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        init_run_tracing(run_dir, get_tracing_config(), run_id=run_id)
+        with trace_span("tripll.run", run_id=run_id, dry_run=True):
+            pass
+        close_run_tracing()
+        typer.echo(f"[dry-run] Trace sinks : {run_dir / 'traces'}")
+
 
 # ---------------------------------------------------------------------------
 # run  — start or dry-run a wave-orchestrator pipeline

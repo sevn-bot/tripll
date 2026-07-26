@@ -108,6 +108,62 @@ Wave states advance `queued → dispatched → running → verifying → done`. 
 waves are listed under **Escalated (blocked) waves** with their latest-attempt
 evidence. Per-attempt logs live in `runs/processing/<run-id>/logs/`.
 
+## 3a. Tracing
+
+Tracing is **on by default** for pipeline runs. Local sinks require **no**
+`LOGFIRE_TOKEN` — they always write beside the run:
+
+```text
+runs/processing/<run-id>/traces/traces.db       # queryable SQLite (join on attempt_id)
+runs/processing/<run-id>/traces/<YYYY-MM-DD>.jsonl
+```
+
+Enable/disable via env or plan:
+
+```bash
+TRIPLL_TRACE=1 make tripll ARGS='run …'    # force on (default when unset)
+TRIPLL_TRACE=0 make tripll ARGS='run …'    # force off
+```
+
+Plan block (v3 TOML):
+
+```toml
+[tracing]
+enabled = true
+service_name = "tripll"
+sinks = ["sqlite", "jsonl"]
+retention_days = 30
+capture = "shape"              # off | shape | full — default shape (no prompt text)
+
+[[tracing.exporters]]
+type = "logfire"               # cloud — LOGFIRE_TOKEN
+
+[[tracing.exporters]]
+type = "logfire"
+base_url = "http://localhost:8080"   # self-hosted Logfire server
+
+[[tracing.exporters]]
+type = "otlp"
+endpoint = "http://127.0.0.1:4318/v1/traces"
+```
+
+**Reading spans:** query `traces.db` for `tripll.run` → `tripll.wave` →
+`tripll.agent.dispatch`. Each dispatch span carries `backend`, `model`, token
+counts, and `cost_usd`. Compare dispatch span count to ledger attempts:
+
+```bash
+sqlite3 runs/processing/<run-id>/traces/traces.db \
+  "select kind, count(*) from trace_events where status='closed' group by kind"
+sqlite3 runs/processing/<run-id>/ledger.db \
+  "select count(*) from attempts"
+```
+
+**Capture policy:** `shape` (default) records role/block-type/char-count only —
+never prompt or completion text. Use `full` only for deliberate debugging.
+
+Cloud export requires the `obs` extra (`uv sync --extra obs`) and optional
+exporters/token above. See `docs/decisions/012-tracing-spine.md`.
+
 ## 4. Escalation handling
 
 Each wave gets up to **5 attempts** (4 retries; tests-first model, D1). The corrected brief

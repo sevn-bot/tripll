@@ -30,6 +30,15 @@ max_turns = 3
 deadline = "6h"                          # run-level wall clock (exit 4)
 budget_usd = 25.0                        # exit 3
 
+[tracing]
+enabled = true
+sinks = ["sqlite", "jsonl"]
+retention_days = 30
+capture = "shape"                        # off | shape | full
+
+[[tracing.exporters]]
+type = "logfire"                         # optional — LOGFIRE_TOKEN for cloud
+
 [[waves]]
 id = "W1"
 title = "Author full test suite"

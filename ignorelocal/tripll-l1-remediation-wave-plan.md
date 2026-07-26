@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** P2 complete — P3 next
+**Status:** P3 complete — W0 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | P2 ✅ (2026-07-26) — P3 next |
-| **Stage** | Code graph activated for stop rule, briefs, and routing hints; tracing spine (P3) not started |
-| **Next action** | P3.1 — add `src/tripll/tracing/sink.py` (TraceEvent + TraceSink protocol) |
+| **Current wave** | P3 ✅ (2026-07-26) — W0 next |
+| **Stage** | Tracing spine landed: local JSONL+SQLite sinks, single obs configurator, dispatch/wave/run spans |
+| **Next action** | W0.1 — record baseline in Re-entry (git log, make check, test count, CI run id) |
 | **Blocked on** | — |
-| **Last pushed sha** | `852d33d` |
+| **Last pushed sha** | `6d6fa0f` |
 | **Last CI run id** | `30166223593` (status=completed; conclusion=failure — TEST-03 still open) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` — CI executes; audit baseline per P0.1 rule |
@@ -1535,8 +1535,8 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 |------|------------------|-------|----------|--------|
 | P0 | **human** + `cursor_local` claude-opus-5 | Pre-0 gate: clear Actions billing; CI timeout + Python pin; Make `sync` prereqs; plan self-hosting | CI-00, DX-01, DX-02, DX-05, PLAN-selfhost, PLAN-gates, SHAPE-01 | [x] (2026-07-26 ✅: ad4a255 — CI canary run 30166223593 started; fresh-clone lint ruff 0.15.12; validate-plan green) |
 | P1 | `cursor_local` auto | **Provider fabric**: per-provider pools, per-wave routing, infra-failure class, failover, model-ID refresh, **effort + budget flags**, auth preflight, ceiling calibration | PROV-01…03, MODEL-01, EFFORT-01, BUDGET-01, AUTH-01, CAP-01 | [x] (2026-07-26 ✅: d2ad6c0 — pools.py + 11 provider_pools tests green; claude-3-5-sonnet purged from src) |
-| P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [x] (2026-07-26 ✅: 852d33d — code_graph.py + 8 tests green; compile_plan supplies code_graph) |
-| P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [ ] |
+| P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [x] (2026-07-26 ✅: 6e88600 — code_graph.py + 8 tests green; compile_plan supplies code_graph) |
+| P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [x] (2026-07-26 ✅: 6d6fa0f — tracing spine + 10 tests green; 1 logfire.configure site) |
 | W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [ ] |
 | W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [ ] |
 | W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [ ] |
@@ -1757,20 +1757,20 @@ The graph substrate is built and tested — `graphstore/sqlite_store.py`, `repli
 the three consumers that pay for it immediately.
 
 - [x] **P2.1** Build/refresh the code graph for the target repo at run start when the `kg` extra is
-      installed; skip cleanly when it is not. No hard dependency in the base install. (2026-07-26 ✅: 852d33d — `engine.start` calls `refresh_code_graph`)
+      installed; skip cleanly when it is not. No hard dependency in the base install. (2026-07-26 ✅: 6e88600 — `engine.start` calls `refresh_code_graph`)
 - [x] **P2.2** *(GRAPH-01 → the real SHAPE-01 fix)* Pass a real `code_graph` from `compile_plan`
       (`shape_checks.py:213`) into `check_stop_rule` so the **precise** D20 rule fires — parallel
       waves ≤1 CALLS hop apart are refused — instead of the per-wave threshold P0.10 installed as
-      the fallback. Keep the fallback for repos with no graph. (2026-07-26 ✅: 852d33d — `analyze_parallel_calls` + `test_calls_adjacent_parallel_refused`)
+      the fallback. Keep the fallback for repos with no graph. (2026-07-26 ✅: 6e88600 — `analyze_parallel_calls` + `test_calls_adjacent_parallel_refused`)
 - [x] **P2.3** Turn graph briefs on by default for dispatched waves when the extra is present
       (`serve/brief_packer.py`); W10 benchmarks the result, so P2 must not also change the packer's
-      algorithm — wiring only. (2026-07-26 ✅: 852d33d — `_resolve_grep_brief` defaults graph-packed when kg installed)
+      algorithm — wiring only. (2026-07-26 ✅: 6e88600 — `_resolve_grep_brief` defaults graph-packed when kg installed)
 - [x] **P2.4** Materialize `AgentDef` nodes from the re-homed source W2 establishes, so the task
-      graph carries the agent identity for every dispatch. (2026-07-26 ✅: 852d33d — `hash_agent_def` prefers `skw/agents/`)
+      graph carries the agent identity for every dispatch. (2026-07-26 ✅: 6e88600 — `hash_agent_def` prefers `skw/agents/`)
 - [x] **P2.5** Add graph-derived **routing hints** to the wave brief: module count and CALLS fan-out
       for the wave's `targets`. These are *advisory metadata for the operator*, recorded on the
-      attempt — they must **not** auto-select a provider or model (R16). (2026-07-26 ✅: 852d33d — `routing_hints` on dispatch brief)
-- [x] **P2.6** **Commit + push** (`feat(graph): activate the code graph for planning and briefs`). (2026-07-26 ✅: PENDING)
+      attempt — they must **not** auto-select a provider or model (R16). (2026-07-26 ✅: 6e88600 — `routing_hints` on dispatch brief)
+- [x] **P2.6** **Commit + push** (`feat(graph): activate the code graph for planning and briefs`). (2026-07-26 ✅: 6e88600)
 
 **Acceptance:**
 
@@ -1799,18 +1799,18 @@ The design is ported from sevn's tracing subsystem (`src/sevn/agent/tracing/`, `
 with two deliberate departures called out in R21. **Read that code before writing this wave** — the
 sink protocol, the `MultiSink` fan-out and the emit-never-throws rule are the parts worth copying.
 
-- [ ] **P3.1** *(TRACE-04)* Add `src/tripll/tracing/sink.py`: a frozen `TraceEvent` dataclass
+- [x] **P3.1** *(TRACE-04)* Add `src/tripll/tracing/sink.py`: a frozen `TraceEvent` dataclass
       (`kind`, `span_id`, `parent_span_id`, `run_id`, `node_id`, `attempt_id`, `ts_start_ns`,
       `ts_end_ns`, `status`, `attrs`), a `TraceSink` **Protocol** (`emit` / `flush` / `close`),
       `NullTraceSink`, and `MultiSink` for ordered fan-out. **`emit` must never raise** — a sink
       swallows its own I/O errors. Tracing is not allowed to fail a dispatch (sevn's invariant, and
       the `forbidden` clause of this wave).
-- [ ] **P3.2** *(TRACE-04)* Add `src/tripll/tracing/sinks.py`: `JsonlTraceSink` (daily-rotated
+- [x] **P3.2** *(TRACE-04)* Add `src/tripll/tracing/sinks.py`: `JsonlTraceSink` (daily-rotated
       `<YYYY-MM-DD>.jsonl`) and `SqliteTraceSink` (`traces.db`, WAL, one `trace_events` table plus a
       `retention_days` purge). Both write under `runs/processing/<run-id>/traces/`, resolved from the
       existing `RunsRoot`, so traces live and die with the run they describe. Cap serialized `attrs`
       at 64 KiB — sevn learned this one from an oversized payload.
-- [ ] **P3.3** *(TRACE-03, TRACE-05, OBS-01)* Rewrite `obs.py::configure_observability` into the
+- [x] **P3.3** *(TRACE-03, TRACE-05, OBS-01)* Rewrite `obs.py::configure_observability` into the
       **single** configurator, and make it the only `logfire.configure` call site in `src/`:
       - local sinks are built **whenever tracing is enabled** — no token required (TRACE-04);
       - `[[tracing.exporters]] type = "logfire"` with no `base_url` ⇒ Logfire **cloud**;
@@ -1824,7 +1824,7 @@ sink protocol, the `MultiSink` fan-out and the emit-never-throws rule are the pa
         traces the `skw/changelog_eval.py` judge without touching that file (TRACE-02);
       - still a **clean no-op** with no extra, no token and no exporters — `make test` must pass with
         `logfire` uninstalled.
-- [ ] **P3.4** *(TRACE-01, TRACE-02)* Wrap `AgentAdapter.dispatch` (`adapters/base.py:407–488`) in a
+- [x] **P3.4** *(TRACE-01, TRACE-02)* Wrap `AgentAdapter.dispatch` (`adapters/base.py:407–488`) in a
       `tripll.agent.dispatch` span. **This is the whole wave's leverage** — it is a base-class method
       no adapter overrides, so one edit covers `claude_code`, `cursor_local`, `cursor_cloud` and all
       four adapter call sites. Set `backend`, `model`, redacted `argv`, `worktree`, `timeout_s` on
@@ -1832,43 +1832,43 @@ sink protocol, the `MultiSink` fan-out and the emit-never-throws rule are the pa
       `stop_reason` on close — every one already on `DispatchResult`, so nothing is recomputed.
       The span must close on the unavailable-backend early return (`base.py:442–447`) and on both
       `stop_reason` branches too, not only the happy path.
-- [ ] **P3.5** *(TRACE-01)* Add `tripll.run` and `tripll.wave` spans in `engine.py` — run root at
+- [x] **P3.5** *(TRACE-01)* Add `tripll.run` and `tripll.wave` spans in `engine.py` — run root at
       run start, wave span in `_execute_node` around the dispatch at `engine.py:2334`, carrying
       `wave_id`, `lane`, `provider`, `model`, `reasoning_effort` and `attempt_n` from the node P1
       typed. Reuse the existing `on_event` callback for streaming attributes; do **not** add a second
       streaming path.
-- [ ] **P3.6** Correlate **without a migration**: every span carries `run_id`, `node_id` and
+- [x] **P3.6** Correlate **without a migration**: every span carries `run_id`, `node_id` and
       `attempt_id`, so trace → ledger is a join on `attempts.attempt_id`. **No `trace_id` column, no
       `ledger.py` edit** — that file belongs to W5 and W6, and a migration here would collide.
-- [ ] **P3.7** *(TRACE-03)* Re-point `skw/tracing.py` at the spine: keep `span`, `trace_node`,
+- [x] **P3.7** *(TRACE-03)* Re-point `skw/tracing.py` at the spine: keep `span`, `trace_node`,
       `is_tracing_enabled` and `configure_tracing` as the **public SKW surface** (all their call
       sites in `graph_nodes.py`, `driver.py`, `git.py` keep working unchanged) but delete the second
       `logfire.configure` and delegate to `tripll.obs`. `SKW_TRACE=1` and `skw.toml [tracing].enabled`
       keep working as SKW-local *gates*; they no longer configure an SDK. This is R22's first half.
-- [ ] **P3.8** *(R22)* Record the consolidation in `docs/decisions/012-tracing-spine.md`: one
+- [x] **P3.8** *(R22)* Record the consolidation in `docs/decisions/012-tracing-spine.md`: one
       configurator, one hide-list, `tripll.obs` as the owner, `skw.tracing` demoted to a thin
       forwarder pending the SKW mount's retirement. Add `012` to W0.4's ADR list and to the
       `ls docs/decisions/…` count in W0's acceptance.
-- [ ] **P3.9** *(R21)* Implement the `capture` policy: `off` | `shape` | `full`, default **`shape`** —
+- [x] **P3.9** *(R21)* Implement the `capture` policy: `off` | `shape` | `full`, default **`shape`** —
       prompt/completion recorded as role, block types and character counts, never text. `full` is
       opt-in and never a default. Assert the default in a test, because this is the setting most
       likely to be "temporarily" loosened.
-- [ ] **P3.10** Add `src/tripll/tracing/redact.py`: a `RedactingSink` that wraps the composite
+- [x] **P3.10** Add `src/tripll/tracing/redact.py`: a `RedactingSink` that wraps the composite
       **once** before fan-out, reusing `log_redact.load_hide_keys`. One redaction pass, one hide-list
       (R22). W4 grows that list under SEC-07 and this inherits it for free.
-- [ ] **P3.11** Add `src/tripll/tracing/config.py`: parse `[tracing]` and `[[tracing.exporters]]`
+- [x] **P3.11** Add `src/tripll/tracing/config.py`: parse `[tracing]` and `[[tracing.exporters]]`
       from the pipeline config, apply the env precedence (`TRIPLL_TRACE` → `LOGFIRE_TOKEN` →
       `LOGFIRE_BASE_URL` → `OTEL_EXPORTER_OTLP_ENDPOINT`), and reject an unknown exporter `type` at
       **parse** time rather than at first export.
-- [ ] **P3.12** Author `tests/test_tracing.py` (tier 1, fake clock, no network): no-token run still
+- [x] **P3.12** Author `tests/test_tracing.py` (tier 1, fake clock, no network): no-token run still
       writes both local sinks; exactly one `tripll.agent.dispatch` span per dispatch with token
       counts; a raising sink does not fail the dispatch; `capture="shape"` keeps prompt text out of
       the span; exactly one `logfire.configure` call site repo-wide; `base_url` reaches
       `AdvancedOptions`; and the `tripll skw` double-configure regression from TRACE-03.
-- [ ] **P3.13** Document it: a **Tracing** section in the operator runbook (enabling tracing, where
+- [x] **P3.13** Document it: a **Tracing** section in the operator runbook (enabling tracing, where
       the files land, how to point at a self-hosted Logfire server, how to read a wave's span tree,
       what `capture` does) and the `[tracing]` block in the plan-format docs.
-- [ ] **P3.14** **Commit + push** (`feat(obs): trace every agent dispatch with local and Logfire sinks`).
+- [x] **P3.14** **Commit + push** (`feat(obs): trace every agent dispatch with local and Logfire sinks`).
 
 **Acceptance:**
 

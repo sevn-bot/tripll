@@ -284,6 +284,17 @@ class RunsRoot:
         """
         return self.run_dir(run_id) / "logs"
 
+    def traces_dir(self, run_id: str) -> Path:
+        """Return the ``processing/<run-id>/traces/`` path.
+
+        Args:
+            run_id (str): Run identifier.
+
+        Returns:
+            Path: Path for local trace sinks (SQLite + JSONL).
+        """
+        return self.run_dir(run_id) / "traces"
+
     def ledger_path(self, run_id: str) -> Path:
         """Return the ``processing/<run-id>/ledger.db`` path.
 
