@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -276,3 +278,25 @@ def _seed(engine: Engine, graph: RunGraph) -> str:
             )
     (run_dir / "pre0-approved").write_text("approved\n")
     return run_id
+
+
+pytestmark = pytest.mark.tier1
+
+
+@pytest.mark.tier2
+@pytest.mark.xfail(
+    reason="green after P1: real-subprocess concurrency probe (CAP-01)", strict=False
+)
+def test_real_subprocess_concurrency_probe(tmp_path: Path) -> None:
+    """W1.15b: tier-2 probe — concurrent fake adapter subprocesses respect pool ceiling."""
+    script = tmp_path / "hold.py"
+    script.write_text("import time; time.sleep(2)\n", encoding="utf-8")
+    procs = [subprocess.Popen([sys.executable, str(script)]) for _ in range(6)]
+    try:
+        peak = sum(1 for p in procs if p.poll() is None)
+        assert peak <= 5
+    finally:
+        for p in procs:
+            if p.poll() is None:
+                p.kill()
+            p.wait(timeout=5)

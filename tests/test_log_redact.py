@@ -60,3 +60,59 @@ def test_redact_log_text_multiline() -> None:
     out = redact_log_text(text, frozenset({"signature"}))
     assert '"[redacted]"' in out
     assert "plain line" in out
+
+
+SECRET_KEYS = frozenset(
+    {
+        "authorization",
+        "api_key",
+        "token",
+        "secret",
+        "password",
+        "cookie",
+        "set-cookie",
+        "bearer",
+    }
+)
+
+
+@pytest.mark.tier1
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("authorization", "Bearer sk-live-abc"),
+        ("api_key", "ak_test_123"),
+        ("token", "tok_super_secret"),
+        ("secret", "s3cr3t"),
+        ("password", "hunter2"),
+        ("cookie", "session=deadbeef"),
+        ("set-cookie", "sid=abc; HttpOnly"),
+        ("bearer", "eyJhbGciOiJIUzI1NiJ9"),
+    ],
+)
+@pytest.mark.xfail(reason="green after W4: expanded hide-key redaction", strict=False)
+def test_redact_json_secret_keys(key: str, value: str) -> None:
+    keys = load_hide_keys(LOG_HIDE_KEYS_PATH) | SECRET_KEYS
+    out = redact_json_value({key: value, "type": "log"}, keys)
+    assert out[key] == "[redacted]"
+    assert out["type"] == "log"
+
+
+@pytest.mark.tier1
+@pytest.mark.xfail(reason="green after W4: nested dotted key redaction", strict=False)
+def test_redact_nested_dotted_keys() -> None:
+    keys = load_hide_keys(LOG_HIDE_KEYS_PATH) | frozenset({"auth.token"})
+    payload = {"auth": {"token": "nested-secret", "user": "alice"}}
+    out = redact_json_value(payload, keys)
+    assert out["auth"]["token"] == "[redacted]"
+    assert out["auth"]["user"] == "alice"
+
+
+@pytest.mark.tier1
+@pytest.mark.xfail(reason="green after W4: env-shaped KEY=value redaction", strict=False)
+def test_redact_env_shaped_line() -> None:
+    line = "LOGFIRE_TOKEN=lf_deadbeef_secret_value_here"
+    keys = load_hide_keys(LOG_HIDE_KEYS_PATH) | frozenset({"token"})
+    out = redact_log_line(line, keys)
+    assert "deadbeef" not in out
+    assert "[redacted]" in out

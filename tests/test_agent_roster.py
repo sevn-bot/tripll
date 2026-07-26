@@ -12,7 +12,7 @@ from tripll.skw.doc_score import SCORE_THRESHOLD, score_doc
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKW_AGENTS = REPO_ROOT / "src" / "tripll" / "skw" / "agents"
 DOCS_AGENTS = REPO_ROOT / "docs" / "agents"
-CURSOR_AGENTS = REPO_ROOT / ".cursor" / "agents"
+SRC_TRIPLL = REPO_ROOT / "src" / "tripll"
 
 # Design §11 roster — every contract must have a skw brief.
 SECTION_11_AGENTS = frozenset(
@@ -75,11 +75,24 @@ def test_section_11_docs_entry_exists(slug: str) -> None:
 
 
 @pytest.mark.parametrize("slug", sorted(SECTION_11_AGENTS))
-def test_section_11_cursor_agent_for_agentdef_hash(slug: str) -> None:
-    cursor_path = CURSOR_AGENTS / f"{slug}.md"
-    assert cursor_path.is_file(), f"missing .cursor/agents/{slug}.md for AgentDef hash"
+@pytest.mark.xfail(reason="green after W2: hash sourced from skw/agents only", strict=False)
+def test_section_11_hash_agent_def_from_skw(slug: str) -> None:
+    skw_path = SKW_AGENTS / f"{slug}.md"
+    assert skw_path.is_file(), f"missing skw brief: {skw_path}"
     info = hash_agent_def(slug, REPO_ROOT)
     assert info is not None, f"hash_agent_def returned None for {slug}"
+    _node_id, _natural_key, digest = info
+    assert len(digest) >= 16
+
+
+@pytest.mark.xfail(reason="green after W2: no .cursor/agents references in src", strict=False)
+def test_no_source_py_references_cursor_agents() -> None:
+    offenders: list[str] = []
+    for path in SRC_TRIPLL.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        if ".cursor/agents" in text or '".cursor" / "agents"' in text:
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+    assert offenders == []
 
 
 @pytest.mark.parametrize("slug", sorted(PORTED_AGENTS))

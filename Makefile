@@ -283,8 +283,14 @@ lint: sync ## Ruff check + format check
 typecheck: sync ## mypy strict for tripll
 	$(MYPY) --config-file pyproject.toml src/tripll
 
+# Tier gating (W1.16): tier2 needs RUN_LIVE=1; tier4 never blocks make test.
+PYTEST_TIER_EXPR = not tier4
+ifndef RUN_LIVE
+PYTEST_TIER_EXPR := $(PYTEST_TIER_EXPR) and not tier2
+endif
+
 test: ## pytest
-	$(UV_RUN) run --extra dev --extra api --extra obs pytest tests -v --tb=short
+	$(UV_RUN) run --extra dev --extra api --extra obs pytest tests -v --tb=short -m "$(PYTEST_TIER_EXPR)"
 
 log-redact-check: sync ## Validate log-hide-keys.toml + redaction unit tests
 	@test -f config/log-hide-keys.toml || (echo "Missing config/log-hide-keys.toml" >&2; exit 1)

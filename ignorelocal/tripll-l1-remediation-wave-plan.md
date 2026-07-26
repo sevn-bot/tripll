@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W0 complete — W1 next
+**Status:** W1 complete — W2 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W0 ✅ (2026-07-26) — W1 next |
-| **Stage** | Baseline recorded; ADRs 006–011 pinned; contract copied to `docs/plans/l1-remediation.md` |
-| **Next action** | W1.1 — RED suite (`test-creator`, tier-tagged xfail guards) |
+| **Current wave** | W1 ✅ (2026-07-26) — W2 next |
+| **Stage** | RED suite tier-tagged; 33 xfailed / 0 failed on `make test`; test-plan at `docs/test-plans/l1-remediation.md` |
+| **Next action** | W2.1 — re-home AgentDef source to `skw/agents/` (`wave-runner`) |
 | **Blocked on** | — |
-| **Last pushed sha** | `c9bb7c1` |
+| **Last pushed sha** | `b7b6233` |
 | **Last CI run id** | `30166223593` (first executed post-P0.1; status=completed; conclusion=failure — TEST-03) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1538,7 +1538,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [x] (2026-07-26 ✅: 6e88600 — code_graph.py + 8 tests green; compile_plan supplies code_graph) |
 | P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [x] (2026-07-26 ✅: 39a0503 — tracing spine + 10 tests green; 1 logfire.configure site) |
 | W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [x] (2026-07-26 ✅: c9bb7c1 — ADRs 006–011 + contract sha256; anchors re-grepped; issues #16–#18) |
-| W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [ ] |
+| W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [x] (2026-07-26 ✅: b7b6233 — 33 xfailed, 0 failed; tier markers) |
 | W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [ ] |
 | W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [ ] |
 | W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [ ] |
@@ -1948,75 +1948,75 @@ grep -c 'Last CI run id | —' ignorelocal/tripll-l1-remediation-wave-plan.md  #
 Each item names its **tier**. W1 registers the `tier1`–`tier4` markers in `pyproject.toml` and makes
 `make test` skip tier-2 unless `RUN_LIVE=1`.
 
-- [ ] **W1.1** *(tier 1)* `tests/test_ui_auth.py` — with `TRIPLL_API_TOKEN` set, each mutating HTML
+- [x] **W1.1** *(tier 1)* `tests/test_ui_auth.py` — with `TRIPLL_API_TOKEN` set, each mutating HTML
       POST (`/launch`, `/agents/new`, `/agents/{id}/edit`, `/settings`) returns **401/403 without a
       token** and succeeds with one; each page shell (`/`, `/agents`, `/settings`, `/runs/{id}`)
       likewise; a POST with a valid token but **absent CSRF token** is rejected. Token unset ⇒ open
       mode still works (R4). (xfail W3)
-- [ ] **W1.2** *(tier 1)* `tests/test_run_id_safety.py` — `find_run_dir` rejects `..`, absolute
+- [x] **W1.2** *(tier 1)* `tests/test_run_id_safety.py` — `find_run_dir` rejects `..`, absolute
       paths, and symlink escapes; the resolved path must stay within `processing|processed|failed`;
       the API ledger lookup shares the guard. (xfail W4)
-- [ ] **W1.3** *(tier 1)* `tests/test_ui_auth.py::test_token_transport` — no rendered template
+- [x] **W1.3** *(tier 1)* `tests/test_ui_auth.py::test_token_transport` — no rendered template
       contains `?token=` **except** the `EventSource` URL (R6); `base.html` emits the token via
       `tojson` so a token containing `"` or `<` still produces valid JS and a working
       `Authorization` header. (xfail W4)
-- [ ] **W1.4** *(tier 1)* `tests/test_log_redact.py` (extend) — a log line carrying `authorization`,
+- [x] **W1.4** *(tier 1)* `tests/test_log_redact.py` (extend) — a log line carrying `authorization`,
       `api_key`, `token`, `secret`, `password`, `cookie`, `set-cookie`, `bearer`, and a `.env`-shaped
       `KEY=value` body is redacted before the viewer sees it; nested/dotted keys work. (xfail W4)
-- [ ] **W1.5** *(tier 1)* `tests/test_obs.py` — `configure_observability()` never raises and the CLI
+- [x] **W1.5** *(tier 1)* `tests/test_obs.py` — `configure_observability()` never raises and the CLI
       still starts if the logfire import fails; when enabled, httpx instrumentation does **not**
       capture headers/bodies (OBS-01). **P3 has already landed** by the time W1 runs, so the
       "no-op without `LOGFIRE_TOKEN`" clause now means *no exporter* — **not** no tracing: local
       sinks must still write (TRACE-04). Assert that distinction here, and do not duplicate
       `tests/test_tracing.py` (P3.12) — this file covers the *configurator*, that one covers the
       *spine*. (xfail W4/W10)
-- [ ] **W1.6** `tests/test_cancellation.py` — **the core regression suite.**
+- [x] **W1.6** `tests/test_cancellation.py` — **the core regression suite.**
       (a) *(tier 1)* One node raising does not cancel its siblings (BUG-01).
       (b) *(tier 2, `RUN_LIVE=1`)* Cancelling a dispatch mid-flight leaves **no surviving child
       process** (BUG-02) — assert on the pid, not on a mock.
       (c) *(tier 1)* After cancellation every wave is terminal or recoverable, **never stranded
       `running`** (BUG-03).
       (d) *(tier 2)* Kill the process mid-batch, restart, and confirm resume. (xfail W5)
-- [ ] **W1.7** *(tier 1)* `tests/test_cost_accounting.py` — `reset_wave_attempts` followed by a fresh
+- [x] **W1.7** *(tier 1)* `tests/test_cost_accounting.py` — `reset_wave_attempts` followed by a fresh
       successful attempt leaves `runs.cost_usd` equal to the true sum, not double (BUG-cost).
       (xfail W6)
-- [ ] **W1.8** *(tier 1)* `tests/test_exits.py` (extend) — the circuit breaker is **per-run**: two
+- [x] **W1.8** *(tier 1)* `tests/test_exits.py` (extend) — the circuit breaker is **per-run**: two
       sequential runs in one process do not contaminate each other (BUG-07); `record_exit_on_run`
       actually advances `updated_at` (DEBT-02). (xfail W6)
-- [ ] **W1.9** *(tier 2)* `tests/test_integrate_resume.py` — running integrate twice preserves lane
+- [x] **W1.9** *(tier 2)* `tests/test_integrate_resume.py` — running integrate twice preserves lane
       merges from the first pass; the second pass must not force-reset the branch (BUG-10); a dirty
       integration branch is detected rather than clobbered. (xfail W6)
-- [ ] **W1.10** *(tier 3)* `tests/test_exit_wiring.py` — a `pullfrog_merge_signal` success reaches
+- [x] **W1.10** *(tier 3)* `tests/test_exit_wiring.py` — a `pullfrog_merge_signal` success reaches
       `evaluate_exit(1)` and fires `goal_met` **through the Engine**, not only in a unit fixture
       (BUG-06); exits 4 (wall clock), 7 (error threshold) and 8 (external event) each fire from the
       Engine path (ARCH-exits/DIR-01); the fired exit id is recorded on the run. (xfail W7)
-- [ ] **W1.11** *(tier 1)* `tests/test_cw_portability.py` — with no configured hotspots, a plan for a
+- [x] **W1.11** *(tier 1)* `tests/test_cw_portability.py` — with no configured hotspots, a plan for a
       non-sevn repo yields **no** `src/sevn/...` forbidden paths (ARCH-CW); the legacy sevn buckets
       still reproduce via the opt-in fixture on the existing corpus (R9). (xfail W8)
-- [ ] **W1.12** *(tier 3)* `tests/test_pr_loop.py` (extend) — `_node_investigate` / `_node_fix`
+- [x] **W1.12** *(tier 3)* `tests/test_pr_loop.py` (extend) — `_node_investigate` / `_node_fix`
       **invoke an adapter** (asserted via a fake adapter recording calls), not merely emit dispatch
       dicts (L1-scaffold); the loop still parks at the human merge gate. (xfail W9)
-- [ ] **W1.13** `tests/test_agent_roster.py` — **the contract changes under R2.** Replace the
+- [x] **W1.13** `tests/test_agent_roster.py` — **the contract changes under R2.** Replace the
       `.cursor/agents/` existence assertion with one that asserts `hash_agent_def` returns a digest
       for all 14 section-11 slugs from the **`skw/agents/`** tree, and add a guard that no source
       file references `.cursor/agents/`. The other 13 assertions stay as-is. (xfail W2)
-- [ ] **W1.14** *(tier 1)* `tests/test_brief_packer.py` (extend) — `_graph_brief_tokens` is computed
+- [x] **W1.14** *(tier 1)* `tests/test_brief_packer.py` (extend) — `_graph_brief_tokens` is computed
       **once** per task (PERF-01), asserted by call counter. (xfail W10)
-- [ ] **W1.15a** *(tier 1)* `tests/test_provider_pools.py` — **the pool test CI actually runs.**
+- [x] **W1.15a** *(tier 1)* `tests/test_provider_pools.py` — **the pool test CI actually runs.**
       With a fake clock and fake adapters, assert: a provider never exceeds its `max_parallel`;
       global and provider semaphores acquire in a fixed order; an `infra` result leaves `attempt_n`
       unchanged; N consecutive `infra` results halve the pool and one clean dispatch restores a
       step; failover switches provider and **not** model. No real subprocess — the tier-2 real-pid
       probe (W1.15b) is the companion, not the substitute. (xfail P1)
-- [ ] **W1.15b** *(tier 2, `RUN_LIVE=1`)* Real-subprocess concurrency probe for the same contract,
+- [x] **W1.15b** *(tier 2, `RUN_LIVE=1`)* Real-subprocess concurrency probe for the same contract,
       including the CAP-01 calibration levels. (xfail P1)
-- [ ] **W1.15** *(tier 4)* `tests/test_world_canaries.py` — the billing canary (`gh run list`
+- [x] **W1.15** *(tier 4)* `tests/test_world_canaries.py` — the billing canary (`gh run list`
       returns a started run) and dependabot-branch reachability. **Marked `tier4`; never blocks.**
-- [ ] **W1.16** Register `tier1`–`tier4` markers in `pyproject.toml`; make `make test` deselect
+- [x] **W1.16** Register `tier1`–`tier4` markers in `pyproject.toml`; make `make test` deselect
       `tier2` unless `RUN_LIVE=1` and always deselect `tier4` from the blocking gate.
-- [ ] **W1.17** Author `docs/test-plans/l1-remediation.md` — finding → test → wave → **tier**
+- [x] **W1.17** Author `docs/test-plans/l1-remediation.md` — finding → test → wave → **tier**
       matrix + xfail schedule.
-- [ ] **W1.18** **Commit + push** (`test: RED suite for L1 remediation`).
+- [x] **W1.18** **Commit + push** (`test: RED suite for L1 remediation`).
 
 **Acceptance:**
 

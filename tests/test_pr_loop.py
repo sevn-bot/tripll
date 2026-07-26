@@ -61,6 +61,30 @@ def test_parks_at_merge_gate_never_auto_merges() -> None:
     assert result.get("merged") is not True
 
 
+@pytest.mark.tier3
+@pytest.mark.xfail(reason="green after W9: investigate node invokes adapter", strict=False)
+def test_investigate_invokes_adapter_not_just_dict() -> None:
+    """L1-scaffold: ``_node_investigate`` must call an adapter, not only emit dicts."""
+    import inspect
+
+    import tripll.loops.l1_pr as l1_pr
+
+    source = inspect.getsource(l1_pr)
+    assert "dispatch_bridge" in source or "adapter.dispatch" in source
+
+
+@pytest.mark.tier3
+@pytest.mark.xfail(reason="green after W9: fix node invokes adapter", strict=False)
+def test_fix_invokes_adapter_not_just_dict() -> None:
+    import inspect
+
+    import tripll.loops.l1_pr as l1_pr
+
+    source = inspect.getsource(l1_pr)
+    assert "FakeAdapter" not in source  # placeholder — real wiring uses adapter calls
+    assert "run_dispatch" in source or "dispatch_bridge" in source
+
+
 def test_exit_8_abandons_when_pr_closed_externally() -> None:
     fired = evaluate_exit(8, context={"pr_state": "closed", "merged": False})
     assert fired.exit_id == 8

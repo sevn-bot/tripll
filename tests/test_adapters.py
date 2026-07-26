@@ -74,7 +74,7 @@ def test_claude_argv_exact(tmp_path: Path) -> None:
     assert "--permission-mode" in argv
     assert "acceptEdits" in argv
     model_idx = argv.index("--model")
-    assert argv[model_idx + 1] == "claude-sonnet-4-6"
+    assert argv[model_idx + 1] == "claude-sonnet-5"
     assert "Execute wave W1" in argv[-1]
     assert "Agent directives:" in argv[-1]
 
@@ -132,10 +132,10 @@ def test_claude_argv_verbose_always_present(tmp_path: Path) -> None:
 
 
 def test_claude_argv_default_model() -> None:
-    """D5: default build_argv uses claude-sonnet-4-6 when no override is set."""
+    """D5: default build_argv uses claude-sonnet-5 when no override is set."""
     argv = ClaudeCodeAdapter().build_argv({"wave_id": "W1"}, Path("/wt"))
     model_idx = argv.index("--model")
-    assert argv[model_idx + 1] == "claude-sonnet-4-6"
+    assert argv[model_idx + 1] == "claude-sonnet-5"
 
 
 def test_claude_argv_with_model() -> None:

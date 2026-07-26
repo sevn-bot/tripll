@@ -149,3 +149,9 @@ packages = ["tripll"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "tier1: tier-1 contract tests (default blocking gate)",
+    "tier2: live/subprocess probes (collected when RUN_LIVE=1)",
+    "tier3: deep engine integration tests",
+    "tier4: world canaries (never block CI)",
+]

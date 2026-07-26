@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from tripll.serve.brief_packer import pack_brief
 from tripll.serve.handoff import build_handoff, validate_handoff
 
@@ -95,3 +99,34 @@ def test_fresh_session_identifies_next_action_from_handoff_only() -> None:
         "next_safe_action": "implement src/tripll/graphstore/sqlite_store.py",
     }
     assert validate_handoff(handoff)["action_identified"] is True
+
+
+@pytest.mark.tier1
+@pytest.mark.xfail(
+    reason="green after W10: _graph_brief_tokens computed once per task", strict=False
+)
+def test_graph_brief_tokens_computed_once_per_task(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PERF-01: benchmark must not double-call ``_graph_brief_tokens`` per task."""
+    import tripll.bench as bench_mod
+
+    calls = 0
+    original = bench_mod._graph_brief_tokens
+
+    def _counting(task, graph_db):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original(task, graph_db)
+
+    monkeypatch.setattr(bench_mod, "_graph_brief_tokens", _counting)
+    monkeypatch.setattr(
+        bench_mod,
+        "load_tasks",
+        lambda _root=None: [{"task_id": "t1", "targets": ["src/a.py"]}],
+    )
+    monkeypatch.setattr(
+        bench_mod,
+        "load_baseline",
+        lambda _root=None: {k: 0.0 for k in bench_mod.METRIC_KEYS},
+    )
+    bench_mod.run_benchmark(bench_dir=Path("/nonexistent"), graph_db=Path("/nonexistent/graph.db"))
+    assert calls == 1
