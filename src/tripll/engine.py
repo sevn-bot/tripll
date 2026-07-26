@@ -1546,22 +1546,77 @@ class Engine:
         self._scaffold_w0_worktrees(run_id, graph)
         # Pre-0 human gate (W5.4).
         if graph.pre0_gates and not self._is_approved(run_id):
-            self._write_pre0_sheet(run_id, graph)
+            from tripll.plan.human_gates import (
+                HumanGateOutcome,
+                evaluate_ci_billing_canary,
+                pipeline_config_for_graph,
+                resolve_human_gate_mode,
+                resolve_pre0_gate,
+            )
+
+            pipeline = pipeline_config_for_graph(graph, self.repo_root)
+            mode = resolve_human_gate_mode(pipeline)
+            canary = evaluate_ci_billing_canary()
+            outcome = resolve_pre0_gate(mode=mode, auto_acceptable=True, canary=canary)
             run_dir = self.runs_root.run_dir(run_id)
-            write_form_for_run(run_dir, graph, gate_kind=GateKind.PRE0)
-            with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
-                transition_run(lc, run_id, "paused")
-            write_report(
-                self.runs_root.run_dir(run_id), graph, run_id=run_id, state="paused", results={}
-            )
-            logger.info("engine: {} paused at Pre-0 ({} gates)", run_id, len(graph.pre0_gates))
-            return RunResult(
-                run_id=run_id,
-                state="paused",
-                pre0_pending=True,
-                hitl_pending=True,
-                hitl_gate_kind=GateKind.PRE0.value,
-            )
+
+            if outcome is HumanGateOutcome.FAIL:
+                logger.error("engine: {} Pre-0 gate rejected (human_gates=fail)", run_id)
+                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                    transition_run(lc, run_id, "failed")
+                write_report(
+                    self.runs_root.run_dir(run_id),
+                    graph,
+                    run_id=run_id,
+                    state="failed",
+                    results={},
+                )
+                return RunResult(run_id=run_id, state="failed")
+
+            if outcome is HumanGateOutcome.PARKED:
+                logger.warning(
+                    "engine: {} Pre-0 PARKED — canary red under auto_accept ({})",
+                    run_id,
+                    canary.detail,
+                )
+                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                    transition_run(lc, run_id, "paused")
+                write_report(
+                    self.runs_root.run_dir(run_id),
+                    graph,
+                    run_id=run_id,
+                    state="parked",
+                    results={},
+                )
+                return RunResult(run_id=run_id, state="parked")
+
+            if outcome is HumanGateOutcome.PROCEED:
+                (run_dir / _PRE0_MARKER).write_text("auto_accept\n")
+                logger.info(
+                    "engine: {} Pre-0 auto-accepted (canary ok: {})",
+                    run_id,
+                    canary.detail,
+                )
+            else:
+                self._write_pre0_sheet(run_id, graph)
+                write_form_for_run(run_dir, graph, gate_kind=GateKind.PRE0)
+                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                    transition_run(lc, run_id, "paused")
+                write_report(
+                    self.runs_root.run_dir(run_id),
+                    graph,
+                    run_id=run_id,
+                    state="paused",
+                    results={},
+                )
+                logger.info("engine: {} paused at Pre-0 ({} gates)", run_id, len(graph.pre0_gates))
+                return RunResult(
+                    run_id=run_id,
+                    state="paused",
+                    pre0_pending=True,
+                    hitl_pending=True,
+                    hitl_gate_kind=GateKind.PRE0.value,
+                )
 
         results: dict[str, NodeResult] = {}
         done: set[str] = set()

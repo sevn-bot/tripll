@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- P0 gate restoration: CI job timeout (20m), Python 3.12 pin in bootstrap, `sync` prereqs on
+  `make lint`/`make typecheck`, plan self-hosting (`[pipeline] creates` validate-plan exemption),
+  `human_gates` config (`prompt` | `auto_accept` | `fail`) with tier-4 CI canary parking, and
+  per-wave stop-rule threshold (SHAPE-01).
 - Final L1 gate: xfail sweep complete (0 xfails); `make ci` green (905 passed, 25 skipped);
   tripll self-graph extracted (6310 nodes, 5412 edges @ HEAD).
 - W12 docs and operator guides: L1 design-note §0 (task graph, `unverified`, exits, ledger vs

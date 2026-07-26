@@ -84,6 +84,20 @@ You may still edit `pre0-decisions.md` directly, but you must also submit
 answers via the dashboard or `make pre0-interview` so `hitl-responses.json`
 is complete before approve.
 
+### Human-gate modes (`human_gates`)
+
+v3 plans may set ``[pipeline] human_gates`` to one of:
+
+| Mode | Behaviour |
+|------|-----------|
+| ``prompt`` | Default — pause at Pre-0 for operator approval (dashboard / CLI). |
+| ``auto_accept`` | Skip the Pre-0 prompt when tier-4 canaries pass; a **red** canary resolves to **PARKED**, not proceed. |
+| ``fail`` | Reject the run at Pre-0 without prompting. |
+
+Environment override: ``TRIPLL_HUMAN_GATES=auto_accept`` (same three values). The override
+wins over the plan file. Tier-4 canaries (for example ``gh run list --workflow=CI --limit 1``)
+still run under ``auto_accept`` — they gate whether auto-accept may proceed.
+
 ## 3. Monitor progress
 
 ```bash

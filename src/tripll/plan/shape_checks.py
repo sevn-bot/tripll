@@ -184,18 +184,11 @@ def check_stop_rule(
             "stop rule: cross-cutting refactor must stay with one agent (sequential waves)"
         )
     if waves and not code_graph and not requirement_span:
-        groups = _parallel_groups(waves)
-        for group in groups:
-            if len(group) < 2:
-                continue
-            all_targets: set[str] = set()
-            for wave in waves:
-                if str(wave.get("id", "")) not in group:
-                    continue
-                all_targets.update(_wave_targets(wave))
-            if len(all_targets) > _CROSS_CUTTING_MODULE_LIMIT:
+        for wave in waves:
+            if len(_wave_targets(wave)) > _CROSS_CUTTING_MODULE_LIMIT:
                 raise ValueError(
-                    "stop rule: cross-cutting refactor must stay with one agent (sequential waves)"
+                    "stop rule: cross-cutting refactor must stay with one agent "
+                    "(sequential waves)"
                 )
 
 

@@ -63,6 +63,40 @@ def test_cross_cutting_refactor_refused() -> None:
         )
 
 
+def test_independent_parallel_waves_under_per_wave_limit_compile() -> None:
+    compile_plan = require_module("tripll.plan.shape_checks", attr="compile_plan")
+    compiled = compile_plan(
+        {
+            "waves": [
+                {"id": "W1", "targets": ["src/a.py", "src/b.py"]},
+                {"id": "W2", "targets": ["src/c.py", "src/d.py"]},
+                {"id": "W3", "targets": ["src/e.py", "src/f.py"]},
+            ],
+        }
+    )
+    assert len(compiled["waves"]) == 3
+
+
+def test_single_wave_over_module_limit_refused() -> None:
+    check_stop_rule = require_module("tripll.plan.shape_checks", attr="check_stop_rule")
+    with pytest.raises(ValueError, match=r"cross-cutting|refactor|sequential"):
+        check_stop_rule(
+            waves=[
+                {
+                    "id": "W1",
+                    "targets": [
+                        "src/a.py",
+                        "src/b.py",
+                        "src/c.py",
+                        "src/d.py",
+                        "src/e.py",
+                        "src/f.py",
+                    ],
+                },
+            ],
+        )
+
+
 def test_cw_hotspots_reproduced_by_derivation() -> None:
     from tripll.graph import CW_HOTSPOTS
 

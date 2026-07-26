@@ -252,6 +252,10 @@ def _finalize_run_result(
         typer.echo("PAUSED — cost budget reached. Raise TRIPLL_COST_BUDGET_USD and resume:")
         typer.echo(f"  TRIPLL_COST_BUDGET_USD=50 make resume-run RUN={result.run_id}")
         raise typer.Exit(0)
+    if result.state == "parked":
+        typer.echo("")
+        typer.echo("PARKED — tier-4 canary red under auto_accept; resolve externally before retry.")
+        raise typer.Exit(0)
     for node_id, nr in result.nodes.items():
         typer.echo(f"  {node_id:<40}  {nr.state:<8}  attempts={nr.attempts}")
     if result.state == "failed":
@@ -697,6 +701,22 @@ def _run_dry_run(
     typer.echo(f"[dry-run] Available   : {caps.available} ({caps.detail})")
 
     graph = build_graph_from_dir(input_path, run_id=run_id)
+    if graph.pre0_gates:
+        from tripll.plan.human_gates import (
+            evaluate_ci_billing_canary,
+            pipeline_config_for_graph,
+            resolve_human_gate_mode,
+            resolve_pre0_gate,
+        )
+
+        pipeline = pipeline_config_for_graph(graph, resolve_repo_root())
+        mode = resolve_human_gate_mode(pipeline)
+        canary = evaluate_ci_billing_canary()
+        outcome = resolve_pre0_gate(mode=mode, auto_acceptable=True, canary=canary)
+        typer.echo(f"[dry-run] Pre-0 gates  : {len(graph.pre0_gates)}")
+        typer.echo(f"[dry-run] Human gates  : {mode} → {outcome.value}")
+        typer.echo(f"[dry-run] CI canary     : {canary.detail}")
+
     sample = next((n for n in graph.nodes.values() if not n.is_review_gate), None)
     if sample is None:
         typer.echo("[dry-run] No dispatchable (non-gate) node found.")
@@ -1661,12 +1681,8 @@ def _run_docs(kind: str, directory: Path, *, repo_root: Path | None, mode: str) 
         raise typer.Exit(result.exit_code)
 
 
-spec_app = typer.Typer(
-    name="spec", help="Spec folder validate, score, and sync.", no_args_is_help=True
-)
-prd_app = typer.Typer(
-    name="prd", help="PRD folder validate, score, and sync.", no_args_is_help=True
-)
+spec_app = typer.Typer(name="spec", help="Spec folder validate and score.", no_args_is_help=True)
+prd_app = typer.Typer(name="prd", help="PRD folder validate and score.", no_args_is_help=True)
 changelog_app = typer.Typer(
     name="changelog",
     help="CHANGELOG.md structural and diff gates.",
@@ -1768,15 +1784,6 @@ def spec_score_cmd(
     _run_docs("spec", directory, repo_root=repo_root, mode="score")
 
 
-@spec_app.command("sync")
-def spec_sync_cmd(
-    directory: Annotated[Path, typer.Argument(help="Specs directory.")],
-    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
-) -> None:
-    """Refresh frontmatter and scaffold missing specs."""
-    _run_docs("spec", directory, repo_root=repo_root, mode="sync")
-
-
 @prd_app.command("validate")
 def prd_validate_cmd(
     directory: Annotated[Path, typer.Argument(help="PRD directory.")],
@@ -1793,15 +1800,6 @@ def prd_score_cmd(
 ) -> None:
     """Score every PRD in a directory."""
     _run_docs("prd", directory, repo_root=repo_root, mode="score")
-
-
-@prd_app.command("sync")
-def prd_sync_cmd(
-    directory: Annotated[Path, typer.Argument(help="PRD directory.")],
-    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
-) -> None:
-    """Refresh frontmatter and scaffold missing PRDs."""
-    _run_docs("prd", directory, repo_root=repo_root, mode="sync")
 
 
 @app.command("doc-score")
