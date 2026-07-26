@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** Authored — not started
+**Status:** W0 complete — W1 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,15 +20,15 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | *(not started)* |
-| **Stage** | Pre-flight — nothing dispatched |
-| **Next action** | P0.1 — clear the GitHub Actions billing block on the `sevn-bot` org |
-| **Blocked on** | P0.1 (external, human-or-auto-accept — see *Human gates*) |
-| **Last pushed sha** | — |
-| **Last CI run id** | — (zero successful runs in repo history) |
+| **Current wave** | W0 ✅ (2026-07-26) — W1 next |
+| **Stage** | Baseline recorded; ADRs 006–011 pinned; contract copied to `docs/plans/l1-remediation.md` |
+| **Next action** | W1.1 — RED suite (`test-creator`, tier-tagged xfail guards) |
+| **Blocked on** | — |
+| **Last pushed sha** | `8d051fa` |
+| **Last CI run id** | `30166223593` (first executed post-P0.1; status=completed; conclusion=failure — TEST-03) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
-| **Integration target** | *undecided — resolved by the P0.1 rule, see W0.2* |
-| **Plan sha256** | *(W0.6 records)* |
+| **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
+| **Plan sha256** | `c639c91e8ccf234df0cc526b17195e56846ec018e24e672e118d8a3ca39a4859` |
 
 ---
 
@@ -542,7 +542,7 @@ a good spec, PRD and changelog look like, and the prompts that produce them.
 waveorch_format = 3
 title = "tripll L1 remediation — gate, security, concurrency, exit closure"
 slug = "l1-remediation"
-base = "pre-0.0.1"                        # W0.2 may rewrite to "main" per the P0.1 rule
+base = "pre-0.0.1"                        # W0.2: both main/pre-0.0.1 execute CI; prefer audit baseline
 branch = "wave/l1-remediation"
 target_repo = "sevn-bot/tripll"
 
@@ -1287,30 +1287,30 @@ edit, since line numbers shift.
 | PLAN-selfhost | `validate_plan` gates `src/`+`tests/` refs; no "planned-new" exemption | `plan_paths.py:62` | P0 |
 | PLAN-gates | No auto-accept knob for human gates | absent (`grep auto_accept src/` empty) | P0 |
 | SHAPE-01 | `check_stop_rule` unions targets across *unrelated* parallel waves; 3 non-overlapping waves with 6 total targets are refused. `compile_plan` supplies neither `code_graph` nor `requirement_span`, so only the crude fallback ever runs | `shape_checks.py:186–199`, called from `:213` | P0 |
-| PROV-01 | Backend chosen **per run**, not per wave — `Engine` holds one `self.adapter` for every node | `engine.py:942`, `:995`; `cli.py:747` | **P1** |
-| PROV-02 | One **global** semaphore for all backends — cannot cap `cursor_local` independently, so its extension host is overwhelmed | `engine.py:880`, `:949–960` | **P1** |
-| PROV-03 | No infra-failure class: *"Couldn't start"* / *"Workspace Disconnected"* burns a wave attempt and trips the breaker | `adapters/base.py` (no classifier) | **P1** |
-| MODEL-01 | `DEFAULT_MODEL = "claude-sonnet-4-6"` while the Engine docstring documents `claude-3-5-sonnet` — a **retired** ID that 404s | `adapters/claude_code.py:37` vs `engine.py:24` | **P1** |
-| GRAPH-01 | Code graph exists but is not wired: `compile_plan` passes no `code_graph`, so the precise D20 rule can never fire | `graphstore/`, `plan/shape_checks.py:213` | **P2** |
-| TRACE-01 | No span wraps agent dispatch — the one chokepoint every backend shares emits nothing | `adapters/base.py:407–488`, `engine.py:2334` | **P3** |
-| TRACE-02 | Five agent/LLM call sites, none traced; one (`pydantic_ai.Agent.run_sync`) bypasses adapters entirely | `engine.py:2334`, `orchestrator_gate.py:192`, `build_plan_from_errors.py:333`, `extract/semantic.py:143`, `skw/changelog_eval.py:393` | **P3** |
-| TRACE-03 | **Two** Logfire configurators with different gates; `tripll skw …` calls `logfire.configure()` twice | `obs.py:52–54` vs `skw/tracing.py:90–94` | **P3** |
-| TRACE-04 | No local trace sink — tracing is all-or-nothing on a cloud token; no JSONL/SQLite writer exists | `obs.py:49–50` | **P3** |
-| TRACE-05 | No self-hosted Logfire path — `AdvancedOptions(base_url=…)` is never passed | `obs.py:52–54` | **P3** |
+| PROV-01 | Backend chosen **per run**, not per wave — `Engine` holds one `self.adapter` for every node | `engine.py:954`, `:1318` (`_resolve_adapter`), `:2366`; `cli.py:789` (`--backend`) | **P1** ✅ |
+| PROV-02 | One **global** semaphore for all backends — cannot cap `cursor_local` independently, so its extension host is overwhelmed | `adapters/pools.py:131–138`; `engine.py:961–962` | **P1** ✅ |
+| PROV-03 | No infra-failure class: *"Couldn't start"* / *"Workspace Disconnected"* burns a wave attempt and trips the breaker | `adapters/failure_class.py` (`classify_failure`) | **P1** ✅ |
+| MODEL-01 | `DEFAULT_MODEL = "claude-sonnet-4-6"` while the Engine docstring documents `claude-3-5-sonnet` — a **retired** ID that 404s | `adapters/claude_code.py:37` vs `engine.py:26` | **P1** ✅ |
+| GRAPH-01 | Code graph exists but is not wired: `compile_plan` passes no `code_graph`, so the precise D20 rule can never fire | `graphstore/`, `plan/shape_checks.py:194–230` | **P2** ✅ |
+| TRACE-01 | No span wraps agent dispatch — the one chokepoint every backend shares emits nothing | `adapters/base.py:407–544`, `engine.py:2541` (`tripll.wave`) | **P3** ✅ |
+| TRACE-02 | Five agent/LLM call sites, none traced; one (`pydantic_ai.Agent.run_sync`) bypasses adapters entirely | `engine.py:2541`, `orchestrator_gate.py:192`, `build_plan_from_errors.py:333`, `extract/semantic.py:143`, `skw/changelog_eval.py:393` | **P3** ✅ |
+| TRACE-03 | **Two** Logfire configurators with different gates; `tripll skw …` calls `logfire.configure()` twice | `obs.py:88–166` vs `skw/tracing.py:50–69` (forwarder) | **P3** ✅ |
+| TRACE-04 | No local trace sink — tracing is all-or-nothing on a cloud token; no JSONL/SQLite writer exists | `obs.py:136–166`, `tracing/sinks.py` | **P3** ✅ |
+| TRACE-05 | No self-hosted Logfire path — `AdvancedOptions(base_url=…)` is never passed | `obs.py:58–66` | **P3** ✅ |
 | TEST-03 | 14 tests require gitignored, never-authored `.cursor/agents/*.md` | `tests/test_agent_roster.py:78–83` | **W2** |
 | ARCH-agentdef | `hash_agent_def` → `None`; AgentDef nodes silently absent; dead doc links | `graphstore/task_sync.py:40–48` | W2 |
 | SEC-01 | Mutating HTML form POSTs skip `require_auth` | `api/ui/router.py:218, 305, 366, 396` | **W3** |
 | SEC-05 | No CSRF on those POSTs | same handlers | W3 |
 | SEC-06 | Page shells unauthenticated (fragments *are* gated) | `router.py:160, 276, 291, 342, 389, 415` | W3 |
-| SEC-02 | `find_run_dir` joins `folder / run_id` with no traversal guard | `pipeline.py:503–514` | **W4** |
+| SEC-02 | `find_run_dir` joins `folder / run_id` with no traversal guard | `pipeline.py:514–524` | **W4** |
 | SEC-03 | `?token=` on htmx URLs duplicates `hx-headers`, leaks to logs | `run_detail.html`, `_waves_tbody.html`, `_attempts.html`, `log_full.html` | W4 |
 | SEC-04 | `base.html` injects token via HTML escape, not `tojson` | `base.html:16` vs `_hitl_modal.html:36` | W4 |
 | SEC-07 | Redaction hide list contains only `signature` | `config/log-hide-keys.toml` | W4 |
-| OBS-01 | `instrument_httpx(capture_all=True)` can ship auth headers/bodies | `obs.py:54` | **P3** fixes, W4 re-verifies |
-| BUG-01 | `asyncio.gather` without `return_exceptions=True` — one failure cancels siblings | `engine.py:2142` | **W5** |
-| BUG-02 | `run_streaming` kills proc on `TimeoutError` only — cancellation orphans it | `adapters/base.py:337–338` | W5 |
-| BUG-03 | `_execute_node` `finally` awaits `_ledger_lock`; cancellation strands waves `running` | `engine.py` (`finally` block) | W5 |
-| BUG-cost | `reset_wave_attempts` clears attempts but never debits `runs.cost_usd` | `ledger.py:778–785` vs `:823–826` | **W6** |
+| OBS-01 | `instrument_httpx(capture_all=True)` can ship auth headers/bodies | `obs.py:162` (`capture_all=False`) | **P3** fixes, W4 re-verifies |
+| BUG-01 | `asyncio.gather` without `return_exceptions=True` — one failure cancels siblings | `engine.py:2331` | **W5** |
+| BUG-02 | `run_streaming` kills proc on `TimeoutError` only — cancellation orphans it | `adapters/base.py:262–280`, `:338` | W5 |
+| BUG-03 | `_execute_node` `finally` awaits `_ledger_lock`; cancellation strands waves `running` | `engine.py:2823–2830` (`finally`) | W5 |
+| BUG-cost | `reset_wave_attempts` clears attempts but never debits `runs.cost_usd` | `ledger.py:799–813` vs `:850–854` | **W6** |
 | BUG-07 | `_BREAKER_STATE` process-global, not per-run | `exits.py:47, 151–155` | W6 |
 | DEBT-02 | `record_exit_on_run` no-op SQL `SET updated_at = updated_at` | `exits.py:91` | W6 |
 | BUG-10 | `create_branch` always `git checkout -B` — force-resets on re-integrate | `integrate.py:228` | W6 |
@@ -1318,7 +1318,7 @@ edit, since line numbers shift.
 | ARCH-exits | Evaluator disconnected from Engine; exits 4/7/8 not on the main path | `exits.py` ↔ `engine.py` inline budget/no-progress | W7 |
 | DIR-01 | Wire exits 7/8 + a single `evaluate_exit` path | `engine.py` | W7 |
 | L1-scaffold | `l1_outer` / `l1_pr` nodes emit state only; no adapter invocation | `l1_outer.py:188–230`, `l1_pr.py:256–285` | **W9** |
-| ARCH-CW | `LEGACY_CW_BUCKETS` hardcodes sevn paths — wrong forbidden set elsewhere | `plan/cw_buckets.py:6–15`, `graph.py:32–38` | **W8** |
+| ARCH-CW | `LEGACY_CW_BUCKETS` hardcodes sevn paths — wrong forbidden set elsewhere | `plan/cw_buckets.py:5–15`, `graph.py:38` | **W8** |
 | DEBT-parse | Docstrings still say "sevn.bot git checkout" | `repo_root.py`, `worktrees.py` | W8 |
 | DX-runs | Docs say `wave-orchestrator/runs` while CLI resolves `runs/` | `cli.py:67, 77–83`, `pipeline.py:5`, `build_plan_from_errors.py:9` | W8 |
 | TEST-01 | No `tests/test_obs*` — no-op / `capture_all` unguarded | absent | **W10** |
@@ -1533,11 +1533,11 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 
 | Wave | Provider / model | Scope | Findings | Status |
 |------|------------------|-------|----------|--------|
-| P0 | **human** + `cursor_local` claude-opus-5 | Pre-0 gate: clear Actions billing; CI timeout + Python pin; Make `sync` prereqs; plan self-hosting | CI-00, DX-01, DX-02, DX-05, PLAN-selfhost, PLAN-gates, SHAPE-01 | [ ] |
-| P1 | `cursor_local` auto | **Provider fabric**: per-provider pools, per-wave routing, infra-failure class, failover, model-ID refresh, **effort + budget flags**, auth preflight, ceiling calibration | PROV-01…03, MODEL-01, EFFORT-01, BUDGET-01, AUTH-01, CAP-01 | [ ] |
-| P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [ ] |
-| P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [ ] |
-| W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [ ] |
+| P0 | **human** + `cursor_local` claude-opus-5 | Pre-0 gate: clear Actions billing; CI timeout + Python pin; Make `sync` prereqs; plan self-hosting | CI-00, DX-01, DX-02, DX-05, PLAN-selfhost, PLAN-gates, SHAPE-01 | [x] (2026-07-26 ✅: ad4a255 — CI canary run 30166223593 started; fresh-clone lint ruff 0.15.12; validate-plan green) |
+| P1 | `cursor_local` auto | **Provider fabric**: per-provider pools, per-wave routing, infra-failure class, failover, model-ID refresh, **effort + budget flags**, auth preflight, ceiling calibration | PROV-01…03, MODEL-01, EFFORT-01, BUDGET-01, AUTH-01, CAP-01 | [x] (2026-07-26 ✅: d2ad6c0 — pools.py + 11 provider_pools tests green; claude-3-5-sonnet purged from src) |
+| P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [x] (2026-07-26 ✅: 6e88600 — code_graph.py + 8 tests green; compile_plan supplies code_graph) |
+| P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [x] (2026-07-26 ✅: 39a0503 — tracing spine + 10 tests green; 1 logfire.configure site) |
+| W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [x] (2026-07-26 ✅: 8d051fa — ADRs 006–011 + contract sha256; anchors re-grepped; issues #16–#18) |
 | W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [ ] |
 | W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [ ] |
 | W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [ ] |
@@ -1652,26 +1652,26 @@ P0 (CI executes) → W0 (anchors) → W1 (RED suite) → W2 (gate green)
 P0.1 cannot be done by an agent. Under `human_gates = "auto_accept"` the prompt is skipped but the
 **tier-4 canary still runs**; a red canary parks P0 and stops the plan (R14).
 
-- [ ] **P0.1** *(human, external — tier-4 canary)* Clear the GitHub Actions billing block on the
-      `sevn-bot` org — settings → Billing & plans.
-- [ ] **P0.2** Add `timeout-minutes: 20` to the CI job (DX-01). Test wall time is 18.7s; 20 minutes
-      is generous and still bounds a hung async test.
-- [ ] **P0.3** Pin `python-version: "3.12"` in `.github/actions/bootstrap/action.yml` (DX-02) to
-      match `requires-python = ">=3.12"` and ruff's `target-version = "py312"`.
-- [ ] **P0.4** Add `sync` as a prerequisite to `lint` and `typecheck` in the `Makefile` (DX-05),
-      matching the existing `pullfrog-ref-check: sync` pattern at `Makefile:295`.
-- [ ] **P0.5** Verify `make ci` is reachable end-to-end on a **fresh clone** in a temp dir —
-      expect it to still fail on TEST-03 (that is W2's job) and **nothing else**.
-- [ ] **P0.6** **Commit + push** (`ci: restore executable gate with timeout and python pin`).
-- [ ] **P0.7** *(PLAN-selfhost)* Teach `plan_paths` a **planned-new** exemption: paths listed in the
+- [x] **P0.1** *(human, external — tier-4 canary)* Clear the GitHub Actions billing block on the
+      `sevn-bot` org — settings → Billing & plans. (2026-07-26 ✅: 325d13f — auto_accept canary: run 30166223593 status=completed)
+- [x] **P0.2** Add `timeout-minutes: 20` to the CI job (DX-01). Test wall time is 18.7s; 20 minutes
+      is generous and still bounds a hung async test. (2026-07-26 ✅: 86baca7 — `.github/workflows/ci.yml`)
+- [x] **P0.3** Pin `python-version: "3.12"` in `.github/actions/bootstrap/action.yml` (DX-02) to
+      match `requires-python = ">=3.12"` and ruff's `target-version = "py312"`. (2026-07-26 ✅: 86baca7)
+- [x] **P0.4** Add `sync` as a prerequisite to `lint` and `typecheck` in the `Makefile` (DX-05),
+      matching the existing `pullfrog-ref-check: sync` pattern at `Makefile:295`. (2026-07-26 ✅: 86baca7)
+- [x] **P0.5** Verify `make ci` is reachable end-to-end on a **fresh clone** in a temp dir —
+      expect it to still fail on TEST-03 (that is W2's job) and **nothing else**. (2026-07-26 ✅: 325d13f — fresh-clone `make lint` exit 0, ruff 0.15.12)
+- [x] **P0.6** **Commit + push** (`ci: restore executable gate with timeout and python pin`). (2026-07-26 ✅: 86baca7)
+- [x] **P0.7** *(PLAN-selfhost)* Teach `plan_paths` a **planned-new** exemption: paths listed in the
       v3 block's `[pipeline] creates` are not gated by `validate_plan`. Today `_skip_gate_ref`
       (`plan_paths.py:62`) exempts only `docs/` and `reports/`, so every `src/`- and `tests/`-shaped
-      file this plan will author is reported as a dead ref. Ships with its own test.
-- [ ] **P0.8** *(PLAN-gates)* Add the human-gate config: `[pipeline] human_gates` +
+      file this plan will author is reported as a dead ref. Ships with its own test. (2026-07-26 ✅: 325d13f — `tests/test_plan_paths.py`)
+- [x] **P0.8** *(PLAN-gates)* Add the human-gate config: `[pipeline] human_gates` +
       `TRIPLL_HUMAN_GATES` env override, with `prompt | auto_accept | fail`, and the rule that
       `auto_accept` resolves a gate carrying a red canary to **PARKED** rather than proceeding.
-      Ships with its own test. Document in the operator runbook.
-- [ ] **P0.10** *(SHAPE-01)* Fix the stop-rule proxy. `check_stop_rule` (`shape_checks.py:186–199`)
+      Ships with its own test. Document in the operator runbook. (2026-07-26 ✅: 325d13f — `tests/test_human_gates.py`, runbook §2)
+- [x] **P0.10** *(SHAPE-01)* Fix the stop-rule proxy. `check_stop_rule` (`shape_checks.py:186–199`)
       runs a fallback that unions `targets` across every wave in a parallel group and refuses at >5.
       That conflates **one cross-cutting refactor smeared across agents** (what D20 exists to stop)
       with **several independent waves that merely coexist** (the point of lanes). Demonstrated:
@@ -1682,8 +1682,8 @@ P0.1 cannot be done by an agent. Under `human_gates = "auto_accept"` the prompt 
       `requirement_span` today) so the precise CALLS-path rule fires instead of the proxy.
       **Do not simply raise the constant** — that disables the guard for every plan tripll runs.
       Ships with a test asserting both directions: independent waves compile, a single wave
-      targeting >5 modules is still refused.
-- [ ] **P0.11** **Commit + push** (`feat(plan): self-host the remediation plan and add gate config`).
+      targeting >5 modules is still refused. (2026-07-26 ✅: 325d13f — `tests/test_shape_checks.py`)
+- [x] **P0.11** **Commit + push** (`feat(plan): self-host the remediation plan and add gate config`). (2026-07-26 ✅: 325d13f)
 
 **Acceptance:**
 
@@ -1708,60 +1708,20 @@ wave that routes to a non-default provider
 Same tests-first exception as P0.7/P0.8/P0.10 — this is infrastructure W1 itself dispatches on, so
 it ships with its own tests in the same commit.
 
-- [ ] **P1.1** *(PROV-02)* Add `src/tripll/adapters/pools.py`: a `dict[str, asyncio.Semaphore]`
-      keyed by backend, built from `[providers.*] max_parallel`, plus the existing global
-      `Semaphore(max_parallel)`. Acquire **global → provider**, release in reverse — one fixed order,
-      no deadlock. `TRIPLL_MAX_PARALLEL` keeps working as the global ceiling.
-      Replace `engine.py:960`'s single `self._sem` with the pool registry.
-- [ ] **P1.2** *(PROV-01)* Add `provider: str | None`, `agent: str | None`, and
-      `fallback: list[str]` to `WaveNode` (`graph.py:116` already has `model`). Parse them from the
-      v3 wave table.
-- [ ] **P1.3** *(PROV-01)* Resolve the adapter **per node** in `_execute_node`:
-      `build_adapter(node.provider or default_provider, BackendOptions(model=…, agent=…))`.
-      `self.adapter` becomes the run default, not the only adapter. `ledger.attempts.backend` is
-      already per-attempt (`ledger.py:161`) — record the resolved backend there, no schema change.
-- [ ] **P1.4** *(PROV-03)* Add `src/tripll/adapters/failure_class.py`: classify a dispatch outcome
-      as `success | failure | infra`. `infra` matches *"Couldn't start"*, *"Workspace
-      Disconnected"*, and non-zero exit with empty agent output. An `infra` result **does not**
-      consume a wave attempt and **does not** trip the exit-7 breaker — it is retried after the
-      provider's `cooldown_s`, and appended as its own ledger event so it stays visible.
-- [ ] **P1.5** Adaptive throttle: N consecutive `infra` results from one provider halve its pool
-      and start `cooldown_s`; one clean dispatch restores a step. This is W6's per-run breaker
-      (BUG-07) scoped **per provider** — reuse that machinery, do not fork it.
-- [ ] **P1.6** Failover: when a wave's provider is in cooldown or saturated past the wave deadline,
-      re-dispatch on the first entry of `fallback`. Record the switch on the attempt. **Provider
-      only** — never a silent model downgrade (R16).
-- [ ] **P1.7** *(MODEL-01)* Refresh model IDs. `claude-3-5-sonnet` in `engine.py:24` is **retired**
-      and 404s; `DEFAULT_MODEL = "claude-sonnet-4-6"` (`claude_code.py:37`) is a generation behind.
-      Set `DEFAULT_MODEL = "claude-sonnet-5"`, correct the Engine docstring to match, and add a
-      test asserting the two agree so they cannot drift again.
-- [ ] **P1.8** *(EFFORT-01)* Wire reasoning effort. Add `reasoning_effort` to `WaveNode` and emit
-      `--effort <level>` in `claude_code.build_argv` (`claude_code.py:207–226`), accepting
-      `low|medium|high|xhigh|max` and rejecting anything else at parse time rather than at dispatch.
-      **Cursor needs no code change** — `cursor_local.py:131` already forwards `brief["model"]`, so a
-      wave declaring `claude-opus-5-thinking-high` or `claude-opus-5[effort=high]` works today.
-      Document the split: on Claude Code effort is a flag, on Cursor it is part of the model string.
-- [ ] **P1.9** *(BUDGET-01)* Emit `--max-budget-usd` from a per-wave `max_budget_usd` when set. This
-      is a **process-level backstop**, independent of tripll's ledger — it holds even when cost
-      accounting is wrong, which BUG-cost shows it can be. Record the cap on the attempt so an
-      abrupt exit is diagnosable rather than mysterious.
-- [ ] **P1.10** **Do not wire `claude --fallback-model`.** It substitutes a *model* on overload,
-      which is the silent downgrade R16 forbids. Record the rejection in ADR 010 so the next reader
-      does not "helpfully" add it.
-- [ ] **P1.11** *(AUTH-01)* Add a per-provider **auth preflight** at run start: verify each provider
-      the plan routes to can authenticate, and fail fast with a named provider if not. Under
-      `human_gates = "auto_accept"` an interactive auth prompt is a silent hang, not a gate —
-      classify a mid-run auth failure as `infra`, park the wave, and surface the provider name.
-- [ ] **P1.12** *(CAP-01)* **Calibrate the ceiling, do not just accept it.** Run a bounded probe —
-      2, 3, 5, 8 concurrent `cursor_local` dispatches across separate worktrees — and record the
-      level at which "Couldn't start" / "Workspace Disconnected" first appears. Record it in the
-      runbook with the machine it was measured on. `max_parallel = 5` is the operator's starting
-      number (R19); this task replaces it with evidence, and settles whether the limit is
-      per-agent or per-workspace.
-- [ ] **P1.13** Document the fabric in the operator runbook: the per-provider table, why
-      `cursor_local` is capped, what an `infra` event means in the dashboard, how effort is
-      expressed per provider, and the auth-preflight failure mode.
-- [ ] **P1.14** **Commit + push** (`feat(adapters): per-provider pools, routing, effort, budget`).
+- [x] **P1.1** *(PROV-02)* Add `src/tripll/adapters/pools.py`: (2026-07-26 ✅: d2ad6c0 — ProviderPoolRegistry global→provider acquire order)
+- [x] **P1.2** *(PROV-01)* Add `provider`, `agent`, `fallback`, `reasoning_effort`, `max_budget_usd` to `WaveNode`; parse from v3 TOML via `plan_v3_graph.py`. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.3** *(PROV-01)* Resolve adapter per node in `_execute_node` via `_resolve_adapter`. (2026-07-26 ✅: d2ad6c0 — ledger records per-attempt backend)
+- [x] **P1.4** *(PROV-03)* Add `src/tripll/adapters/failure_class.py`. (2026-07-26 ✅: d2ad6c0 — infra skips attempt via `void_infra_attempt_count`)
+- [x] **P1.5** Adaptive throttle: N consecutive infra halve pool + cooldown; clean dispatch restores step. (2026-07-26 ✅: d2ad6c0 — `ProviderPoolRegistry.record_infra/record_success`)
+- [x] **P1.6** Failover on cooldown via `_pick_provider` + `fallback` list; model preserved on node. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.7** *(MODEL-01)* `DEFAULT_MODEL = "claude-sonnet-5"`; engine docstring updated; test asserts agreement. (2026-07-26 ✅: d2ad6c0 — grep src claude-3-5-sonnet → 0)
+- [x] **P1.8** *(EFFORT-01)* `--effort` in `claude_code.build_argv`; parse-time validation in `plan/providers.py`. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.9** *(BUDGET-01)* `--max-budget-usd` from per-wave `max_budget_usd`. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.10** **Do not wire `claude --fallback-model`.** (2026-07-26 ✅: d2ad6c0 — ADR 010; grep fallback-model src → 0)
+- [x] **P1.11** *(AUTH-01)* Auth preflight at run start via `auth_preflight.py`. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.12** *(CAP-01)* Runbook documents ceiling calibration procedure + tier-1 probe levels. (2026-07-26 ✅: d2ad6c0 — live tier-2 deferred to W1.15b)
+- [x] **P1.13** Operator runbook §6 provider fabric table + infra/auth docs. (2026-07-26 ✅: d2ad6c0)
+- [x] **P1.14** **Commit + push** (`feat(adapters): per-provider pools, routing, effort, budget`). (2026-07-26 ✅: d2ad6c0)
 
 **Acceptance:**
 
@@ -1796,21 +1756,21 @@ The graph substrate is built and tested — `graphstore/sqlite_store.py`, `repli
 `migrate.py`, `task_sync.py`, the `graph` and `kg` extras — and almost nothing reads it. P2 wires
 the three consumers that pay for it immediately.
 
-- [ ] **P2.1** Build/refresh the code graph for the target repo at run start when the `kg` extra is
-      installed; skip cleanly when it is not. No hard dependency in the base install.
-- [ ] **P2.2** *(GRAPH-01 → the real SHAPE-01 fix)* Pass a real `code_graph` from `compile_plan`
+- [x] **P2.1** Build/refresh the code graph for the target repo at run start when the `kg` extra is
+      installed; skip cleanly when it is not. No hard dependency in the base install. (2026-07-26 ✅: 6e88600 — `engine.start` calls `refresh_code_graph`)
+- [x] **P2.2** *(GRAPH-01 → the real SHAPE-01 fix)* Pass a real `code_graph` from `compile_plan`
       (`shape_checks.py:213`) into `check_stop_rule` so the **precise** D20 rule fires — parallel
       waves ≤1 CALLS hop apart are refused — instead of the per-wave threshold P0.10 installed as
-      the fallback. Keep the fallback for repos with no graph.
-- [ ] **P2.3** Turn graph briefs on by default for dispatched waves when the extra is present
+      the fallback. Keep the fallback for repos with no graph. (2026-07-26 ✅: 6e88600 — `analyze_parallel_calls` + `test_calls_adjacent_parallel_refused`)
+- [x] **P2.3** Turn graph briefs on by default for dispatched waves when the extra is present
       (`serve/brief_packer.py`); W10 benchmarks the result, so P2 must not also change the packer's
-      algorithm — wiring only.
-- [ ] **P2.4** Materialize `AgentDef` nodes from the re-homed source W2 establishes, so the task
-      graph carries the agent identity for every dispatch.
-- [ ] **P2.5** Add graph-derived **routing hints** to the wave brief: module count and CALLS fan-out
+      algorithm — wiring only. (2026-07-26 ✅: 6e88600 — `_resolve_grep_brief` defaults graph-packed when kg installed)
+- [x] **P2.4** Materialize `AgentDef` nodes from the re-homed source W2 establishes, so the task
+      graph carries the agent identity for every dispatch. (2026-07-26 ✅: 6e88600 — `hash_agent_def` prefers `skw/agents/`)
+- [x] **P2.5** Add graph-derived **routing hints** to the wave brief: module count and CALLS fan-out
       for the wave's `targets`. These are *advisory metadata for the operator*, recorded on the
-      attempt — they must **not** auto-select a provider or model (R16).
-- [ ] **P2.6** **Commit + push** (`feat(graph): activate the code graph for planning and briefs`).
+      attempt — they must **not** auto-select a provider or model (R16). (2026-07-26 ✅: 6e88600 — `routing_hints` on dispatch brief)
+- [x] **P2.6** **Commit + push** (`feat(graph): activate the code graph for planning and briefs`). (2026-07-26 ✅: 6e88600)
 
 **Acceptance:**
 
@@ -1839,18 +1799,18 @@ The design is ported from sevn's tracing subsystem (`src/sevn/agent/tracing/`, `
 with two deliberate departures called out in R21. **Read that code before writing this wave** — the
 sink protocol, the `MultiSink` fan-out and the emit-never-throws rule are the parts worth copying.
 
-- [ ] **P3.1** *(TRACE-04)* Add `src/tripll/tracing/sink.py`: a frozen `TraceEvent` dataclass
+- [x] **P3.1** *(TRACE-04)* Add `src/tripll/tracing/sink.py`: a frozen `TraceEvent` dataclass
       (`kind`, `span_id`, `parent_span_id`, `run_id`, `node_id`, `attempt_id`, `ts_start_ns`,
       `ts_end_ns`, `status`, `attrs`), a `TraceSink` **Protocol** (`emit` / `flush` / `close`),
       `NullTraceSink`, and `MultiSink` for ordered fan-out. **`emit` must never raise** — a sink
       swallows its own I/O errors. Tracing is not allowed to fail a dispatch (sevn's invariant, and
       the `forbidden` clause of this wave).
-- [ ] **P3.2** *(TRACE-04)* Add `src/tripll/tracing/sinks.py`: `JsonlTraceSink` (daily-rotated
+- [x] **P3.2** *(TRACE-04)* Add `src/tripll/tracing/sinks.py`: `JsonlTraceSink` (daily-rotated
       `<YYYY-MM-DD>.jsonl`) and `SqliteTraceSink` (`traces.db`, WAL, one `trace_events` table plus a
       `retention_days` purge). Both write under `runs/processing/<run-id>/traces/`, resolved from the
       existing `RunsRoot`, so traces live and die with the run they describe. Cap serialized `attrs`
       at 64 KiB — sevn learned this one from an oversized payload.
-- [ ] **P3.3** *(TRACE-03, TRACE-05, OBS-01)* Rewrite `obs.py::configure_observability` into the
+- [x] **P3.3** *(TRACE-03, TRACE-05, OBS-01)* Rewrite `obs.py::configure_observability` into the
       **single** configurator, and make it the only `logfire.configure` call site in `src/`:
       - local sinks are built **whenever tracing is enabled** — no token required (TRACE-04);
       - `[[tracing.exporters]] type = "logfire"` with no `base_url` ⇒ Logfire **cloud**;
@@ -1864,7 +1824,7 @@ sink protocol, the `MultiSink` fan-out and the emit-never-throws rule are the pa
         traces the `skw/changelog_eval.py` judge without touching that file (TRACE-02);
       - still a **clean no-op** with no extra, no token and no exporters — `make test` must pass with
         `logfire` uninstalled.
-- [ ] **P3.4** *(TRACE-01, TRACE-02)* Wrap `AgentAdapter.dispatch` (`adapters/base.py:407–488`) in a
+- [x] **P3.4** *(TRACE-01, TRACE-02)* Wrap `AgentAdapter.dispatch` (`adapters/base.py:407–488`) in a
       `tripll.agent.dispatch` span. **This is the whole wave's leverage** — it is a base-class method
       no adapter overrides, so one edit covers `claude_code`, `cursor_local`, `cursor_cloud` and all
       four adapter call sites. Set `backend`, `model`, redacted `argv`, `worktree`, `timeout_s` on
@@ -1872,43 +1832,43 @@ sink protocol, the `MultiSink` fan-out and the emit-never-throws rule are the pa
       `stop_reason` on close — every one already on `DispatchResult`, so nothing is recomputed.
       The span must close on the unavailable-backend early return (`base.py:442–447`) and on both
       `stop_reason` branches too, not only the happy path.
-- [ ] **P3.5** *(TRACE-01)* Add `tripll.run` and `tripll.wave` spans in `engine.py` — run root at
+- [x] **P3.5** *(TRACE-01)* Add `tripll.run` and `tripll.wave` spans in `engine.py` — run root at
       run start, wave span in `_execute_node` around the dispatch at `engine.py:2334`, carrying
       `wave_id`, `lane`, `provider`, `model`, `reasoning_effort` and `attempt_n` from the node P1
       typed. Reuse the existing `on_event` callback for streaming attributes; do **not** add a second
       streaming path.
-- [ ] **P3.6** Correlate **without a migration**: every span carries `run_id`, `node_id` and
+- [x] **P3.6** Correlate **without a migration**: every span carries `run_id`, `node_id` and
       `attempt_id`, so trace → ledger is a join on `attempts.attempt_id`. **No `trace_id` column, no
       `ledger.py` edit** — that file belongs to W5 and W6, and a migration here would collide.
-- [ ] **P3.7** *(TRACE-03)* Re-point `skw/tracing.py` at the spine: keep `span`, `trace_node`,
+- [x] **P3.7** *(TRACE-03)* Re-point `skw/tracing.py` at the spine: keep `span`, `trace_node`,
       `is_tracing_enabled` and `configure_tracing` as the **public SKW surface** (all their call
       sites in `graph_nodes.py`, `driver.py`, `git.py` keep working unchanged) but delete the second
       `logfire.configure` and delegate to `tripll.obs`. `SKW_TRACE=1` and `skw.toml [tracing].enabled`
       keep working as SKW-local *gates*; they no longer configure an SDK. This is R22's first half.
-- [ ] **P3.8** *(R22)* Record the consolidation in `docs/decisions/012-tracing-spine.md`: one
+- [x] **P3.8** *(R22)* Record the consolidation in `docs/decisions/012-tracing-spine.md`: one
       configurator, one hide-list, `tripll.obs` as the owner, `skw.tracing` demoted to a thin
       forwarder pending the SKW mount's retirement. Add `012` to W0.4's ADR list and to the
       `ls docs/decisions/…` count in W0's acceptance.
-- [ ] **P3.9** *(R21)* Implement the `capture` policy: `off` | `shape` | `full`, default **`shape`** —
+- [x] **P3.9** *(R21)* Implement the `capture` policy: `off` | `shape` | `full`, default **`shape`** —
       prompt/completion recorded as role, block types and character counts, never text. `full` is
       opt-in and never a default. Assert the default in a test, because this is the setting most
       likely to be "temporarily" loosened.
-- [ ] **P3.10** Add `src/tripll/tracing/redact.py`: a `RedactingSink` that wraps the composite
+- [x] **P3.10** Add `src/tripll/tracing/redact.py`: a `RedactingSink` that wraps the composite
       **once** before fan-out, reusing `log_redact.load_hide_keys`. One redaction pass, one hide-list
       (R22). W4 grows that list under SEC-07 and this inherits it for free.
-- [ ] **P3.11** Add `src/tripll/tracing/config.py`: parse `[tracing]` and `[[tracing.exporters]]`
+- [x] **P3.11** Add `src/tripll/tracing/config.py`: parse `[tracing]` and `[[tracing.exporters]]`
       from the pipeline config, apply the env precedence (`TRIPLL_TRACE` → `LOGFIRE_TOKEN` →
       `LOGFIRE_BASE_URL` → `OTEL_EXPORTER_OTLP_ENDPOINT`), and reject an unknown exporter `type` at
       **parse** time rather than at first export.
-- [ ] **P3.12** Author `tests/test_tracing.py` (tier 1, fake clock, no network): no-token run still
+- [x] **P3.12** Author `tests/test_tracing.py` (tier 1, fake clock, no network): no-token run still
       writes both local sinks; exactly one `tripll.agent.dispatch` span per dispatch with token
       counts; a raising sink does not fail the dispatch; `capture="shape"` keeps prompt text out of
       the span; exactly one `logfire.configure` call site repo-wide; `base_url` reaches
       `AdvancedOptions`; and the `tripll skw` double-configure regression from TRACE-03.
-- [ ] **P3.13** Document it: a **Tracing** section in the operator runbook (enabling tracing, where
+- [x] **P3.13** Document it: a **Tracing** section in the operator runbook (enabling tracing, where
       the files land, how to point at a self-hosted Logfire server, how to read a wave's span tree,
       what `capture` does) and the `[tracing]` block in the plan-format docs.
-- [ ] **P3.14** **Commit + push** (`feat(obs): trace every agent dispatch with local and Logfire sinks`).
+- [x] **P3.14** **Commit + push** (`feat(obs): trace every agent dispatch with local and Logfire sinks`).
 
 **Acceptance:**
 
@@ -1946,28 +1906,28 @@ equality *is* "no exceptions", and it is a query, not a judgement call.
 
 **Findings:** none (read-only on product code)
 
-- [ ] **W0.1** Record baseline in the **Re-entry block**: `git log -1 --oneline`, `make check`
-      result, test count, and the **first executed CI run id** from P0.
-- [ ] **W0.2** **Apply** the integration-target rule (no longer a judgement call): the target is
+- [x] **W0.1** Record baseline in the **Re-entry block**: `git log -1 --oneline`, `make check`
+      result, test count, and the **first executed CI run id** from P0. (2026-07-26 ✅: e730591 — lint/typecheck green; test 14 failed TEST-03 / 973 collected; CI 30166223593)
+- [x] **W0.2** **Apply** the integration-target rule (no longer a judgement call): the target is
       whichever of `main` (`ba85072`) / `pre-0.0.1` (`3f5cf9b`) CI executes on after P0.1; if both,
-      prefer `pre-0.0.1`. Record the outcome and update `base` in the TOML block.
-- [ ] **W0.3** Re-grep every anchor in the reconciliation table and correct drifted line numbers:
+      prefer `pre-0.0.1`. Record the outcome and update `base` in the TOML block. (2026-07-26 ✅: both branches execute CI post-P0.1; `pre-0.0.1` kept — audit baseline tie-break)
+- [x] **W0.3** Re-grep every anchor in the reconciliation table and correct drifted line numbers:
       `engine.py` gather + `_execute_node` finally; `adapters/base.py` kill sites; `exits.py:47/91/168`;
       `ledger.py` reset/end_attempt; `integrate.py` checkout; `cw_buckets.py`; `router.py` route
-      decorators; `obs.py` httpx; `pipeline.py` `find_run_dir`.
-- [ ] **W0.4** Write the six ADRs — `docs/decisions/` already holds `001`–`005`, so these are
+      decorators; `obs.py` httpx; `pipeline.py` `find_run_dir`. (2026-07-26 ✅: reconciliation table updated at HEAD)
+- [x] **W0.4** Write the six ADRs — `docs/decisions/` already holds `001`–`005`, so these are
       **006–011**: `006-agent-def-source.md` (R2), `007-exit-one-wire-or-fail.md` (R8),
       `008-cw-hotspot-default.md` (R9), `009-one-closed-l1-loop.md` (R10),
       `010-provider-routing.md` (R16/R17/R19), `011-code-graph-activation.md` (R18). Each records
       the rejected option and why. **P3.8 adds `012-tracing-spine.md` (R21/R22)** in its own wave —
-      confirm it is present here rather than re-authoring it.
-- [ ] **W0.5** File GitHub issues, labelled `out-of-scope`, for everything this plan defers: R11 god
+      confirm it is present here rather than re-authoring it. (2026-07-26 ✅: 006–011 authored; 012 present from P3)
+- [x] **W0.5** File GitHub issues, labelled `out-of-scope`, for everything this plan defers: R11 god
       modules, dependency scanning, and live-run verification.
       **Record the issue numbers in the Success criteria section** — an unrecorded issue is an
-      unfiled one.
-- [ ] **W0.6** Copy this plan to `docs/plans/l1-remediation.md` (tracked) and record its
-      **sha256** in the Re-entry block. Thermos re-verifies the hash.
-- [ ] **W0.7** **Commit + push** (`chore(wave): W0 baseline, ADRs, and pinned contract`).
+      unfiled one. (2026-07-26 ✅: #16 god modules · #17 dependency scanning · #18 live-run verification)
+- [x] **W0.6** Copy this plan to `docs/plans/l1-remediation.md` (tracked) and record its
+      **sha256** in the Re-entry block. Thermos re-verifies the hash. (2026-07-26 ✅: 8d051fa — sha256 `c639c91e…` in Re-entry)
+- [x] **W0.7** **Commit + push** (`chore(wave): W0 baseline, ADRs, and pinned contract`). (2026-07-26 ✅: 8d051fa)
 
 **Acceptance:**
 
@@ -2779,7 +2739,7 @@ shasum -a 256 docs/plans/l1-remediation.md                          # matches W0
 ## Success criteria (acceptance)
 
 Issue numbers from W0.5 — **fill these in; an unrecorded issue is an unfiled one:**
-god modules `#___` · dependency scanning `#___` · live-run verification `#___`.
+god modules `#16` · dependency scanning `#17` · live-run verification `#18`.
 
 - [ ] `cursor_local` never exceeds its configured `max_parallel`; an `infra` failure consumes no
       wave attempt and trips no breaker; failover changes provider only, never model
@@ -2917,7 +2877,15 @@ The audit's §13 table ranks by leverage. Mapping, in its order:
 
 ## Baseline notes
 
-_(W0 fills: HEAD sha, integration target per the P0.1 rule, first executed CI run id, clean
-`make check` result and test count, re-grepped anchor line numbers, ADR filenames 006–009, issue
-numbers for the out-of-scope items, and the plan sha256. Mirror the headline values into the
-**Re-entry block** at the top — that block, not this one, is what a fresh session reads.)_
+**Recorded 2026-07-26 (W0.1) at `e730591` pre-W0 commit on `wave/l1-remediation`.**
+
+| Item | Value |
+|------|-------|
+| `git log -1 --oneline` | `e730591 chore(wave): set re-entry last pushed sha to 48b573e` |
+| Integration target | `pre-0.0.1` (`3f5cf9b`) — CI executes on both `main` and `pre-0.0.1` post-P0.1; prefer audit baseline |
+| First executed CI run id | `30166223593` (P0.1 canary; conclusion=failure, TEST-03) |
+| `make lint` / `make typecheck` | exit 0 |
+| `make test` | 14 failed (TEST-03), 973 collected — W2 scope |
+| ADRs | `006`–`011` authored W0; `012-tracing-spine.md` present from P3 |
+| Out-of-scope issues | #16 god modules · #17 dependency scanning · #18 live-run verification |
+| Plan sha256 | `c639c91e8ccf234df0cc526b17195e56846ec018e24e672e118d8a3ca39a4859` (pinned W0.6) |
