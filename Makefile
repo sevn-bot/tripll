@@ -76,7 +76,7 @@ PLANS_ENV := .env.agent-native
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
-	plans-up plans-down plans-logs spec-check prd-check changelog-check changelog-eval docs-score spec-sync prd-sync
+	plans-up plans-down plans-logs spec-check prd-check changelog-check changelog-eval docs-score
 
 help: ## Show targets (default goal — use `make` or `make help`, not GNU `make --help`)
 	@printf '\033[1mtripll\033[0m — operator targets (run from this directory)\n'
@@ -276,11 +276,11 @@ tripll: sync ## CLI passthrough — ARGS='plan runs/input/<set> --dry-run' | 'ru
 
 ##@ Quality gate
 
-lint: ## Ruff check + format check
+lint: sync ## Ruff check + format check
 	$(RUFF) check --config pyproject.toml src tests
 	$(RUFF) format --check --config pyproject.toml src tests
 
-typecheck: ## mypy strict for tripll
+typecheck: sync ## mypy strict for tripll
 	$(MYPY) --config-file pyproject.toml src/tripll
 
 test: ## pytest
@@ -349,12 +349,6 @@ prd-check: sync ## Validate+score PRDs in PRD_DIR (SCORE=1 for score-only gate)
 
 docs-score: sync ## Score docs in DOCS_DIR for KIND=spec|prd
 	$(TRIPLL_CLI) doc-score --kind $(KIND) --dir "$(DOCS_DIR)" --repo-root "$(REPO_ROOT)"
-
-spec-sync: sync ## Refresh frontmatter + scaffold missing specs in SPEC_DIR
-	$(TRIPLL_CLI) spec sync "$(SPEC_DIR)" --repo-root "$(REPO_ROOT)"
-
-prd-sync: sync ## Refresh frontmatter + scaffold missing PRDs in PRD_DIR
-	$(TRIPLL_CLI) prd sync "$(PRD_DIR)" --repo-root "$(REPO_ROOT)"
 
 changelog-check: sync ## Deterministic CHANGELOG.md gate (BASE=origin/main)
 	$(TRIPLL_CLI) changelog check --repo-root "$(REPO_ROOT)" --base "$(or $(BASE),origin/main)"
