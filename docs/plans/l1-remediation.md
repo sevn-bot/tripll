@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Baseline recorded; ADRs 006–011 pinned; contract copied to `docs/plans/l1-remediation.md` |
 | **Next action** | W1.1 — RED suite (`test-creator`, tier-tagged xfail guards) |
 | **Blocked on** | — |
-| **Last pushed sha** | `8d051fa` |
+| **Last pushed sha** | `c9bb7c1` |
 | **Last CI run id** | `30166223593` (first executed post-P0.1; status=completed; conclusion=failure — TEST-03) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1537,7 +1537,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | P1 | `cursor_local` auto | **Provider fabric**: per-provider pools, per-wave routing, infra-failure class, failover, model-ID refresh, **effort + budget flags**, auth preflight, ceiling calibration | PROV-01…03, MODEL-01, EFFORT-01, BUDGET-01, AUTH-01, CAP-01 | [x] (2026-07-26 ✅: d2ad6c0 — pools.py + 11 provider_pools tests green; claude-3-5-sonnet purged from src) |
 | P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [x] (2026-07-26 ✅: 6e88600 — code_graph.py + 8 tests green; compile_plan supplies code_graph) |
 | P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [x] (2026-07-26 ✅: 39a0503 — tracing spine + 10 tests green; 1 logfire.configure site) |
-| W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [x] (2026-07-26 ✅: 8d051fa — ADRs 006–011 + contract sha256; anchors re-grepped; issues #16–#18) |
+| W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [x] (2026-07-26 ✅: c9bb7c1 — ADRs 006–011 + contract sha256; anchors re-grepped; issues #16–#18) |
 | W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [ ] |
 | W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [ ] |
 | W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [ ] |
@@ -1926,8 +1926,8 @@ equality *is* "no exceptions", and it is a query, not a judgement call.
       **Record the issue numbers in the Success criteria section** — an unrecorded issue is an
       unfiled one. (2026-07-26 ✅: #16 god modules · #17 dependency scanning · #18 live-run verification)
 - [x] **W0.6** Copy this plan to `docs/plans/l1-remediation.md` (tracked) and record its
-      **sha256** in the Re-entry block. Thermos re-verifies the hash. (2026-07-26 ✅: 8d051fa — sha256 `c639c91e…` in Re-entry)
-- [x] **W0.7** **Commit + push** (`chore(wave): W0 baseline, ADRs, and pinned contract`). (2026-07-26 ✅: 8d051fa)
+      **sha256** in the Re-entry block. Thermos re-verifies the hash. (2026-07-26 ✅: c9bb7c1 — sha256 `c639c91e…` in Re-entry)
+- [x] **W0.7** **Commit + push** (`chore(wave): W0 baseline, ADRs, and pinned contract`). (2026-07-26 ✅: c9bb7c1)
 
 **Acceptance:**
 
