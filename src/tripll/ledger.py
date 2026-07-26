@@ -666,6 +666,33 @@ def insert_attempt(
     return attempt_id
 
 
+def void_infra_attempt_count(
+    lc: LedgerConnection,
+    *,
+    run_id: str,
+    node_id: str,
+) -> None:
+    """Decrement ``waves.attempt_count`` after an infra-classified dispatch (PROV-03).
+
+    Infra failures must not consume a wave attempt slot. Call this after
+    :func:`insert_attempt` when :func:`~tripll.adapters.failure_class.classify_dispatch`
+    returns ``infra``.
+
+    Args:
+        lc (LedgerConnection): Open ledger connection.
+        run_id (str): Parent run.
+        node_id (str): Target wave node.
+    """
+    now = _now_iso()
+    with lc.conn:
+        lc.conn.execute(
+            """UPDATE waves SET attempt_count = CASE WHEN attempt_count > 0
+               THEN attempt_count - 1 ELSE 0 END, updated_at = ?
+               WHERE run_id = ? AND node_id = ?""",
+            (now, run_id, node_id),
+        )
+
+
 def transition_run(lc: LedgerConnection, run_id: str, new_state: RunState) -> None:
     """Atomically transition a run to *new_state*.
 

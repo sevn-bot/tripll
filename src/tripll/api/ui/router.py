@@ -771,7 +771,7 @@ def _empty_profile_form() -> dict[str, str]:
         "profile_id": "",
         "name": "",
         "backend": "claude_code",
-        "model": "claude-3-5-sonnet",
+        "model": "claude-sonnet-5",
         "agent": "wave-plan-executor",
         "skills_text": "[]",
     }

@@ -140,6 +140,57 @@ Pass `--backend` to `run`/`resume`:
 - `cursor_cloud` — requires the `tripll[cloud]` extra; cloud live dispatch is
   deferred (manual smoke).
 
+### Per-wave provider routing (v3 plans)
+
+v3 plans declare routing in TOML:
+
+```toml
+[pipeline]
+max_parallel = 10
+default_provider = "cursor_local"
+
+[providers.cursor_local]
+max_parallel = 5              # extension-host ceiling (CAP-01)
+cooldown_s = 30
+default_model = "auto"
+
+[providers.claude_code]
+max_parallel = 3
+default_model = "claude-sonnet-5"
+
+[[waves]]
+id = "W1"
+provider = "cursor_local"
+model = "auto"
+fallback = ["claude_code"]
+reasoning_effort = "high"     # Claude Code only — see below
+max_budget_usd = 12.0         # Claude Code process-level backstop
+```
+
+| Provider | Concurrency | Reasoning effort |
+|----------|-------------|------------------|
+| `cursor_local` | Capped at `[providers.cursor_local] max_parallel` (default **5**). Adaptive throttle halves the pool after repeated **infra** failures. | Part of the **model string** (`claude-opus-5-thinking-high`, `claude-opus-5[effort=high]`, or `auto`). |
+| `claude_code` | `[providers.claude_code] max_parallel` (default **3**). | `reasoning_effort` wave key → `claude --effort <level>`. |
+| `cursor_cloud` | `[providers.cursor_cloud] max_parallel` (default **8**). | Same as Cursor local — model string only. |
+
+**Infra events** (`Couldn't start`, `Workspace Disconnected`, auth/session hangs) are classified
+separately from wave failures. They do **not** consume an attempt slot and do **not** trip the
+exit-7 breaker. The dashboard/ledger shows them under phase `infra`.
+
+**Failover** uses the wave's `fallback` list when the primary provider is in cooldown. Failover
+changes the **provider only** — the wave's model intent is preserved (ADR 010). tripll never
+passes `claude --fallback-model`.
+
+**Auth preflight** runs at run start for every provider the plan routes to. If `claude` or
+`cursor-agent` is missing or unauthenticated, the run fails fast with a named provider instead
+of hanging mid-wave (especially under `human_gates = "auto_accept"`).
+
+**CAP-01 calibration:** `max_parallel = 5` for `cursor_local` is the operator starting point.
+Run the tier-2 concurrency probe (`RUN_LIVE=1 make test -- -k test_cursor_pool_ceiling`) on your
+machine and record the level where infra first appears. As of 2026-07-26 on the reference
+developer machine, tier-1 fake-clock tests enforce the contract at 2/3/5/8 probe levels; live
+calibration is operator-specific.
+
 ## 7. Integration (optional)
 
 Dispatch-only is the default (branches + `report.md`, no merges). To integrate:

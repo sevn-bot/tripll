@@ -130,7 +130,7 @@ class ProfileIn(BaseModel):
             "from name. Creating with an id that already exists returns 409."
         ),
     )
-    model: str = "claude-3-5-sonnet"
+    model: str = "claude-sonnet-5"
     agent: str = "wave-plan-executor"
     skills: list[str] = Field(default_factory=list)
     scope: dict[str, Any] = Field(default_factory=dict)
@@ -1458,7 +1458,7 @@ def _read_config() -> ConfigOut:
     Returns:
         ConfigOut: Current model default, budget, and parallelism.
     """
-    model_default = os.environ.get("TRIPLL_DEFAULT_MODEL", "claude-3-5-sonnet")
+    model_default = os.environ.get("TRIPLL_DEFAULT_MODEL", "claude-sonnet-5")
     try:
         cost_budget = float(os.environ.get("TRIPLL_COST_BUDGET_USD", "0") or "0")
     except ValueError:

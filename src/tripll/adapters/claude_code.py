@@ -4,7 +4,7 @@ Builds a headless ``claude -p`` invocation that runs the wave-plan-executor
 agent against a worktree and parses the ``stream-json`` output for the final
 result. This is the default backend (D1); the binary must be on ``PATH``.
 
-Default model is ``claude-sonnet-4-6`` (see :data:`DEFAULT_MODEL`).  Opus is
+Default model is ``claude-sonnet-5`` (see :data:`DEFAULT_MODEL`).  Opus is
 used **only** when the wave's execution-graph row explicitly declares a model
 override — no wave silently escalates to a higher-cost model.
 
@@ -34,7 +34,7 @@ from tripll.brief import _brief_str_list, render_dispatch_prompt
 #: Default model for every wave dispatch.  Opus is never used implicitly;
 #: the wave's execution-graph row must declare ``model: claude-opus-…``
 #: explicitly to override this.
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "claude-sonnet-5"
 
 
 def resolve_add_dir(worktree_path: Path, rel: str) -> Path:
@@ -117,7 +117,7 @@ def collect_add_dirs(worktree_path: Path, scope: list[str]) -> list[Path]:
 class ClaudeCodeAdapter(AgentAdapter):
     """Claude Code CLI adapter (``claude -p --output-format stream-json``).
 
-    The default model is :data:`DEFAULT_MODEL` (``claude-sonnet-4-6``).  A
+    The default model is :data:`DEFAULT_MODEL` (``claude-sonnet-5``).  A
     per-wave model override from the execution-graph row takes precedence when
     set; when absent the default applies so no wave silently runs on a
     higher-cost model.
@@ -131,7 +131,7 @@ class ClaudeCodeAdapter(AgentAdapter):
         skip_permissions (bool): When True, pass
             ``--dangerously-skip-permissions`` instead of ``--permission-mode``.
         model (str | None): Adapter-level default model override.  Falls back
-            to :data:`DEFAULT_MODEL` (``claude-sonnet-4-6``) when ``None``.
+            to :data:`DEFAULT_MODEL` (``claude-sonnet-5``) when ``None``.
         verbose (bool): Retained for API compatibility; ``--verbose`` is always
             emitted for the ``stream-json`` headless invocation.
 
@@ -152,6 +152,8 @@ class ClaudeCodeAdapter(AgentAdapter):
         skip_permissions: bool = False,
         model: str | None = None,
         verbose: bool = False,
+        reasoning_effort: str | None = None,
+        max_budget_usd: float | None = None,
     ) -> None:
         """See class docstring for parameter semantics."""
         self.agent = agent
@@ -159,6 +161,8 @@ class ClaudeCodeAdapter(AgentAdapter):
         self.skip_permissions = skip_permissions
         self.model = model
         self.verbose = verbose
+        self.reasoning_effort = reasoning_effort
+        self.max_budget_usd = max_budget_usd
 
     def capabilities(self) -> AdapterCapabilities:
         """Return availability based on the presence of the ``claude`` binary.
@@ -223,6 +227,15 @@ class ClaudeCodeAdapter(AgentAdapter):
         # Opus is never used implicitly — the wave must declare it explicitly.
         model = str(brief.get("model") or "").strip() or self.model or DEFAULT_MODEL
         argv += ["--model", model]
+        effort = str(brief.get("reasoning_effort") or "").strip() or self.reasoning_effort
+        if effort:
+            argv += ["--effort", effort]
+        budget_raw = brief.get("max_budget_usd")
+        budget = self.max_budget_usd
+        if budget_raw is not None:
+            budget = float(budget_raw) if isinstance(budget_raw, (int, float, str)) else self.max_budget_usd
+        if budget is not None and budget > 0:
+            argv += ["--max-budget-usd", str(budget)]
         argv.append(prompt)
         return argv
 

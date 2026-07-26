@@ -22,7 +22,7 @@ Drives a :class:`~tripll.graph.RunGraph` to completion under policy (D2, D7):
 
 **W2 cost/retry additions:**
 
-* **Model defaults** — the default model is ``claude-3-5-sonnet`` (see
+* **Model defaults** — the default model is ``claude-sonnet-5`` (see
   :data:`~tripll.adapters.claude_code.DEFAULT_MODEL`).  No wave runs on opus
   silently; the wave's execution-graph row must declare it explicitly.
 * **Smarter retries** — ``_execute_node`` distinguishes:
@@ -71,6 +71,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
 
+from tripll.adapters.pools import ProviderPoolRegistry, pools_from_plan
 from tripll.adapters.quota import quota_message
 from tripll.brief import (
     enrich_brief_with_graph_pack,
@@ -106,6 +107,7 @@ from tripll.ledger import (
     open_ledger,
     transition_run,
     transition_wave,
+    void_infra_attempt_count,
 )
 from tripll.orchestrator_status import (
     OrchestratorTurn,
@@ -952,12 +954,9 @@ class Engine:
         self._role_dispatch_cli: bool | None = role_dispatch
         self._role_dispatch_effective: bool = False
         self._grep_brief = grep_brief
-        # Single asyncio.Lock guarding all ledger-mutating sequences so that
-        # concurrent _execute_node coroutines cannot interleave transactions.
         self._ledger_lock: asyncio.Lock = asyncio.Lock()
-        # Semaphore bounding the number of concurrently-running _execute_node
-        # coroutines within a batch.
-        self._sem: asyncio.Semaphore = asyncio.Semaphore(self._max_parallel)
+        self._pools: ProviderPoolRegistry | None = None
+        self._default_provider: str = "claude_code"
         self._orchestrator_mode: bool = False
         self._orchestrator_single_branch: bool = False
         self._wave_commit_shas: dict[str, str] = {}
@@ -998,6 +997,7 @@ class Engine:
             role_dispatch=self._role_dispatch_cli,
         )
         graph = build_graph_from_dir(run_dir, run_id=run_id)
+        self._init_provider_fabric(graph)
         self.runs_root.briefs_dir(run_id).mkdir(parents=True, exist_ok=True)
         self.runs_root.logs_dir(run_id).mkdir(parents=True, exist_ok=True)
 
@@ -1085,6 +1085,7 @@ class Engine:
         """
         run_dir = self.runs_root.run_dir(run_id)
         graph = build_graph_from_dir(run_dir, run_id=run_id)
+        self._init_provider_fabric(graph)
         return await self._drive(run_id, graph)
 
     # -- internals ----------------------------------------------------------
@@ -1240,6 +1241,78 @@ class Engine:
             gate_label=gate_label,
         )
 
+    def _init_provider_fabric(self, graph: RunGraph) -> None:
+        """Load per-provider pools from the plan and run auth preflight."""
+        if getattr(self.adapter, "name", "") == "fake":
+            self._pools, self._default_provider = pools_from_plan(
+                None,
+                global_limit=self._max_parallel,
+            )
+            return
+        from tripll.adapters.auth_preflight import run_auth_preflight
+        from tripll.plan.providers import plan_from_text, providers_used_by_graph
+
+        plan: dict[str, object] = {}
+        for node in graph.nodes.values():
+            plan_path = (self.repo_root / node.plan_file).resolve()
+            if plan_path.is_file():
+                plan = plan_from_text(plan_path.read_text(encoding="utf-8"))
+                break
+        self._pools, self._default_provider = pools_from_plan(
+            plan,
+            global_limit=self._max_parallel,
+        )
+        if not self._orchestrator_mode:
+            providers = providers_used_by_graph(graph, self._default_provider)
+            run_auth_preflight(providers)
+
+    def _provider_chain(self, node: WaveNode) -> list[str]:
+        """Return primary provider followed by configured fallbacks."""
+        primary = node.provider or self._default_provider
+        chain = [primary]
+        for name in node.fallback:
+            if name not in chain:
+                chain.append(name)
+        return chain
+
+    def _pick_provider(self, node: WaveNode) -> tuple[str, bool]:
+        """Choose a provider, failing over when the primary is in cooldown."""
+        chain = self._provider_chain(node)
+        for index, provider in enumerate(chain):
+            if self._pools is not None and self._pools.in_cooldown(provider):
+                continue
+            return provider, index > 0
+        return chain[0], False
+
+    def _resolve_adapter(
+        self,
+        node: WaveNode,
+        graph: RunGraph,
+        *,
+        provider: str,
+    ) -> AgentAdapter:
+        """Build the adapter for *node* on *provider* (PROV-01)."""
+        if getattr(self.adapter, "name", "") == "fake":
+            return self.adapter
+        from tripll.adapters import build_adapter
+        from tripll.adapters.options import BackendOptions
+
+        cfg = self._pools.configs.get(provider) if self._pools else None
+        model = node.model
+        if not model and cfg and cfg.default_model:
+            model = cfg.default_model
+        agent = node.agent
+        if agent is None and hasattr(self.adapter, "agent"):
+            agent = getattr(self.adapter, "agent", None)
+        opts = BackendOptions(
+            model=model,
+            agent=agent,
+            reasoning_effort=node.reasoning_effort,
+            max_budget_usd=node.max_budget_usd,
+        )
+        orchestrator = graph.orchestrator if not self._orchestrator_mode else None
+        return build_adapter(provider, options=opts, orchestrator=orchestrator)
+
     def _configure_orchestrator(self, graph: RunGraph, *, run_id: str) -> None:
         """Apply orchestrator-mode adapter, worktree, and status settings."""
         cfg = graph.orchestrator
@@ -1264,7 +1337,7 @@ class Engine:
                 opts = BackendOptions(model=self.adapter.model, agent=self.adapter.agent)
             self.adapter = build_adapter(self.adapter.name, options=opts, orchestrator=cfg)
         self._max_parallel = 1
-        self._sem = asyncio.Semaphore(1)
+        self._pools, self._default_provider = pools_from_plan(None, global_limit=1)
         self._orchestrator_rows = _initial_orchestrator_rows(cfg)
         self._orchestrator_turns = []
         run_dir = self.runs_root.run_dir(run_id)
@@ -1666,6 +1739,8 @@ class Engine:
             self._sync_report(run_id, graph, partial_results=results)
 
             self._role_dispatch_effective = self._resolve_role_dispatch(graph)
+            if self._pools is None:
+                self._init_provider_fabric(graph)
             self._configure_orchestrator(graph, run_id=run_id)
             if self._orchestrator_mode:
                 return await self._drive_orchestrator_serial(
@@ -2191,8 +2266,7 @@ class Engine:
         """
 
         async def _guarded(node: WaveNode) -> NodeResult:
-            async with self._sem:
-                return await self._execute_node(lc, run_id, graph, node)
+            return await self._execute_node(lc, run_id, graph, node)
 
         return list(await asyncio.gather(*(_guarded(n) for n in nodes)))
 
@@ -2228,6 +2302,11 @@ class Engine:
         # in owned paths.  Once this counter reaches _MAX_NO_PROGRESS_DISPATCHES we
         # escalate immediately rather than burning all max_attempts slots.
         no_progress_dispatches: int = 0
+        provider, _fallback_used = self._pick_provider(node)
+        adapter = self._resolve_adapter(node, graph, provider=provider)
+        pools = self._pools
+        if pools is not None:
+            await pools.acquire(provider)
         try:
             while attempts_used < self.max_attempts:
                 if self._cost_budget_exceeded(lc, run_id):
@@ -2260,9 +2339,18 @@ class Engine:
                     return NodeResult(node.node_id, "blocked", attempts_used, evidence)
 
                 attempt = attempts_used + 1
+                provider, fallback_used = self._pick_provider(node)
+                adapter = self._resolve_adapter(node, graph, provider=provider)
                 brief = self._brief_for(
                     run_id, graph, node, worktree, prior_failures, attempt=attempt
                 )
+                if fallback_used:
+                    brief["fallback_used"] = True
+                    brief["provider"] = provider
+                if node.max_budget_usd is not None:
+                    brief["max_budget_usd"] = node.max_budget_usd
+                if node.reasoning_effort:
+                    brief["reasoning_effort"] = node.reasoning_effort
                 write_brief(brief, self.runs_root.briefs_dir(run_id))
                 log_path = self.runs_root.logs_dir(run_id) / (
                     f"{_safe(node.node_id)}-attempt{attempt}.log"
@@ -2290,7 +2378,7 @@ class Engine:
                 task_id = f"{run_id}:{node.node_id}"
                 env_fp = capture_env_fingerprint(
                     task_id=task_id,
-                    model_id=node.model or getattr(self.adapter, "model", None) or "",
+                    model_id=node.model or getattr(adapter, "model", None) or "",
                     repo_root=self.repo_root,
                 )
                 fp_json = fingerprint_to_json(env_fp)
@@ -2301,11 +2389,11 @@ class Engine:
                         run_id=run_id,
                         node_id=node.node_id,
                         attempt_n=attempt,
-                        backend=self.adapter.name,
+                        backend=adapter.name,
                         brief_path=str(self.runs_root.briefs_dir(run_id)),
                         log_path=str(log_path),
-                        model=node.model or getattr(self.adapter, "model", None),
-                        agent=getattr(self.adapter, "agent", None),
+                        model=node.model or getattr(adapter, "model", None),
+                        agent=getattr(adapter, "agent", None),
                         env_fingerprint_json=fp_json,
                         env_fingerprint_hash=fp_hash,
                     )
@@ -2386,7 +2474,7 @@ class Engine:
                         sys.stderr.flush()
 
                 # --- long await: no lock held ---
-                result = await self.adapter.dispatch(
+                result = await adapter.dispatch(
                     brief,
                     worktree_path=worktree.path,
                     log_path=log_path,
@@ -2395,11 +2483,42 @@ class Engine:
                         "run_id": run_id,
                         "node_id": node.node_id,
                         "attempt": attempt,
-                        "backend": self.adapter.name,
+                        "backend": adapter.name,
                     },
                     on_event=_on_stream_event,
                 )
                 self._last_dispatch_result_text = result.result_text or ""
+                from tripll.adapters.failure_class import classify_dispatch
+
+                failure_class = classify_dispatch(result)
+                if failure_class == "infra":
+                    if pools is not None:
+                        pools.record_infra(provider)
+                    async with self._ledger_lock:
+                        void_infra_attempt_count(lc, run_id=run_id, node_id=node.node_id)
+                        attempts_used -= 1
+                        self._end_attempt_with_usage(
+                            lc,
+                            attempt_id,
+                            outcome="failed",
+                            evidence=result.result_text or "infra failure",
+                            result=result,
+                        )
+                        append_event(
+                            lc,
+                            run_id=run_id,
+                            node_id=node.node_id,
+                            phase="infra",
+                            last_action=f"infra on {provider}: {(result.result_text or '')[:120]}",
+                            attempt_n=attempt,
+                        )
+                        transition_wave(lc, run_id, node.node_id, "queued")
+                    cooldown = pools.configs[provider].cooldown_s if pools else 0
+                    if cooldown > 0:
+                        await asyncio.sleep(float(cooldown))
+                    continue
+                if pools is not None:
+                    pools.record_success(provider)
                 if result.cost_usd:
                     logger.info(
                         "engine: {} {} attempt {} cost ${:.4f}",
@@ -2623,6 +2742,8 @@ class Engine:
                 )
             return NodeResult(node.node_id, "blocked", attempts_used, evidence)
         finally:
+            if pools is not None:
+                pools.release(provider)
             self._recover_worktree(worktree, run_id, node.node_id)
             row = get_wave(lc, run_id, node.node_id)
             if row.state in ("running", "dispatched", "verifying"):
@@ -2775,6 +2896,12 @@ class Engine:
             orchestrator=graph.orchestrator,
             role_dispatch=self._role_dispatch_effective,
         )
+        if node.reasoning_effort:
+            brief["reasoning_effort"] = node.reasoning_effort
+        if node.max_budget_usd is not None:
+            brief["max_budget_usd"] = node.max_budget_usd
+        if node.provider:
+            brief["provider"] = node.provider
         brief = self._append_external_upload_dirs(brief, worktree.path)
         orch_cfg = graph.orchestrator
         if orch_cfg and orch_cfg.enabled and self._wave_commit_shas:

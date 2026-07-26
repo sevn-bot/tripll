@@ -82,7 +82,13 @@ def _resolve_orchestrator_options(
             elif name == "claude_code":
                 model = None
 
-    return BackendOptions(model=model, agent=agent, verbose=opts.verbose)
+    return BackendOptions(
+        model=model,
+        agent=agent,
+        verbose=opts.verbose,
+        reasoning_effort=opts.reasoning_effort,
+        max_budget_usd=opts.max_budget_usd,
+    )
 
 
 def build_adapter(
@@ -123,6 +129,8 @@ def build_adapter(
             agent=opts.agent or "wave-plan-executor",
             model=opts.model,
             verbose=opts.verbose,
+            reasoning_effort=opts.reasoning_effort,
+            max_budget_usd=opts.max_budget_usd,
         )
     if name == "cursor_local":
         return CursorLocalAdapter(model=opts.model, agent=opts.agent)

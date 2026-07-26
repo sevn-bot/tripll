@@ -115,6 +115,11 @@ class WaveNode:
     docs_menu_sync: list[str] = field(default_factory=list)
     model: str | None = None
     role: str = "impl"
+    provider: str | None = None
+    agent: str | None = None
+    fallback: list[str] = field(default_factory=list)
+    reasoning_effort: str | None = None
+    max_budget_usd: float | None = None
 
 
 @dataclass
