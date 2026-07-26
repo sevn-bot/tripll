@@ -187,8 +187,7 @@ def check_stop_rule(
         for wave in waves:
             if len(_wave_targets(wave)) > _CROSS_CUTTING_MODULE_LIMIT:
                 raise ValueError(
-                    "stop rule: cross-cutting refactor must stay with one agent "
-                    "(sequential waves)"
+                    "stop rule: cross-cutting refactor must stay with one agent (sequential waves)"
                 )
 
 
