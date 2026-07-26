@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Tracing spine landed: local JSONL+SQLite sinks, single obs configurator, dispatch/wave/run spans |
 | **Next action** | W0.1 — record baseline in Re-entry (git log, make check, test count, CI run id) |
 | **Blocked on** | — |
-| **Last pushed sha** | `6d6fa0f` |
+| **Last pushed sha** | `39a0503` |
 | **Last CI run id** | `30166223593` (status=completed; conclusion=failure — TEST-03 still open) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` — CI executes; audit baseline per P0.1 rule |
@@ -1536,7 +1536,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | P0 | **human** + `cursor_local` claude-opus-5 | Pre-0 gate: clear Actions billing; CI timeout + Python pin; Make `sync` prereqs; plan self-hosting | CI-00, DX-01, DX-02, DX-05, PLAN-selfhost, PLAN-gates, SHAPE-01 | [x] (2026-07-26 ✅: ad4a255 — CI canary run 30166223593 started; fresh-clone lint ruff 0.15.12; validate-plan green) |
 | P1 | `cursor_local` auto | **Provider fabric**: per-provider pools, per-wave routing, infra-failure class, failover, model-ID refresh, **effort + budget flags**, auth preflight, ceiling calibration | PROV-01…03, MODEL-01, EFFORT-01, BUDGET-01, AUTH-01, CAP-01 | [x] (2026-07-26 ✅: d2ad6c0 — pools.py + 11 provider_pools tests green; claude-3-5-sonnet purged from src) |
 | P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [x] (2026-07-26 ✅: 6e88600 — code_graph.py + 8 tests green; compile_plan supplies code_graph) |
-| P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [x] (2026-07-26 ✅: 6d6fa0f — tracing spine + 10 tests green; 1 logfire.configure site) |
+| P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [x] (2026-07-26 ✅: 39a0503 — tracing spine + 10 tests green; 1 logfire.configure site) |
 | W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [ ] |
 | W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [ ] |
 | W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [ ] |
