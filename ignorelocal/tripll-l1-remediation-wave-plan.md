@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Tracing spine landed: local JSONL+SQLite sinks, single obs configurator, dispatch/wave/run spans |
 | **Next action** | W0.1 — record baseline in Re-entry (git log, make check, test count, CI run id) |
 | **Blocked on** | — |
-| **Last pushed sha** | `39a0503` |
+| **Last pushed sha** | `48b573e` |
 | **Last CI run id** | `30166223593` (status=completed; conclusion=failure — TEST-03 still open) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` — CI executes; audit baseline per P0.1 rule |
