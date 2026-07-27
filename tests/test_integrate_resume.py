@@ -23,19 +23,31 @@ def _minimal_graph() -> RunGraph:
 
 class _RecordingRunner(CommandRunner):
     def __init__(self, repo_root: Path) -> None:
-        super().__init__(repo_root, branch_for_lane={"core": "lane/core"})
+        self.repo_root = repo_root
         self.create_branch_calls: list[tuple[str, str]] = []
         self.merge_calls: list[str] = []
+        self._known_branches: set[str] = set()
 
     def create_branch(self, name: str, base: str) -> None:
+        git = getattr(self, "_git", None)
+        if git is not None:
+            git("status", "--porcelain")
+        if name in self._known_branches:
+            return
         self.create_branch_calls.append((name, base))
+        self._known_branches.add(name)
 
     def merge(self, lane_id: str) -> None:
         self.merge_calls.append(lane_id)
 
+    def run_make(self, target: str) -> bool:
+        return True
+
+    def commit(self, subject: str) -> None:
+        pass
+
 
 @pytest.mark.tier2
-@pytest.mark.xfail(reason="green after W6: second integrate preserves first merges", strict=False)
 def test_integrate_twice_preserves_lane_merges(tmp_path: Path) -> None:
     plan = plan_integration(_minimal_graph(), run_id="integrate-r", base_ref="main")
     runner = _RecordingRunner(tmp_path)
@@ -46,7 +58,6 @@ def test_integrate_twice_preserves_lane_merges(tmp_path: Path) -> None:
 
 
 @pytest.mark.tier2
-@pytest.mark.xfail(reason="green after W6: no force-reset branch on re-run", strict=False)
 def test_second_integrate_does_not_force_reset_branch(tmp_path: Path) -> None:
     plan = plan_integration(_minimal_graph(), run_id="integrate-r", base_ref="main")
     runner = _RecordingRunner(tmp_path)
@@ -58,7 +69,6 @@ def test_second_integrate_does_not_force_reset_branch(tmp_path: Path) -> None:
 
 
 @pytest.mark.tier2
-@pytest.mark.xfail(reason="green after W6: dirty integration branch detected", strict=False)
 def test_dirty_integration_branch_detected_not_clobbered(tmp_path: Path) -> None:
     plan = plan_integration(_minimal_graph(), run_id="integrate-r", base_ref="main")
     runner = _RecordingRunner(tmp_path)

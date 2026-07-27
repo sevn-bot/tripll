@@ -224,8 +224,37 @@ class GitMakeRunner:
             timeout=300,
         )
 
+    def _branch_exists(self, name: str) -> bool:
+        proc = subprocess.run(
+            ["git", "-C", str(self.repo_root), "rev-parse", "--verify", f"refs/heads/{name}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        return proc.returncode == 0
+
+    def _working_tree_dirty(self) -> bool:
+        proc = subprocess.run(
+            ["git", "-C", str(self.repo_root), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        return bool(proc.stdout.strip())
+
     def create_branch(self, name: str, base: str) -> None:
-        self._git("checkout", "-B", name, base)
+        if self._branch_exists(name):
+            if self._working_tree_dirty():
+                msg = (
+                    f"integration branch `{name}` has a dirty working tree; "
+                    "resolve or stash before re-running integrate"
+                )
+                raise IntegrationError(msg)
+            self._git("checkout", name)
+            return
+        self._git("checkout", "-b", name, base)
 
     def merge(self, lane_id: str) -> None:
         branch = self.branch_for_lane.get(lane_id, lane_id)

@@ -34,9 +34,6 @@ def ledger(tmp_path: Path):
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(
-    reason="green after W6: reset then retry does not double-count cost", strict=False
-)
 def test_reset_wave_attempts_then_success_cost_not_doubled(ledger) -> None:
     """BUG-cost: ``runs.cost_usd`` equals true sum after reset + fresh attempt."""
     att1 = insert_attempt(ledger, run_id="r1", node_id="p:W1", attempt_n=1, backend="claude_code")
@@ -49,9 +46,6 @@ def test_reset_wave_attempts_then_success_cost_not_doubled(ledger) -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(
-    reason="green after W6: cost derived from attempts not stale increment", strict=False
-)
 def test_run_cost_matches_attempt_sum(ledger) -> None:
     att = insert_attempt(ledger, run_id="r1", node_id="p:W1", attempt_n=1, backend="claude_code")
     end_attempt(ledger, att, outcome="done", cost_usd=3.25)

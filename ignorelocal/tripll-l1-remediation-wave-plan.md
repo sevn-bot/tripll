@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W4 complete — W5 next
+**Status:** W6 complete — W7 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W4 ✅ (2026-07-27) — W5 next |
-| **Stage** | Token transport via hx-headers/tojson; find_run_dir traversal guard; 16-key redaction; obs capture_all=False verified; 4 W3 auth-success xfails remain |
-| **Next action** | W5.1 — `asyncio.gather(..., return_exceptions=True)` in engine.py |
+| **Current wave** | W6 ✅ (2026-07-27) — W7 next |
+| **Stage** | derive cost from attempts; per-run breaker keyed by run_id; record_exit_on_run bumps updated_at; integrate resume without checkout -B; status shows per-provider cost rollup |
+| **Next action** | W7.1 — feed pullfrog_merge_signal into evaluate_exit context (BUG-06) |
 | **Blocked on** | — |
-| **Last pushed sha** | `1046f2d` |
+| **Last pushed sha** | `5a39aa0` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1542,8 +1542,8 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [x] (2026-07-27 ✅: be971bc — hash_agent_def skw-only; roster 71/71 green; grep src/tests/docs 0) |
 | W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [x] (2026-07-27 ✅: e69fa47 — require_auth×20 router.py; _csrf.py; test_ui_auth 18/18 W3 green) |
 | W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [x] (2026-07-27 ✅: 1046f2d — find_run_dir guard; ?token= EventSource-only; tojson base.html; 16 hide keys; env-shaped redaction; W1.2–W1.5 green) |
-| W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [ ] |
-| W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [ ] |
+| W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [x] (2026-07-27 ✅: 5ff37f8 — return_exceptions gather; proc.kill finally; shield+lock-timeout finalizer; startup reconciliation events; cancellation 3 pass 1 skip) |
+| W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [x] (2026-07-27 ✅: 5a39aa0 — cost derived from attempts; per-run breaker; integrate resume; status per-provider rollup) |
 | W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [ ] |
 | W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [ ] |
 | W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [ ] |
@@ -2170,21 +2170,27 @@ The three compound: a sibling exception cancels peers (BUG-01), cancellation orp
 process (BUG-02), and the `finally` handler then awaits a lock it may never get (BUG-03) — leaving
 a stranded `running` wave and a live agent burning tokens.
 
-- [ ] **W5.1** `engine.py:2142` — `asyncio.gather(..., return_exceptions=True)`; handle per-node
+- [x] **W5.1** `engine.py:2142` — `asyncio.gather(..., return_exceptions=True)`; handle per-node
       exceptions explicitly so one failing node fails **itself**, not the batch (BUG-01).
-- [ ] **W5.2** `adapters/base.py:337–338` — wrap the process lifetime so `CancelledError` and any
+      (2026-07-27 ✅: 5ff37f8 — _run_concurrent_set maps BaseException → blocked NodeResult)
+- [x] **W5.2** `adapters/base.py:337–338` — wrap the process lifetime so `CancelledError` and any
       other exit path kill the child, via `try/finally: proc.kill()` rather than a `TimeoutError`-only
       branch (BUG-02). Reap the process to avoid zombies; the existing `proc.kill()` sites at
       `:262/:273/:280` show the intended pattern.
-- [ ] **W5.3** `_execute_node`'s `finally` — make ledger finalization cancellation-safe with
+      (2026-07-27 ✅: 5ff37f8 — run_streaming outer try/finally kills+reaps when returncode is None)
+- [x] **W5.3** `_execute_node`'s `finally` — make ledger finalization cancellation-safe with
       `asyncio.shield` (and/or a timeout on lock acquisition) so a cancelled node still records a
       terminal state (BUG-03).
-- [ ] **W5.4** Add a startup reconciliation pass: any wave found `running` with no live process is
+      (2026-07-27 ✅: 5ff37f8 — _shielded_finalize_wave_ledger with shield + 5s lock timeout)
+- [x] **W5.4** Add a startup reconciliation pass: any wave found `running` with no live process is
       transitioned to a recoverable state with an explanatory event. This is the safety net for
       every historical strand, not just future ones.
-- [ ] **W5.5** Turn `tests/test_cancellation.py` green (W1.6) — including the tier-2 real-pid
+      (2026-07-27 ✅: 5ff37f8 — _drive startup re-queues stale waves with recovery events)
+- [x] **W5.5** Turn `tests/test_cancellation.py` green (W1.6) — including the tier-2 real-pid
       assertion under `RUN_LIVE=1`.
-- [ ] **W5.6** **Commit + push** (`fix(engine): make dispatch cancellation-safe`).
+      (2026-07-27 ✅: 5ff37f8 — xfails removed; tier1 2/2 + tier2 1/1 pass; kill-mid-batch still skipped)
+- [x] **W5.6** **Commit + push** (`fix(engine): make dispatch cancellation-safe`).
+      (2026-07-27 ✅: 5ff37f8)
 
 **Acceptance:**
 
@@ -2204,24 +2210,31 @@ pgrep -f 'claude|cursor-agent' | wc -l                        # 0 orphans
 
 **Findings:** BUG-cost, BUG-07, DEBT-02, BUG-10
 
-- [ ] **W6.1** `ledger.py` — make attempt reset and cost accounting consistent (BUG-cost). Either
+- [x] **W6.1** `ledger.py` — make attempt reset and cost accounting consistent (BUG-cost). Either
       debit `runs.cost_usd` in `reset_wave_attempts` (`:778–785`) or derive the run total from
       `attempts` on read instead of incrementing it in `end_attempt` (`:823–826`). **Deriving is
       preferred** — it makes double-count structurally impossible rather than patched.
-- [ ] **W6.2** `exits.py:47` — scope `_BREAKER_STATE` per run rather than per process (BUG-07). The
+      (2026-07-27 ✅: 5a39aa0 — `_sum_attempt_costs` + `_sync_run_cost_from_attempts`; no increment in `end_attempt`)
+- [x] **W6.2** `exits.py:47` — scope `_BREAKER_STATE` per run rather than per process (BUG-07). The
       current global contaminates sequential runs inside `serve` and inside the test process.
-- [ ] **W6.3** `exits.py:91` — fix the no-op `SET updated_at = updated_at` so exit records actually
+      (2026-07-27 ✅: 5a39aa0 — `_BREAKER_STATE` keyed by `(run_id, agent, problem_type)`)
+- [x] **W6.3** `exits.py:91` — fix the no-op `SET updated_at = updated_at` so exit records actually
       timestamp (DEBT-02).
-- [ ] **W6.4** `integrate.py:228` — stop using `git checkout -B` unconditionally (BUG-10). Create
+      (2026-07-27 ✅: 5a39aa0 — `UPDATE runs SET updated_at = ?`)
+- [x] **W6.4** `integrate.py:228` — stop using `git checkout -B` unconditionally (BUG-10). Create
       the branch when absent; when present, fast-forward or fail loudly. Re-running integrate must
       never destroy prior lane merges.
-- [ ] **W6.5** *(COST-01)* Attribute cost **per provider**. `attempts` already carries `backend`
+      (2026-07-27 ✅: 5a39aa0 — `checkout -b` when absent; checkout existing + dirty guard)
+- [x] **W6.5** *(COST-01)* Attribute cost **per provider**. `attempts` already carries `backend`
       and cost, so this is aggregation, not schema: expose a per-provider rollup on the run, surface
       it in `status`, and add a `budget_usd` reading that states which provider consumed what.
       A single mixed-provider total cannot answer "did Cursor or Claude Code burn the budget."
       Derive it from `attempts` (W6.1's preferred shape) so it cannot double-count either.
-- [ ] **W6.6** Turn W1.7, W1.8, W1.9 green.
-- [ ] **W6.7** **Commit + push** (`fix(ledger): correct cost accounting, breaker scope, integrate resume`).
+      (2026-07-27 ✅: 5a39aa0 — `get_run_cost_by_provider`; `tripll status` rollup + budget line)
+- [x] **W6.6** Turn W1.7, W1.8, W1.9 green.
+      (2026-07-27 ✅: 5a39aa0 — xfails removed; cost_accounting, exits, integrate_resume green)
+- [x] **W6.7** **Commit + push** (`fix(ledger): correct cost accounting, breaker scope, integrate resume`).
+      (2026-07-27 ✅: 5a39aa0)
 
 **Acceptance:**
 

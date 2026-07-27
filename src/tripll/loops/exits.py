@@ -15,9 +15,11 @@ Exports:
 
 from __future__ import annotations
 
+import itertools
 import json
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -43,8 +45,9 @@ EXIT_NAMES: dict[int, str] = {
     8: "external_event",
 }
 
-# Module-level circuit breaker state: (agent, problem_type) → consecutive failures.
-_BREAKER_STATE: dict[tuple[str, str], int] = {}
+# Per-run circuit breaker state: (run_id, agent, problem_type) → consecutive failures.
+_BREAKER_STATE: dict[tuple[str, str, str], int] = {}
+_ephemeral_run_counter = itertools.count(1)
 
 DEFAULT_MAX_TURNS = 5
 DEFAULT_BUDGET_USD = 25.0
@@ -88,8 +91,8 @@ def record_exit_on_run(
         metadata=json.dumps({"exit_id": exit_id, "name": name}),
     )
     lc.conn.execute(
-        "UPDATE runs SET updated_at = updated_at WHERE run_id = ?",
-        (run_id,),
+        "UPDATE runs SET updated_at = ? WHERE run_id = ?",
+        (datetime.now(UTC).isoformat(), run_id),
     )
     lc.conn.commit()
 
@@ -120,6 +123,13 @@ def no_progress_exit(
     return len(set(tail)) == 1
 
 
+def _breaker_run_id(run_id: str | None) -> str:
+    """Resolve the run scope for circuit-breaker state."""
+    if run_id is not None:
+        return run_id
+    return f"__ephemeral_{next(_ephemeral_run_counter)}"
+
+
 def circuit_breaker_open(
     *,
     agent: str,
@@ -127,8 +137,9 @@ def circuit_breaker_open(
     failures: int | None = None,
     reset: bool = False,
     threshold: int = DEFAULT_ERROR_THRESHOLD,
+    run_id: str | None = None,
 ) -> bool:
-    """Return True when the per-(agent, problem_type) circuit breaker is open (exit 7).
+    """Return True when the per-run circuit breaker is open (exit 7).
 
     Args:
         agent (str): Agent slug.
@@ -136,6 +147,7 @@ def circuit_breaker_open(
         failures (int | None): When set, replaces the stored failure count.
         reset (bool): Clear the breaker for this key (success path).
         threshold (int): Consecutive failures before the breaker opens.
+        run_id (str | None): Run scope; omitted calls each get an isolated scope.
 
     Returns:
         bool: True when the breaker is open.
@@ -146,7 +158,8 @@ def circuit_breaker_open(
         >>> circuit_breaker_open(agent="fixer", problem_type="lint", reset=True)
         False
     """
-    key = (agent, problem_type)
+    scope = _breaker_run_id(run_id)
+    key = (scope, agent, problem_type)
     if reset:
         _BREAKER_STATE[key] = 0
         return False
@@ -188,8 +201,13 @@ def _triggered(exit_id: int, context: dict[str, Any]) -> bool:
     if exit_id == 7:
         agent = str(context.get("agent") or "")
         problem = str(context.get("problem_type") or "")
+        breaker_run = str(context["run_id"]) if context.get("run_id") else None
         if agent and problem:
-            return circuit_breaker_open(agent=agent, problem_type=problem)
+            return circuit_breaker_open(
+                agent=agent,
+                problem_type=problem,
+                run_id=breaker_run,
+            )
         failures = int(context.get("consecutive_failures") or 0)
         return failures >= DEFAULT_ERROR_THRESHOLD
     if exit_id == 8:

@@ -44,7 +44,6 @@ def test_error_threshold_circuit_breaker_per_agent_problem() -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W6: circuit breaker scoped per run", strict=False)
 def test_circuit_breaker_does_not_contaminate_sequential_runs() -> None:
     """BUG-07: a fresh run must not inherit breaker state from a prior run."""
     circuit_breaker_open(agent="fixer", problem_type="lint", failures=5)
@@ -52,7 +51,6 @@ def test_circuit_breaker_does_not_contaminate_sequential_runs() -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W6: record_exit_on_run advances updated_at", strict=False)
 def test_record_exit_on_run_updates_timestamp(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """DEBT-02: exit records must bump ``runs.updated_at``."""
     from tripll.ledger import insert_run, open_ledger

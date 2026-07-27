@@ -32,6 +32,8 @@ Exports:
     latest_events_by_node — collapse events to one row per node_id (D2 hydration).
     ORCHESTRATOR_NODE_ID — synthetic node_id for orchestrator phase events.
     get_run — fetch one run row.
+    get_run_cost — cumulative attempt cost (USD) for a run.
+    get_run_cost_by_provider — per-backend cost rollup for a run.
     get_wave — fetch one wave row.
     list_waves — all wave rows for a run.
     list_attempts — all attempt rows for a (run_id, node_id) pair.
@@ -468,6 +470,25 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _sum_attempt_costs(lc: LedgerConnection, run_id: str) -> float:
+    """Return the sum of ``attempts.cost_usd`` for *run_id*."""
+    row = lc.conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0) FROM attempts WHERE run_id = ?",
+        (run_id,),
+    ).fetchone()
+    return float(row[0] or 0.0) if row is not None else 0.0
+
+
+def _sync_run_cost_from_attempts(lc: LedgerConnection, run_id: str) -> None:
+    """Refresh ``runs.cost_usd`` from the live attempt rows."""
+    total = _sum_attempt_costs(lc, run_id)
+    now = _now_iso()
+    lc.conn.execute(
+        "UPDATE runs SET cost_usd = ?, updated_at = ? WHERE run_id = ?",
+        (total, now, run_id),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Write operations
 # ---------------------------------------------------------------------------
@@ -811,6 +832,7 @@ def reset_wave_attempts(lc: LedgerConnection, run_id: str, node_id: str) -> None
            WHERE run_id = ? AND node_id = ?""",
         (now, run_id, node_id),
     )
+    _sync_run_cost_from_attempts(lc, run_id)
     lc.conn.commit()
 
 
@@ -847,11 +869,8 @@ def end_attempt(
            WHERE attempt_id = ?""",
         (outcome, evidence, now, cost_usd, input_tokens, output_tokens, attempt_id),
     )
-    if row and cost_usd and cost_usd > 0:
-        lc.conn.execute(
-            "UPDATE runs SET cost_usd = cost_usd + ?, updated_at = ? WHERE run_id = ?",
-            (cost_usd, now, row[0]),
-        )
+    if row:
+        _sync_run_cost_from_attempts(lc, str(row[0]))
     lc.conn.commit()
     logger.debug("ledger: attempt {} → {}", attempt_id, outcome)
 
@@ -1057,7 +1076,7 @@ def latest_events_by_node(lc: LedgerConnection, run_id: str) -> dict[str, EventR
 
 
 def get_run_cost(lc: LedgerConnection, run_id: str) -> float:
-    """Return cumulative provider cost (USD) recorded for *run_id*.
+    """Return cumulative provider cost (USD) derived from attempt rows.
 
     Args:
         lc (LedgerConnection): Open ledger connection.
@@ -1065,11 +1084,50 @@ def get_run_cost(lc: LedgerConnection, run_id: str) -> float:
 
     Returns:
         float: Total ``cost_usd`` for the run (0 when unset).
+
+    Raises:
+        KeyError: When *run_id* does not exist.
     """
-    row = lc.conn.execute("SELECT cost_usd FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-    if row is None:
+    exists = lc.conn.execute(
+        "SELECT 1 FROM runs WHERE run_id = ?",
+        (run_id,),
+    ).fetchone()
+    if exists is None:
         raise KeyError(f"Run not found: {run_id!r}")
-    return float(row[0] or 0.0)
+    return _sum_attempt_costs(lc, run_id)
+
+
+def get_run_cost_by_provider(lc: LedgerConnection, run_id: str) -> dict[str, float]:
+    """Return per-backend cost rollup for *run_id*.
+
+    Args:
+        lc (LedgerConnection): Open ledger connection.
+        run_id (str): Run identifier.
+
+    Returns:
+        dict[str, float]: ``backend`` → summed ``cost_usd``.
+
+    Raises:
+        KeyError: When *run_id* does not exist.
+
+    Examples:
+        >>> lc = open_ledger(":memory:")
+        >>> insert_run(lc, run_id="r1", slug="s", source_mode="A", input_path="/x")
+        >>> get_run_cost_by_provider(lc, "r1")
+        {}
+    """
+    exists = lc.conn.execute(
+        "SELECT 1 FROM runs WHERE run_id = ?",
+        (run_id,),
+    ).fetchone()
+    if exists is None:
+        raise KeyError(f"Run not found: {run_id!r}")
+    rows = lc.conn.execute(
+        """SELECT backend, COALESCE(SUM(cost_usd), 0)
+           FROM attempts WHERE run_id = ? GROUP BY backend""",
+        (run_id,),
+    ).fetchall()
+    return {str(row[0]): float(row[1]) for row in rows if row[0]}
 
 
 # ---------------------------------------------------------------------------
