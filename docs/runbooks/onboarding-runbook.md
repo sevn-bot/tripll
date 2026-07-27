@@ -34,7 +34,7 @@ tripll doctor
 | `docs/evaluation-<date>.md` | Repo assessment with **file:line evidence** per finding |
 | `docs/architecture-review-*.html` | Self-contained HTML companion (architecture skill renderer) |
 | `.tripll/graph.db` | Code graph from `graph extract` |
-| `runs/` | Input/processing/processed/failed folders for dispatch |
+| `.tripll/runs/` | Input/processing/processed/failed folders for dispatch (legacy `runs/` kept when present) |
 
 ### Safe re-runs
 

@@ -25,7 +25,7 @@ from tripll.config import (
 )
 from tripll.onboard.nextstep import compute_next_step
 from tripll.onboard.setup import AUTH_FIX_COMMANDS
-from tripll.pipeline import RunsRoot
+from tripll.pipeline import default_runs_root
 from tripll.repo_root import resolve_repo_root
 
 __all__ = ["DoctorReport", "run_doctor"]
@@ -90,9 +90,7 @@ def build_doctor_report(*, plan_path: Path | None = None) -> DoctorReport:
     """
     repo_root = resolve_repo_root()
     env_runs = os.environ.get("TRIPLL_RUNS")
-    runs_root = (
-        RunsRoot(Path(env_runs).resolve()).root if env_runs else (repo_root / "runs").resolve()
-    )
+    runs_root = Path(env_runs).resolve() if env_runs else default_runs_root(repo_root)
     cfg = load_config(repo_root=repo_root)
 
     providers: dict[str, tuple[bool, str]] = {}

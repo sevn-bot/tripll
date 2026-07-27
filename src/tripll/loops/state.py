@@ -29,10 +29,11 @@ __all__ = [
 
 
 class L1OuterState(TypedDict, total=False):
-    """Shared state for ``l1_outer`` and checkpoint recovery."""
+    """Shared state for ``l1_outer``, ``l1_pr``, and checkpoint recovery."""
 
     run_id: str
     thread_id: str
+    run_dir: str
     step: str
     history: Annotated[list[str], add]
     turn: int
@@ -43,6 +44,15 @@ class L1OuterState(TypedDict, total=False):
     spill_refs: dict[str, str]
     notes: str
     paused: bool
+    findings: list[dict[str, Any]]
+    open_findings: int
+    dispatch: list[dict[str, Any]]
+    dispatch_results: list[dict[str, Any]]
+    merge_gate: dict[str, Any]
+    ci_green: bool
+    review_clean: bool
+    dry_run: bool
+    push_warning: str
 
 
 def _spill_path(run_dir: Path, field: str, payload: str) -> Path:

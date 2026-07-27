@@ -265,13 +265,22 @@ After implementation waves, the **PR phase** pushes the branch, opens a pull req
 ingests CI failures and review comments as `Finding` nodes, and dispatches fix agents until
 required checks pass. The loop **stops at the human merge gate** — tripll never auto-merges.
 
+``tripll pr shepherd`` compiles and invokes the LangGraph PR loop (``[graph]`` extra required
+for ``investigate_and_fix``). Investigate/fix nodes dispatch real adapters; deliver runs
+idempotent push/open actions.
+
 ```bash
-tripll pr shepherd <run-id>              # idempotent push/open/fix loop
-tripll findings sync --pr <n>            # check-runs + review threads → graph
-tripll findings list [--state open]      # inspect findings
-tripll pr status <run-id>                # checks + pullfrog-approval
-tripll pr approve-merge <run-id>         # operator merge gate
+tripll pr shepherd --run <run-id> --phase deliver
+tripll findings sync --pr <n> --run-id <run-id>
+tripll pr shepherd --run <run-id> --phase investigate_and_fix
+tripll findings list [--state open]
+tripll pr status <run-id>
+tripll pr approve-merge <run-id>         # operator merge gate — never skipped
 ```
+
+**Runs directory:** onboarded target repos default to ``.tripll/runs/`` (override with
+``TRIPLL_RUNS`` or ``--runs-root``). Legacy top-level ``runs/`` is kept when it already
+exists. The tripll development checkout continues to use ``runs/`` at repo root.
 
 Dashboard run detail shows **Code factory L1** panels: wave subgraph, findings grouped by
 state, and exit caps approaching limits (§12).

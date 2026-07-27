@@ -2,8 +2,8 @@
 
 Subcommands: init, run, status, resume, approve, plan, validate-plan.
 
-All subcommands share a ``--runs-root`` option (default: ``runs/`` relative to the
-current working directory, or the ``TRIPLL_RUNS`` env var).
+All subcommands share a ``--runs-root`` option (default: ``.tripll/runs/`` for
+target repos, ``runs/`` for the tripll dev checkout, or ``$TRIPLL_RUNS``).
 
 Exit codes:
     0  success
@@ -28,7 +28,7 @@ from loguru import logger
 from tripll import __version__
 from tripll.ledger import list_waves, open_ledger
 from tripll.obs import configure_observability
-from tripll.pipeline import PlanPathValidationError, RunsRoot, make_run_id
+from tripll.pipeline import PlanPathValidationError, RunsRoot, make_run_id, resolve_runs_root
 from tripll.repo_root import resolve_repo_root
 from tripll.skw.cli import app as skw_legacy_app
 
@@ -56,7 +56,6 @@ app = typer.Typer(
 # Shared option helpers
 # ---------------------------------------------------------------------------
 
-_DEFAULT_RUNS_ROOT = Path("runs")
 
 RunsRootOpt = Annotated[
     Path | None,
@@ -64,7 +63,10 @@ RunsRootOpt = Annotated[
         "--runs-root",
         "-r",
         envvar="TRIPLL_RUNS",
-        help="Runs root directory (default: <repo_root>/runs/ or $TRIPLL_RUNS).",
+        help=(
+            "Runs root directory (default: <repo>/.tripll/runs for target repos, "
+            "<repo>/runs for tripll dev checkout, or $TRIPLL_RUNS)."
+        ),
         show_default=True,
     ),
 ]
@@ -73,12 +75,7 @@ RunsRootOpt = Annotated[
 def _resolve_runs_root(runs_root: Path | None) -> RunsRoot:
     """Resolve and return a :class:`~tripll.pipeline.RunsRoot`.
 
-    Resolution order: an explicit ``runs_root`` wins; otherwise the
-    ``TRIPLL_RUNS`` env var; otherwise ``<repo_root>/runs``
-    where *repo_root* comes from :func:`~tripll.repo_root.resolve_repo_root`
-    (honours ``TRIPLL_REPO_ROOT``, then walks up for ``.git``). Anchoring the
-    default at the repo root keeps the runs directory identical whether
-    tripll is invoked from the repo root or from a subdirectory.
+    Delegates to :func:`~tripll.pipeline.resolve_runs_root`.
 
     Args:
         runs_root (Path | None): Explicit path from CLI, or ``None`` to use default.
@@ -86,14 +83,7 @@ def _resolve_runs_root(runs_root: Path | None) -> RunsRoot:
     Returns:
         RunsRoot: Configured runs root instance.
     """
-    if runs_root is not None:
-        return RunsRoot(Path(runs_root).resolve())
-    env_path = os.environ.get("TRIPLL_RUNS")
-    if env_path:
-        return RunsRoot(Path(env_path).resolve())
-    from tripll.repo_root import resolve_repo_root
-
-    return RunsRoot((resolve_repo_root() / _DEFAULT_RUNS_ROOT).resolve())
+    return resolve_runs_root(runs_root)
 
 
 def _cost_budget_usd() -> float:

@@ -656,66 +656,48 @@ def test_create_app_runs_root_anchored_at_repo_root(
 ) -> None:
     """create_app() default runs root is anchored at the repo root, not CWD.
 
-    Regression: before the W6 fix, ``create_app()`` anchored on CWD with a
-    relative ``Path("wave-orchestrator/runs").resolve()``.  When invoked from
-    inside the ``wave-orchestrator/`` subdirectory this doubled to
-    ``<cwd>/wave-orchestrator/wave-orchestrator/runs``.
-
-    After the fix, ``_resolve_runs_root`` in ``app.py`` delegates to
-    ``resolve_repo_root()`` so the path is always
-    ``<repo_root>/wave-orchestrator/runs`` regardless of CWD.
+    Foreign target repos default to ``<repo_root>/.tripll/runs`` regardless of
+    the process CWD.
     """
     from tripll.api.app import _resolve_runs_root as api_resolve
+    from tripll.pipeline import default_runs_root
     from tripll.repo_root import resolve_repo_root
 
-    # Point TRIPLL_REPO_ROOT at a known temp dir so the result is deterministic.
     fake_repo = tmp_path / "repo"
     fake_repo.mkdir()
     monkeypatch.setenv("TRIPLL_REPO_ROOT", str(fake_repo))
-    # Ensure TRIPLL_RUNS is not set so the default path is used.
     monkeypatch.delenv("TRIPLL_RUNS", raising=False)
 
     api_rr = api_resolve(None)
-
-    # Both should be anchored at the repo root, not doubled.
-    expected = (resolve_repo_root() / "wave-orchestrator" / "runs").resolve()
+    expected = default_runs_root(resolve_repo_root())
     assert api_rr.root == expected, f"API runs root {api_rr.root!r} != expected {expected!r}"
 
 
-def test_create_app_runs_root_not_doubled_from_package_dir(
+def test_create_app_runs_root_not_doubled_from_subdirectory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """create_app() runs root must NOT double wave-orchestrator/ when CWD is inside it.
-
-    Simulate the scenario: CWD = <repo>/wave-orchestrator (inside the package dir).
-    The doubled path would be ``<cwd>/wave-orchestrator/runs`` which equals
-    ``<repo>/wave-orchestrator/wave-orchestrator/runs``.  The correct path is
-    ``<repo>/wave-orchestrator/runs``.
-    """
+    """create_app() runs root must stay repo-anchored when CWD is a subdirectory."""
     import os
 
     from tripll.api.app import _resolve_runs_root as api_resolve
+    from tripll.pipeline import default_runs_root
 
-    # Create a fake repo tree: repo/wave-orchestrator/.git-like structure.
     fake_repo = tmp_path / "repo"
-    fake_pkg = fake_repo / "wave-orchestrator"
-    fake_pkg.mkdir(parents=True)
-    (fake_repo / ".git").mkdir()  # mark repo root
+    nested = fake_repo / "packages" / "app"
+    nested.mkdir(parents=True)
+    (fake_repo / ".git").mkdir()
 
     monkeypatch.setenv("TRIPLL_REPO_ROOT", str(fake_repo))
     monkeypatch.delenv("TRIPLL_RUNS", raising=False)
-    # Change CWD into the wave-orchestrator/ subdirectory.
     old_cwd = Path.cwd()
-    os.chdir(fake_pkg)
+    os.chdir(nested)
     try:
         rr = api_resolve(None)
     finally:
         os.chdir(old_cwd)
 
-    doubled = fake_pkg / "wave-orchestrator" / "runs"
-    assert rr.root != doubled, f"Runs root is doubled: {rr.root!r} should not equal {doubled!r}"
-    correct = fake_repo / "wave-orchestrator" / "runs"
-    assert rr.root == correct, f"Expected {correct!r}, got {rr.root!r}"
+    expected = default_runs_root(fake_repo)
+    assert rr.root == expected, f"Expected {expected!r}, got {rr.root!r}"
 
 
 # ---------------------------------------------------------------------------
