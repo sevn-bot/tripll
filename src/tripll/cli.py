@@ -979,9 +979,11 @@ def _run_dry_run(
 
 
 def _rewrite_run_inject_argv(argv: list[str]) -> list[str]:
-    """Map ``tripll run inject …`` to the hidden ``run-inject`` subcommand."""
+    """Map ``tripll run inject …`` / ``reconcile-graph`` to hidden subcommands."""
     if len(argv) >= 3 and argv[1] == "run" and argv[2] == "inject":
         return [argv[0], "run-inject", *argv[3:]]
+    if len(argv) >= 4 and argv[1] == "run" and argv[2] == "reconcile-graph":
+        return [argv[0], "run-reconcile-graph", *argv[3:]]
     return argv
 
 
@@ -1242,6 +1244,59 @@ def run_inject(
 
     typer.echo(f"Inject applied: {task.node_id} (task {task.task_id})")
     typer.echo(f"Audit: {rr.injects_dir(run_id) / (task.task_id + '.json')}")
+    typer.echo(f"Resume with: tripll resume {run_id}")
+
+
+@app.command("run-reconcile-graph", hidden=True)
+def run_reconcile_graph(
+    run_id: Annotated[str, typer.Argument(help="Run-id in processing/ (must be paused).")],
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate only; no ledger or graph.json write."),
+    ] = False,
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Reconcile parsed plan files with ledger waves after a plan edit (L2-W5b).
+
+    Requires ``pause-requested.md`` and no in-flight waves. Resume also reconciles
+    automatically before dispatch.
+    """
+    from tripll.inject import InjectError, reconcile_run_graph
+    from tripll.ledger import open_ledger
+
+    rr = _resolve_runs_root(runs_root)
+    if rr.find_run_dir(run_id) is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    loc = rr.find_run_dir(run_id)
+    if loc is not None and loc.parent == rr.processed_dir:
+        typer.echo(f"Run already completed (processed/): {run_id}", err=True)
+        raise typer.Exit(1)
+
+    try:
+        with open_ledger(rr.ledger_path(run_id)) as lc:
+            result = reconcile_run_graph(
+                rr,
+                run_id,
+                lc=lc,
+                dry_run=dry_run,
+                require_pause=True,
+                source="cli",
+            )
+    except InjectError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(exc.exit_code) from exc
+
+    if dry_run:
+        typer.echo(
+            f"[dry-run] Reconcile valid — would insert {list(result.inserted)} "
+            f"orphan {list(result.orphans)}"
+        )
+        return
+
+    typer.echo(f"Reconcile applied: inserted {list(result.inserted)}")
+    if result.orphans:
+        typer.echo(f"Orphan ledger rows (kept): {list(result.orphans)}")
     typer.echo(f"Resume with: tripll resume {run_id}")
 
 

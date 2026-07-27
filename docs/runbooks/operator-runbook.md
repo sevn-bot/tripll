@@ -187,6 +187,37 @@ Resume rebuilds the graph from the run directory and seeds completed waves from
 the ledger, so it dispatches only the waves that had not finished. It re-stops at
 the Pre-0 gate if it was never approved.
 
+### 5a. Live injection — Mode A (hotfix) vs Mode B (plan edit)
+
+Two operator paths add work mid-flight without restarting the run. Both require
+**pause first** (no in-flight waves) so graph/ledger mutation is safe.
+
+| Mode | When to use | Steps |
+|------|-------------|-------|
+| **A — hotfix inject** | One-line bug fix; narrow path scope; no new plan section | `tripll pause <run-id>` → `tripll run inject <run-id> --after <wave> --brief … --paths …` → `tripll resume <run-id>` |
+| **B — plan edit + reconcile** | Full wave section with verify targets, roles, effort | `tripll pause <run-id>` → edit `*-wave-plan.md` under `processing/<run-id>/` → `tripll run reconcile-graph <run-id>` → `tripll resume <run-id>` |
+
+**Mode B parse behaviour:**
+
+- **Mode A set** (hand-written `parallel-wave.md`): edit the manifest or individual
+  plan files referenced by it; reconcile re-parses from disk.
+- **Mode B folder** (plain `*-wave-plan.md` only): adding/removing plan files
+  regenerates `parallel-wave.md` on parse. Each plan file becomes one lane-level
+  node (`<lane>:all-waves`).
+
+**Reconcile rules (L2-W5b):**
+
+- New graph nodes → `queued` ledger rows inserted.
+- `done` / `blocked` waves **must** still appear in the parsed graph — removing or
+  renaming them is **refused**.
+- Orphan ledger rows (wave removed from plan but still `queued`) are **logged and
+  kept**, not deleted.
+- `tripll resume` runs reconcile automatically before dispatch (pause marker not
+  required on resume).
+- Use `--dry-run` on inject/reconcile to validate without writing.
+
+See `ignorelocal/live-injection-design.md` for the full design.
+
 ## 6. Switching backends
 
 Pass `--backend` to `run`/`resume`:
