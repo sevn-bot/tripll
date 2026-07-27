@@ -310,6 +310,56 @@ def test_run_integrate_dry_run() -> None:
         assert "tripll/integrate/" in result.output
 
 
+def test_run_integrate_deliver_dry_run() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        runs = Path(d) / "runs"
+        _init_runs_layout(runs)
+        wave_set = Path(runs) / "input" / "my-set"
+        wave_set.mkdir()
+        (wave_set / "demo-wave-plan.md").write_text(
+            "# Demo\n\n## Files in scope\n\n"
+            "| Subsystem | Paths |\n|--|--|\n| Core | `src/sevn/demo/` |\n"
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "run",
+                str(wave_set),
+                "--integrate",
+                "--deliver",
+                "--dry-run",
+                "--runs-root",
+                str(runs),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "[integrate]" in result.output
+        assert "[deliver]" in result.output
+        assert "idempotency_key=push:" in result.output
+        assert "idempotency_key=open_pr:" in result.output
+        assert "approve-merge" in result.output
+
+
+def test_run_deliver_requires_integrate() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        runs = Path(d) / "runs"
+        _init_runs_layout(runs)
+        wave_set = Path(runs) / "input" / "my-set"
+        wave_set.mkdir()
+        (wave_set / "demo-wave-plan.md").write_text(
+            "# Demo\n\n## Files in scope\n\n"
+            "| Subsystem | Paths |\n|--|--|\n| Core | `src/sevn/demo/` |\n"
+        )
+
+        result = runner.invoke(
+            app,
+            ["run", str(wave_set), "--deliver", "--dry-run", "--runs-root", str(runs)],
+        )
+        assert result.exit_code == 1
+        assert "--integrate" in result.output
+
+
 def test_run_no_input_error() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"

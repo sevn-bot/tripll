@@ -18,6 +18,8 @@ Exports:
     shepherd_run — run one PR shepherd step for a run directory.
     pr_checkpoint_db_path — SQLite checkpoint path for the PR LangGraph loop.
     load_open_findings — open findings from the repo graph store.
+    integration_branch_for_run — integration branch name for a run-id.
+    render_deliver_dry_run — printable deliver plan (no side effects).
 """
 
 from __future__ import annotations
@@ -422,17 +424,76 @@ def load_open_findings(*, run_dir: Path, run_id: str) -> list[dict[str, Any]]:
         store.close()
 
 
+def integration_branch_for_run(run_id: str) -> str:
+    """Return the integration branch name used by ``--integrate``.
+
+    Args:
+        run_id (str): Parent run identifier.
+
+    Returns:
+        str: Branch name ``tripll/integrate/<run-id>``.
+    """
+    return f"tripll/integrate/{run_id}"
+
+
+def deliver_idempotency_key(action: str, run_id: str) -> str:
+    """Stable idempotency key for a deliver-phase PR action.
+
+    Args:
+        action (str): ``push`` or ``open_pr``.
+        run_id (str): Parent run identifier.
+
+    Returns:
+        str: Key written before any external side effect.
+    """
+    return f"{action}:{run_id}"
+
+
+def render_deliver_dry_run(*, run_id: str, integration_branch: str | None = None) -> list[str]:
+    """Format the post-integrate deliver plan as printable lines (no side effects).
+
+    Args:
+        run_id (str): Parent run identifier.
+        integration_branch (str | None): Push/open head branch (defaults to integrate branch).
+
+    Returns:
+        list[str]: Lines describing push, open_pr keys, and the human merge gate.
+    """
+    branch = integration_branch or integration_branch_for_run(run_id)
+    return [
+        f"[deliver] Branch    : {branch}",
+        f"[deliver] push      : idempotency_key={deliver_idempotency_key('push', run_id)}",
+        f"[deliver] open_pr   : idempotency_key={deliver_idempotency_key('open_pr', run_id)}",
+        "[deliver] merge     : human gate — tripll pr approve-merge (never auto-merge)",
+    ]
+
+
+def _deliver_context(*, run_id: str, run_dir: Path) -> dict[str, Any]:
+    """Build GitHub action context for the deliver phase."""
+    from tripll.repo_root import resolve_repo_root
+
+    branch = integration_branch_for_run(run_id)
+    return {
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "repo_root": str(resolve_repo_root()),
+        "branch": branch,
+        "head": branch,
+    }
+
+
 def _run_deliver_phase(*, run_id: str, run_dir: Path) -> dict[str, Any]:
     """Execute idempotent push and open_pr for the deliver phase."""
     from tripll.github import pr as github_pr
 
+    ctx = _deliver_context(run_id=run_id, run_dir=run_dir)
     actions: list[dict[str, Any]] = []
     for action in ("push", "open_pr"):
-        key = f"{action}:{run_id}"
+        key = deliver_idempotency_key(action, run_id)
         outcome = github_pr.run_pr_action(
             action,
             idempotency_key=key,
-            context={"run_id": run_id, "run_dir": str(run_dir)},
+            context=ctx,
         )
         actions.append({"action": action, **outcome})
     return {"phase": "deliver", "actions": actions}
