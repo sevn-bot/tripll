@@ -11,7 +11,7 @@ repo-level layout.
 | `tripll setup` | Machine (`~/.config/tripll/config.toml`) | Once per workstation |
 | `tripll doctor` | Machine + repo | Before first dispatch |
 | `tripll init` | Existing repo | Brownfield onboarding |
-| `tripll new` | New directory | Greenfield scaffold (W15) |
+| `tripll new` | New directory | Greenfield scaffold |
 
 ## Brownfield path (`tripll init`)
 
@@ -67,8 +67,47 @@ use the SKW front-end stages (`specify`, `clarify`, `plan`, `wayfinder`,
 
 ## Greenfield path (`tripll new`)
 
-See W15 — `tripll new <name>` scaffolds a new project then calls the **same**
-spec/PRD/plan emitters as brownfield. Documented in this runbook once W15 lands.
+Create a new project directory with a Python skeleton, tripll config, and starter
+docs — then plan waves against it.
+
+```bash
+mkdir -p ~/code && cd ~/code
+tripll new my-project
+cd my-project
+tripll doctor
+make check
+tripll validate-plan docs/plans/*-wave-plan.md
+```
+
+### What `new` writes
+
+Everything from the brownfield table **plus** the project skeleton:
+
+| Artefact | Purpose |
+|----------|---------|
+| `pyproject.toml`, `Makefile`, `src/`, `tests/` | Minimal Python package passing `make check` |
+| `.git/` | Fresh git repository (when git is available) |
+
+`tripll new` uses **packaged offline templates** by default — no network required.
+Pass `--cookiecutter` to use cookiecutter-pypackage instead; that path requires the
+tripll **scaffold** extra (`uv sync --extra scaffold`).
+
+### One emitter, two entry points
+
+Greenfield calls the **same** spec/PRD/plan emitters as `tripll init`
+(`tripll.onboard.emitters`). The only difference is project creation first.
+
+### Safe re-runs
+
+Same idempotence rules as brownfield:
+
+```bash
+tripll new my-project              # error if ./my-project exists without tripll.toml
+cd my-project && tripll new .        # not supported — re-run init inside the repo instead
+tripll init                          # reconcile docs/config inside an existing project
+```
+
+After the first scaffold, use `tripll init` inside the project to reconcile gaps.
 
 ## Credentials (R24)
 

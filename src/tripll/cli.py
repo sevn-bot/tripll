@@ -449,6 +449,58 @@ def init(
     typer.echo("Next: tripll setup (once per machine), then tripll doctor")
 
 
+@app.command()
+def new(
+    name: Annotated[str, typer.Argument(help="New project directory name.")],
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-dir",
+            "-o",
+            help="Parent directory for the project (default: current directory).",
+            file_okay=False,
+            dir_okay=True,
+            writable=True,
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing onboarding artefacts."),
+    ] = False,
+    cookiecutter: Annotated[
+        bool,
+        typer.Option(
+            "--cookiecutter",
+            help="Use cookiecutter-pypackage (requires tripll scaffold extra).",
+        ),
+    ] = False,
+) -> None:
+    """Scaffold a new tripll-ready project (greenfield onboarding).
+
+    Writes a Python project skeleton from packaged templates (offline, no network),
+    then emits ``tripll.toml``, starter specs/PRDs/plans, evaluation, and ``runs/``.
+    Re-running reconciles gaps without clobbering operator edits unless ``--force``.
+    """
+    from tripll.onboard.greenfield import GreenfieldError, new_project
+
+    try:
+        result = new_project(
+            name,
+            output_dir=output_dir,
+            force=force,
+            cookiecutter=cookiecutter,
+        )
+    except GreenfieldError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo("Greenfield scaffold complete.")
+    for line in result.messages:
+        typer.echo(f"  {line}")
+    typer.echo(f"  cd {result.project_dir.name}")
+    typer.echo("Next: tripll setup (once per machine), tripll doctor, then make check")
+
+
 # ---------------------------------------------------------------------------
 # status
 # ---------------------------------------------------------------------------

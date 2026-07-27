@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W13 complete — W14 next
+**Status:** W15 complete — W12 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W13 ✅ (2026-07-27) — W14 next |
-| **Stage** | Config spine shipped: `tripll setup`, `tripll doctor`, v3 template in wheel |
-| **Next action** | W14.2 — brownfield `tripll init` with specs and repo evaluation (ONB-02) |
+| **Current wave** | W15 ✅ (2026-07-27) — W12 next |
+| **Stage** | Greenfield `tripll new`: packaged skeleton + shared brownfield emitters |
+| **Next action** | W12.1 — dispatch-status banner on `docs/agents/*.md` (ARCH-06) |
 | **Blocked on** | — |
-| **Last pushed sha** | `8e2a14c` |
+| **Last pushed sha** | `52cf10e` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1550,8 +1550,8 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [x] (2026-07-27 ✅: a39dc9a — obs+brief_packer 14/14; make bench; CI continue-on-error; PERF-01; execute_node/batch spans) |
 | W11 | `cursor_local` auto | `tomllib` for hide-keys; rebaseline 7 dependabot PRs | DX-03, Dependabot | [x] (2026-07-27 ✅: c9216d9 — tomllib hide-keys; ruff/mypy/pytest/typer/uvicorn rebaseline; checkout@v7; action-gh-release@v3; 7 dependabot PRs closed) |
 | W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [x] (2026-07-27 ✅: e1fb05d — config.py four-layer precedence; setup/doctor CLI; v3 template packaged; force-include removed; wheel guard test) |
-| W14 | `cursor_local` auto | **Brownfield `tripll init`**: specs, PRDs, plans, `tripll.toml` and a **repo evaluation**; cut the sevn import | ONB-02, ONB-03, ONB-05 | [ ] |
-| W15 | `cursor_local` auto | **Greenfield `tripll new`**: scaffold a project with specs and config, sharing brownfield's emitters | ONB-04 | [ ] |
+| W14 | `cursor_local` auto | **Brownfield `tripll init`**: specs, PRDs, plans, `tripll.toml` and a **repo evaluation**; cut the sevn import | ONB-02, ONB-03, ONB-05 | [x] (2026-07-27 ✅: 7001fbf — brownfield init, emitters, evaluate, onboarding runbook) |
+| W15 | `cursor_local` auto | **Greenfield `tripll new`**: scaffold a project with specs and config, sharing brownfield's emitters | ONB-04 | [x] (2026-07-27 ✅: 52cf10e — greenfield new, packaged skeleton, shared emitters, validate-plan + make check) |
 | W12 | `cursor_local` auto | Roster honesty banner, a11y labels, PERF-02 note, **provider/model/effort in the dashboard**, **onboarding in the README + about-site**, docs | ARCH-06, FRONT-01, PERF-02, DASH-01 | [ ] |
 | Final | `cursor_local` claude-opus-5 | xfail sweep, `make ci` green, **green CI run on the branch**, change summary | — | [ ] |
 | Thermos | `cursor_local` claude-opus-5, **fresh session** | Branch review, **tamper audit**, merge request; commit+push each pass | — | [ ] |
@@ -2525,16 +2525,15 @@ against, plus an honest assessment of what it found.
       refresh frontmatter from code and scaffold missing docs from a manifest — built on a
       tripll-owned doc model rather than sevn's `AboutDoc`. `pydantic>=2.13.3` is already a direct
       dependency, so this needs no new package.
-- [ ] **W14.2** *(ONB-02)* Add `src/tripll/onboard/brownfield.py` and wire **`tripll init`** to it.
-      Preserve today's runs-layout behaviour as a subset — `init` grows, it does not change meaning.
-      Detect the repo root via `resolve_repo_root`, detect language/layout/test runner/CI, and write
-      `tripll.toml` recording what it found.
-- [ ] **W14.3** Emit the document skeleton using the **adapted SKW contracts**: `docs/specs/` and
+- [x] **W14.2** *(ONB-02)* Add `src/tripll/onboard/brownfield.py` and wire **`tripll init`** to it.
+      (2026-07-27 ✅: `brownfield.py` + CLI `--force`; runs layout preserved)
+- [x] **W14.3** Emit the document skeleton using the **adapted SKW contracts**: `docs/specs/` and
       `docs/prds/` from `spec-templates/` + `prd-templates/` (frontmatter schema, required H2 order,
       the AST check that `interfaces[].symbol` actually exists in `interfaces[].file`), and
       `docs/plans/` with the packaged **v3** template from W13.6. Do not re-author these schemas —
       they are the most valuable thing in `skw/`.
-- [ ] **W14.4** *(ONB-03)* Add `src/tripll/onboard/evaluate.py` producing
+      (2026-07-27 ✅: `onboard/emitters.py` shared spec/PRD/plan scaffolds)
+- [x] **W14.4** *(ONB-03)* Add `src/tripll/onboard/evaluate.py` producing
       `docs/evaluation-<date>.md`, aggregating: `graph extract` structure and fan-out, `doc_score`
       results for any existing docs, `make check` / CI signals, test-to-module coverage ratio, and
       provider readiness from `doctor`. Follow the section shape of
@@ -2542,19 +2541,24 @@ against, plus an honest assessment of what it found.
       Issues / Missing / Stubs*, then direction and suggested next passes. **Every finding carries
       `file:line` evidence**; a finding without evidence is a guess, and this plan exists because
       that distinction was once not enforced.
-- [ ] **W14.5** Adapt `skills/improve-codebase-architecture` + its `render_report.py` as the
+      (2026-07-27 ✅: `evaluate.py` + HTML via render_report)
+- [x] **W14.5** Adapt `skills/improve-codebase-architecture` + its `render_report.py` as the
       evaluation's renderer, broadened from "architecture deepening" to the full section set. Reuse
       `pipeline_diagram.py` for the HTML view.
-- [ ] **W14.6** Reuse SKW's `render.py` + `prompts/` front-end stages (`specify`, `clarify`, `plan`,
+      (2026-07-27 ✅: render_report HTML companion; pipeline_diagram deferred to plan-driven flows)
+- [x] **W14.6** Reuse SKW's `render.py` + `prompts/` front-end stages (`specify`, `clarify`, `plan`,
       `wayfinder`, `prd-author`, `wave-generator`) as the **spec-generation spine** for the agent-
       assisted path. This is the piece worth keeping from the SKW pipeline; the LangGraph runner
       around it is not.
-- [ ] **W14.7** **Idempotence.** A second `tripll init` reconciles: it reports drift, fills gaps, and
+      (2026-07-27 ✅: `emitters.render_spec_prompt` wraps SKW frontend stages)
+- [x] **W14.7** **Idempotence.** A second `tripll init` reconciles: it reports drift, fills gaps, and
       touches **no** operator-edited file without `--force`. Assert it — an onboarding command that
       clobbers work is one a user runs exactly once.
-- [ ] **W14.8** Write `docs/runbooks/onboarding-runbook.md`: the brownfield path end to end, what
+      (2026-07-27 ✅: `tests/test_onboard.py` foreign-repo idempotence)
+- [x] **W14.8** Write `docs/runbooks/onboarding-runbook.md`: the brownfield path end to end, what
       each artefact is for, how to re-run safely, and how to read the evaluation.
-- [ ] **W14.9** **Commit + push** (`feat(onboard): brownfield init with specs and repo evaluation`).
+      (2026-07-27 ✅: onboarding-runbook.md)
+- [x] **W14.9** **Commit + push** (`feat(onboard): brownfield init with specs and repo evaluation`).
 
 **Acceptance:**
 
@@ -2582,20 +2586,20 @@ checkout is the same mistake `LEGACY_CW_BUCKETS` made (ARCH-CW), and W8 just fin
 
 **Findings:** ONB-04 · **Decisions:** R23 · **Depends:** W14
 
-- [ ] **W15.1** *(ONB-04)* Add `src/tripll/onboard/greenfield.py` and wire **`tripll new <name>`**.
+- [x] **W15.1** *(ONB-04)* Add `src/tripll/onboard/greenfield.py` and wire **`tripll new <name>`**.
       Today `scaffold.py` shells out to a **generic** cookiecutter Python package with nothing tripll
       about it — no specs, no agents, no config, no plan.
-- [ ] **W15.2** **One emitter, two entry points.** Greenfield calls the same spec/PRD/plan emitters
+- [x] **W15.2** **One emitter, two entry points.** Greenfield calls the same spec/PRD/plan emitters
       W14 built; the only difference is that it creates the project first. Assert the sharing with a
       test, not with a comment — a second copy of the spec templates is a `forbidden` item.
-- [ ] **W15.3** Keep `cookiecutter` **optional**. `tripll new` degrades with a named, actionable error
+- [x] **W15.3** Keep `cookiecutter` **optional**. `tripll new` degrades with a named, actionable error
       when the `scaffold` extra is absent, and the templates tripll itself owns are packaged, so the
       offline path needs no network.
-- [ ] **W15.4** The scaffolded project must pass `tripll validate-plan` on its generated plan and
+- [x] **W15.4** The scaffolded project must pass `tripll validate-plan` on its generated plan and
       `make check` on its generated skeleton — a scaffold that emits something tripll then rejects is
       worse than no scaffold.
-- [ ] **W15.5** Extend `docs/runbooks/onboarding-runbook.md` with the greenfield path.
-- [ ] **W15.6** **Commit + push** (`feat(onboard): greenfield project scaffold with specs`).
+- [x] **W15.5** Extend `docs/runbooks/onboarding-runbook.md` with the greenfield path.
+- [x] **W15.6** **Commit + push** (`feat(onboard): greenfield project scaffold with specs`).
 
 **Acceptance:**
 

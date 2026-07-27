@@ -13,8 +13,10 @@ import pytest
 from typer.testing import CliRunner
 
 from tripll.cli import app
+from tripll.onboard import emitters
 from tripll.onboard.brownfield import run_brownfield_init
 from tripll.onboard.emitters import spec_template_path
+from tripll.onboard.greenfield import GreenfieldError, new_project
 from tripll.repo_root import resolve_repo_root
 
 runner = CliRunner()
@@ -96,3 +98,81 @@ def test_tripll_checkout_is_not_foreign_fixture() -> None:
     tripll_root = Path(__file__).resolve().parents[1]
     assert (tripll_root / "src" / "tripll").is_dir()
     assert resolve_repo_root(cwd=tripll_root).name != "demo-app"
+
+
+def test_greenfield_new_writes_artefacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TRIPLL_HUMAN_GATES", "auto_accept")
+    result = runner.invoke(app, ["new", "demo-project"])
+    assert result.exit_code == 0, result.output
+    project = tmp_path / "demo-project"
+    assert (project / "tripll.toml").is_file()
+    assert (project / "pyproject.toml").is_file()
+    assert any((project / "docs" / "specs").glob("*.md"))
+    assert any((project / "docs" / "plans").glob("*-wave-plan.md"))
+
+
+def test_greenfield_shares_brownfield_emitters(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def _track_emit(*args: object, **kwargs: object) -> emitters.EmitResult:
+        calls.append("emit_doc_skeletons")
+        return emitters.EmitResult()
+
+    monkeypatch.setattr("tripll.onboard.brownfield.emit_doc_skeletons", _track_emit)
+    new_project("demo-project", output_dir=tmp_path)
+    run_brownfield_init(repo_root=tmp_path / "demo-project")
+    assert calls.count("emit_doc_skeletons") >= 2
+
+
+def test_greenfield_cookiecutter_without_extra(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("tripll.onboard.greenfield.scaffold_extra_available", lambda: False)
+    with pytest.raises(GreenfieldError, match="scaffold extra"):
+        new_project("demo", output_dir=tmp_path, cookiecutter=True)
+
+
+def test_greenfield_idempotent_preserves_operator_edits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TRIPLL_HUMAN_GATES", "auto_accept")
+    runner.invoke(app, ["new", "demo-project"])
+    project = tmp_path / "demo-project"
+    toml = project / "tripll.toml"
+    toml.write_text(toml.read_text(encoding="utf-8") + "operator edit\n", encoding="utf-8")
+    result = runner.invoke(app, ["init"], env={"TRIPLL_REPO_ROOT": str(project)})
+    assert result.exit_code == 0, result.output
+    assert toml.read_text(encoding="utf-8").count("operator edit") == 1
+
+
+def test_greenfield_validate_plan_and_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TRIPLL_HUMAN_GATES", "auto_accept")
+    result = new_project("demo-project", output_dir=tmp_path)
+    project = result.project_dir
+    plans = list((project / "docs" / "plans").glob("*-wave-plan.md"))
+    assert plans
+    validate = runner.invoke(
+        app, ["validate-plan", str(plans[0])], env={"TRIPLL_REPO_ROOT": str(project)}
+    )
+    assert validate.exit_code == 0, validate.output
+    check = subprocess.run(
+        ["make", "check"],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert check.returncode == 0, check.stdout + check.stderr
