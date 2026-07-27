@@ -9,6 +9,7 @@ runs/
 
 # Operator-private local trees
 ignorelocal/
+.ignorelocal/
 
 # Verification / harness output
 evidence/
