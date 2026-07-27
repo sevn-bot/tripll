@@ -51,5 +51,4 @@ The automated gate is `tests/test_agent_roster.py::test_spec_cartographer_fixtur
 |---------|------|
 | Operator docs (this file) | `docs/agents/spec-cartographer.md` |
 | skw brief | [`src/tripll/skw/agents/spec-cartographer.md`](../../src/tripll/skw/agents/spec-cartographer.md) |
-| Cursor subagent | [`.cursor/agents/spec-cartographer.md`](../../.cursor/agents/spec-cartographer.md) |
 | Prompt | [`src/tripll/skw/prompts/spec-cartographer.md`](../../src/tripll/skw/prompts/spec-cartographer.md) |

@@ -1,8 +1,7 @@
 # Agent notes — tripll
 
 Instructions for AI assistants and contributors editing the **tripll** checkout. tripll is a
-headless, parallel **wave-plan execution pipeline**, extracted as a standalone tool from the
-[sevn.bot](https://github.com/sevn-bot/sevn.bot) project (whose conventions it inherits).
+headless, parallel **wave-plan execution pipeline**.
 
 ## Project context
 
@@ -19,7 +18,9 @@ loguru logging, optional Logfire observability, FastAPI control plane + dashboar
 | Architecture / graph model | [`docs/design-note.md`](docs/design-note.md) |
 | Control plane / dashboard | [`docs/control-plane-design.md`](docs/control-plane-design.md) |
 | Operations | [`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md) |
-| Agent roles (wave executor, test-creator, …) | [`docs/agents/`](docs/agents/) |
+| Wave-plan format | [`docs/wave-plan-template.md`](docs/wave-plan-template.md) · [`docs/decisions/003-plan-format-and-shape.md`](docs/decisions/003-plan-format-and-shape.md) |
+| Design decisions (ADRs) | [`docs/decisions/`](docs/decisions/) |
+| Agent roles (wave executor, test-creator, …) | [`docs/agents/`](docs/agents/) · [`src/tripll/skw/agents/`](src/tripll/skw/agents/) |
 | Coding standards (normative) | [`about-tripll/_standards/coding-standards.md`](about-tripll/_standards/coding-standards.md) |
 | Public docs site | [`about-tripll/`](about-tripll/) — built via `make about-site` |
 
@@ -52,17 +53,19 @@ only** (never stdlib `logging`). Before finishing: **`make lint`** and **`make t
 Optional Logfire/OTel via the `obs` extra and `tripll.obs.configure_observability()` (wired into
 the CLI). It is a **no-op** without `LOGFIRE_TOKEN` and must never break the CLI.
 
-## Decoupling from sevn
+## External dependencies
 
-tripll is standalone. The only sevn tie is an **optional** integration: the `cursor_cloud` adapter
-probes for `sevn.evolution.router` (`importlib.util.find_spec`) under the `cloud` extra and degrades
-gracefully when sevn is absent. Never add a hard `import sevn`. The target repo tripll orchestrates
-is resolved from `TRIPLL_REPO_ROOT` or the CWD git root (`tripll.repo_root.resolve_repo_root`).
+tripll is standalone — never add a hard dependency on another product's package. The one optional
+integration is the `cursor_cloud` adapter, which probes for `sevn.evolution.router` via
+`importlib.util.find_spec` under the `cloud` extra and degrades gracefully when that package is
+absent. The target repo tripll orchestrates is resolved from `TRIPLL_REPO_ROOT` or the CWD git
+root (`tripll.repo_root.resolve_repo_root`).
 
 ## Git safety
 
-**Never** run `git clean` with **`-x`/`-X`** — those delete gitignored local trees (`runs/`, `.env`).
-Use `git restore` on tracked paths only. See [`.cursor/rules/no-destructive-git-clean.mdc`](.cursor/rules/no-destructive-git-clean.mdc).
+**Never** run `git clean` with **`-x`/`-X`** — those delete gitignored local trees (`runs/`,
+`ignorelocal/`, `evidence/`, `.env`). Use `git restore` on tracked paths only. See
+[`docs/runbooks/operator-runbook.md` — Git safety](docs/runbooks/operator-runbook.md#git-safety-git-clean-guard).
 
 ## Git & commits
 

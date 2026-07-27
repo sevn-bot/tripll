@@ -3,6 +3,16 @@
 Kit-local agent briefs. Every agent inherits the harness in
 [`_inherited-harness.md`](_inherited-harness.md).
 
+## Two-tree split (R3)
+
+| Tree | Role |
+|------|------|
+| **`src/tripll/skw/agents/`** (this directory) | **Machine contract** — briefs hashed into the task graph as `AgentDef` nodes via `hash_agent_def` |
+| **`docs/agents/`** | **Human narrative** — operator docs, procedures, and cross-links; not hashed |
+
+The gitignored `.cursor/` tree is IDE-local only and is **not** an identity source. Cursor may
+mirror skw briefs for IDE dispatch, but graph-node digests always come from tracked files here.
+
 ## L1 roster (design §11)
 
 | Agent | Class | Path |
@@ -40,6 +50,24 @@ Kit-local agent briefs. Every agent inherits the harness in
 | github-issue-triage | [`github-issue-triage.md`](github-issue-triage.md) |
 | verifier-setup | [`verifier-setup.md`](verifier-setup.md) |
 
+## Special agents (harvested W2)
+
+| Agent | Path | Notes |
+|-------|------|-------|
+| browser | [`browser.md`](browser.md) | CDP driver for dashboard visual proof |
+| github-issue-manager | [`github-issue-manager.md`](github-issue-manager.md) | Full lifecycle sweep (distinct from triage) |
+| wave-orchestrator | [`wave-orchestrator.md`](wave-orchestrator.md) | Serial multitask coordinator |
+
+### Deliberately not ported (W2 harvest)
+
+| Cursor brief | Reason |
+|--------------|--------|
+| wave-plan-executor | Superseded by [`implementer.md`](implementer.md) |
+| wave-plan-author | Superseded by [`plan-author.md`](plan-author.md) |
+| parallel-plan-implementer | Superseded by implementer / wave-runner alias |
+| v1-wave | Legacy v1 format; tripll uses v3 wave plans |
+| spec-implementation, spec-wave, specs-author | Not present in harvest trees |
+
 ## Legacy aliases
 
 | Legacy | Successor |
@@ -49,5 +77,3 @@ Kit-local agent briefs. Every agent inherits the harness in
 | wave-plan-executor | implementer |
 
 Operator docs mirror: [`docs/agents/`](../../../docs/agents/).
-
-Cursor subagent defs: [`.cursor/agents/`](../../../.cursor/agents/) (content-hashed as `AgentDef`).

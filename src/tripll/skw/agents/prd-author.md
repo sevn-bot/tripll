@@ -36,7 +36,7 @@ Headless: `make prd-author-run PRD=…` (renders `spec-kit-wave/prompts/prd-auth
 
 Validate: `make prd-validate PRD=…` · batch: `make prd-check`.
 
-Agent reference: [`.cursor/agents/prd-author.md`](../../.cursor/agents/prd-author.md).
+Machine contract: [`src/tripll/skw/agents/prd-author.md`](prd-author.md).
 
 ## Inherited harness
 

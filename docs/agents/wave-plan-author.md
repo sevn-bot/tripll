@@ -10,7 +10,7 @@ Convert or author **tripll v1** wave-plan files for `wave-orchestrator`.
 In-repo file references in wave plans must be **repo-root-relative** (worktree root = repo
 root):
 
-- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `.cursor/agents/…`.
+- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `src/tripll/skw/agents/…`.
 - **Never** use `../`, `./`, or a leading `/` for in-repo paths.
 - External files outside the repo may keep **absolute** paths; tripll exposes their parent
   via `--add-dir` / workspace scope.

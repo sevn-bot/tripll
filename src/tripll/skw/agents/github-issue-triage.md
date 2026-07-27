@@ -39,7 +39,7 @@ make -C spec-kit-wave github-issue-triage-run [ISSUE=<N>] [QUEUE=1] [CONTEXT=] [
 
 Renders `spec-kit-wave/prompts/github-issue-triage.md`.
 
-Cursor agent: `.cursor/agents/github-issue-triage.md`.
+Machine contract: [`src/tripll/skw/agents/github-issue-triage.md`](github-issue-triage.md).
 
 ## Handoff
 

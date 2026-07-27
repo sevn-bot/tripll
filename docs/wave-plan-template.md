@@ -12,7 +12,7 @@ Run `tripll validate-plan <plan.md>` before dispatch.
 
 In-repo file references must be **repo-root-relative** (worktree root = repo root):
 
-- Use paths from the repository root: `src/…`, `docs/…`, `tests/…`, `.cursor/agents/…`.
+- Use paths from the repository root: `src/…`, `docs/…`, `tests/…`, `src/tripll/skw/agents/…`.
 - **Never** use `../`, `./`, or a leading `/` for in-repo paths.
 
 ## TOML schema (v3)

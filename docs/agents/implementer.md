@@ -24,5 +24,4 @@ Wave-scoped executor — successor to `wave-plan-executor` / `wave-runner` (desi
 |---------|------|
 | Operator docs (this file) | `docs/agents/implementer.md` |
 | skw brief | [`src/tripll/skw/agents/implementer.md`](../../src/tripll/skw/agents/implementer.md) |
-| Cursor subagent | [`.cursor/agents/implementer.md`](../../.cursor/agents/implementer.md) |
 | Legacy alias | [`wave-runner`](../../src/tripll/skw/agents/wave-runner.md) |

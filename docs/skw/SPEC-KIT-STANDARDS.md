@@ -100,7 +100,7 @@ repo-wide.
 | Artifact | Path |
 |----------|------|
 | Standards | [`PRD-STANDARDS.md`](PRD-STANDARDS.md) |
-| Agent | [`agents/prd-author.md`](agents/prd-author.md) · [`.cursor/agents/prd-author.md`](../.cursor/agents/prd-author.md) |
+| Agent | [`agents/prd-author.md`](agents/prd-author.md) · [`src/tripll/skw/agents/prd-author.md`](../src/tripll/skw/agents/prd-author.md) |
 | Template | [`prd-templates/prd-template.md`](prd-templates/prd-template.md) |
 | Rules | [`prd-templates/prd-rules.toml`](prd-templates/prd-rules.toml) |
 | Spec EARS patterns | [`spec-templates/acceptance-criteria-ears.md`](spec-templates/acceptance-criteria-ears.md) |
@@ -125,7 +125,7 @@ Adapted from [AI-Builder-Club/skills verifier-setup](https://github.com/AI-Build
 |----------|------|
 | Setup skill | [`skills/verifier-setup/SKILL.md`](skills/verifier-setup/SKILL.md) |
 | Verify template | [`skills/verifier-setup/assets/verify.template.md`](skills/verifier-setup/assets/verify.template.md) |
-| Agent | [`agents/verifier-setup.md`](agents/verifier-setup.md) · [`.cursor/agents/verifier-setup.md`](../.cursor/agents/verifier-setup.md) |
+| Agent | [`agents/verifier-setup.md`](agents/verifier-setup.md) · [`src/tripll/skw/agents/verifier-setup.md`](../src/tripll/skw/agents/verifier-setup.md) |
 | Generated output | `.cursor/skills/verify/SKILL.md` + `.claude/skills/verify/SKILL.md` |
 
 ```bash
@@ -152,7 +152,7 @@ and [mergisi/awesome-openclaw-agents github-issue-triager](https://github.com/me
 | Triage skill | [`skills/github-issue-triage/SKILL.md`](skills/github-issue-triage/SKILL.md) |
 | Policy | [`skills/github-issue-triage/references/triage-policy.md`](skills/github-issue-triage/references/triage-policy.md) |
 | Wave brief template | [`skills/github-issue-triage/assets/issue-wave-brief.template.md`](skills/github-issue-triage/assets/issue-wave-brief.template.md) |
-| Agent | [`agents/github-issue-triage.md`](agents/github-issue-triage.md) · [`.cursor/agents/github-issue-triage.md`](../.cursor/agents/github-issue-triage.md) |
+| Agent | [`agents/github-issue-triage.md`](agents/github-issue-triage.md) · [`src/tripll/skw/agents/github-issue-triage.md`](../src/tripll/skw/agents/github-issue-triage.md) |
 
 ```bash
 make -C spec-kit-wave install-skills

@@ -41,9 +41,6 @@ def _agent_def_path(agent_slug: str, repo_root: Path) -> Path | None:
     skw_path = repo_root / "src" / "tripll" / "skw" / "agents" / f"{agent_slug}.md"
     if skw_path.is_file():
         return skw_path
-    cursor_path = repo_root / ".cursor" / "agents" / f"{agent_slug}.md"
-    if cursor_path.is_file():
-        return cursor_path
     return None
 
 

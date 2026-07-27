@@ -22,7 +22,7 @@ Recorded at audit baseline / pre-W1 state:
 ```text
 # TEST-03 — agent roster (14 failures)
 tests/test_agent_roster.py::test_section_11_cursor_agent_for_agentdef_hash[spec-cartographer]
-  AssertionError: missing .cursor/agents/spec-cartographer.md for AgentDef hash
+  AssertionError: hash_agent_def returned None for spec-cartographer (IDE tree was wrongly required)
 
 # P1 infra classifier — FakeAdapter short failures misclassified as infra (hang)
 tests/test_engine.py::test_fifth_failure_escalates_to_failed  # hung >15min
@@ -50,7 +50,7 @@ tests/test_adapters.py::test_claude_argv_default_model
 | BUG-06, ARCH-exits, DIR-01 | `tests/test_exit_wiring.py` | Engine `evaluate_exit` wiring | W7 | 3 |
 | ARCH-CW, R9 | `tests/test_cw_portability.py` | empty default hotspots, no sevn forbidden paths | W8 | 1 |
 | L1-scaffold | `tests/test_pr_loop.py` | adapter invocation in investigate/fix | W9 | 3 |
-| TEST-03, ARCH-agentdef | `tests/test_agent_roster.py` | skw hash + no `.cursor/agents` in src | W2 | 1 |
+| TEST-03, ARCH-agentdef | `tests/test_agent_roster.py` | skw hash + no IDE agent path refs in src | W2 | 1 |
 | PERF-01 | `tests/test_brief_packer.py` | `_graph_brief_tokens` once per task | W10 | 1 |
 | PROV-02/03, CAP-01 | `tests/test_provider_pools.py` | pool unit tests (P1 green); tier2 subprocess probe | P1 | 1/2 |
 | P0.1 billing | `tests/test_world_canaries.py` | `gh run list` CI canary | manual | 4 |

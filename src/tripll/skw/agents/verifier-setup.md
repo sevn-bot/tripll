@@ -35,7 +35,7 @@ Print prompt: `make verifier-setup [CONTEXT=] [PATHS=]`.
 Headless: `make verifier-setup-run [CONTEXT=] [PATHS=]` (renders
 `spec-kit-wave/prompts/verifier-setup.md`).
 
-Cursor agent: `.cursor/agents/verifier-setup.md`.
+Machine contract: [`src/tripll/skw/agents/verifier-setup.md`](verifier-setup.md).
 
 After setup, operators use the generated **`verify`** skill (`/verify`) before PRs.
 

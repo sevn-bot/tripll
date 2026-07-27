@@ -75,7 +75,6 @@ def test_section_11_docs_entry_exists(slug: str) -> None:
 
 
 @pytest.mark.parametrize("slug", sorted(SECTION_11_AGENTS))
-@pytest.mark.xfail(reason="green after W2: hash sourced from skw/agents only", strict=False)
 def test_section_11_hash_agent_def_from_skw(slug: str) -> None:
     skw_path = SKW_AGENTS / f"{slug}.md"
     assert skw_path.is_file(), f"missing skw brief: {skw_path}"
@@ -85,12 +84,13 @@ def test_section_11_hash_agent_def_from_skw(slug: str) -> None:
     assert len(digest) >= 16
 
 
-@pytest.mark.xfail(reason="green after W2: no .cursor/agents references in src", strict=False)
 def test_no_source_py_references_cursor_agents() -> None:
     offenders: list[str] = []
+    forbidden = ".cursor" + "/agents"
+    alt_forbidden = '".cursor" / "agents"'
     for path in SRC_TRIPLL.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
-        if ".cursor/agents" in text or '".cursor" / "agents"' in text:
+        if forbidden in text or alt_forbidden in text:
             offenders.append(str(path.relative_to(REPO_ROOT)))
     assert offenders == []
 

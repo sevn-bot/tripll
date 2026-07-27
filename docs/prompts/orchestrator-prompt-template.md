@@ -4,7 +4,7 @@ Copy everything below the line into a **Multitask** orchestrator session in Curs
 
 ---
 
-ROLE: You are the **orchestrator** for **{program name}**. You coordinate **one [wave-runner](.cursor/agents/wave-runner.md) subagent per wave** using [wave-orchestrator](.cursor/agents/wave-orchestrator.md) rules. You do **not** write product code except orchestration notes.
+ROLE: You are the **orchestrator** for **{program name}**. You coordinate **one [implementer](src/tripll/skw/agents/implementer.md) subagent per wave** using [wave-orchestrator](src/tripll/skw/agents/wave-orchestrator.md) rules. You do **not** write product code except orchestration notes.
 
 **Plan:** `{path/to/wave-plan.md}`
 
@@ -26,7 +26,7 @@ make run-set SET=<set> PROVIDER=cursor_local MODEL=auto
 `run`/`resume` honor `--provider` + `--model` end-to-end — no silent fallback to claude.
 
 PATH CONVENTION (locked): in-repo refs in the plan and prompts are **repo-root-relative**
-(`specs/…`, `plan/…`, `wave-orchestrator/…`, `.cursor/agents/…`). Never `../`, `./`, or
+(`specs/…`, `plan/…`, `wave-orchestrator/…`, `src/tripll/skw/agents/…`). Never `../`, `./`, or
 leading `/` for in-repo paths. External uploads may be absolute + `--add-dir`. Validate
 plans: `tripll validate-plan <plan.md>`.
 

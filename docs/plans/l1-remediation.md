@@ -786,7 +786,7 @@ verify = ["make check"]
   [waves.outcome]
   required = [
     "make check exits 0 from a fresh clone in a temp dir",
-    "grep -rn '\\.cursor/agents' src tests docs returns nothing",
+    "grep -rn '\\src/tripll/skw/agents' src tests docs returns nothing",
     "hash_agent_def returns a digest for all 14 section-11 slugs",
     "CI is green on this sha — the repo's first green run",
   ]
@@ -1226,7 +1226,7 @@ make setup          # REQUIRED — see DX-05; `uv run` alone does not install th
 - `docs/runbooks/operator-runbook.md` — auth/token posture; stuck-wave recovery; bench; human-gate
   auto-accept semantics; **tracing** (enabling it, where trace files land, pointing at a self-hosted
   Logfire server, reading a wave's span tree, what `capture` does)
-- `docs/agents/*.md` — dispatch-status honesty banner (ARCH-06); repoint dead `.cursor/agents/` links
+- `docs/agents/*.md` — dispatch-status honesty banner (ARCH-06); repoint dead `src/tripll/skw/agents/` links
 - `docs/harness-checks.md` — grader/self-report risks, unchanged intent
 - `README.md` — `TRIPLL_API_TOKEN` semantics, bind-address guidance, `make bench`, and the
   **new-user path** it lacks today: install → `tripll setup` → `tripll doctor` → `tripll init` or
@@ -1297,7 +1297,7 @@ edit, since line numbers shift.
 | TRACE-03 | **Two** Logfire configurators with different gates; `tripll skw …` calls `logfire.configure()` twice | `obs.py:88–166` vs `skw/tracing.py:50–69` (forwarder) | **P3** ✅ |
 | TRACE-04 | No local trace sink — tracing is all-or-nothing on a cloud token; no JSONL/SQLite writer exists | `obs.py:136–166`, `tracing/sinks.py` | **P3** ✅ |
 | TRACE-05 | No self-hosted Logfire path — `AdvancedOptions(base_url=…)` is never passed | `obs.py:58–66` | **P3** ✅ |
-| TEST-03 | 14 tests require gitignored, never-authored `.cursor/agents/*.md` | `tests/test_agent_roster.py:78–83` | **W2** |
+| TEST-03 | 14 tests require gitignored, never-authored `src/tripll/skw/agents/*.md` | `tests/test_agent_roster.py:78–83` | **W2** |
 | ARCH-agentdef | `hash_agent_def` → `None`; AgentDef nodes silently absent; dead doc links | `graphstore/task_sync.py:40–48` | W2 |
 | SEC-01 | Mutating HTML form POSTs skip `require_auth` | `api/ui/router.py:218, 305, 366, 396` | **W3** |
 | SEC-05 | No CSRF on those POSTs | same handlers | W3 |
@@ -1346,14 +1346,14 @@ edit, since line numbers shift.
   2026-06-21. Every one annotated *"job was not started because recent account payments have
   failed…"*. The `main` merge of the entire L1 program (PR #15) was never gated.
 - **Roster reality — corrected.** The 14 failures are all
-  `test_section_11_cursor_agent_for_agentdef_hash`, which asserts `.cursor/agents/<slug>.md` exists.
+  `test_section_11_cursor_agent_for_agentdef_hash`, which asserts `src/tripll/skw/agents/<slug>.md` exists.
   **All 14 slugs already have an authored, tracked, contract-complete brief** at
   `src/tripll/skw/agents/<slug>.md` — `test_section_11_skw_brief_exists` passes for every one.
   What is missing is only the **Cursor-tree copy**, because `hash_agent_def`
-  (`task_sync.py:42`) hardcodes `.cursor/agents/`. `src/tripll/skw/agents/` has 33 files,
-  `docs/agents/` has 17, `.cursor/agents/` has 0. Two local checkouts do hold unrelated Cursor
-  briefs (`/Users/alex/Documents/code/tripll/.cursor/agents/`,
-  `.../sevn.bot/sevn/.cursor/agents/`) — W2 harvests anything of value from them.
+  (`task_sync.py:42`) hardcodes `src/tripll/skw/agents/`. `src/tripll/skw/agents/` has 33 files,
+  `docs/agents/` has 17, `src/tripll/skw/agents/` has 0. Two local checkouts do hold unrelated Cursor
+  briefs (`/Users/alex/Documents/code/tripll/src/tripll/skw/agents/`,
+  `.../sevn.bot/sevn/src/tripll/skw/agents/`) — W2 harvests anything of value from them.
 - **Toolchain:** `uv.lock` pins `ruff==0.15.12`; an unsynced `uv run ruff` resolved **0.8.1** from
   `PATH` and failed to parse `pyproject.toml` (`Unknown rule selector: ASYNC240`).
 - **Size:** 139 modules / 39,317 LOC under `src/tripll/`; 87 test files / 15,465 LOC.
@@ -1478,7 +1478,7 @@ guards (see *Human gates*).
 | # | Topic | Decision |
 |---|-------|----------|
 | R1 | Gate first | P0 (CI) and W2 (green gate) precede every functional fix. A finding fixed under a dark gate is unverified work. |
-| R2 | AgentDef source | **Re-home `hash_agent_def` to `src/tripll/skw/agents/`; un-ignore nothing.** All 14 briefs already exist there, tracked and tested. Harvest anything worth keeping from the two local `.cursor/agents/` trees into `skw/agents/` first, then delete the `.cursor/` dependency. Rejected: authoring 12 duplicate Cursor briefs — it creates the very drift R3 fears, and binds graph-node identity to a gitignored, IDE-vendor path in a tool that dispatches to three backends. ADR 006. |
+| R2 | AgentDef source | **Re-home `hash_agent_def` to `src/tripll/skw/agents/`; un-ignore nothing.** All 14 briefs already exist there, tracked and tested. Harvest anything worth keeping from the two local `src/tripll/skw/agents/` trees into `skw/agents/` first, then delete the `.cursor/` dependency. Rejected: authoring 12 duplicate Cursor briefs — it creates the very drift R3 fears, and binds graph-node identity to a gitignored, IDE-vendor path in a tool that dispatches to three backends. ADR 006. |
 | R3 | Generation vs authoring | Moot under R2 — there is now **one** brief tree, so nothing to generate or drift. `docs/agents/` remains the human-facing narrative; `skw/agents/` is the machine contract. W2 states the split. |
 | R4 | Auth boundary | When `TRIPLL_API_TOKEN` is set, HTML and JSON are **one** boundary. Token unset ⇒ open localhost dev mode stays, unchanged and documented. |
 | R5 | CSRF | Double-submit cookie token, no server-side session store. Rejected: `SessionMiddleware` — new state for a single-operator tool. |
@@ -1997,9 +1997,9 @@ Each item names its **tier**. W1 registers the `tier1`–`tier4` markers in `pyp
       **invoke an adapter** (asserted via a fake adapter recording calls), not merely emit dispatch
       dicts (L1-scaffold); the loop still parks at the human merge gate. (xfail W9)
 - [ ] **W1.13** `tests/test_agent_roster.py` — **the contract changes under R2.** Replace the
-      `.cursor/agents/` existence assertion with one that asserts `hash_agent_def` returns a digest
+      `src/tripll/skw/agents/` existence assertion with one that asserts `hash_agent_def` returns a digest
       for all 14 section-11 slugs from the **`skw/agents/`** tree, and add a guard that no source
-      file references `.cursor/agents/`. The other 13 assertions stay as-is. (xfail W2)
+      file references `src/tripll/skw/agents/`. The other 13 assertions stay as-is. (xfail W2)
 - [ ] **W1.14** *(tier 1)* `tests/test_brief_packer.py` (extend) — `_graph_brief_tokens` is computed
       **once** per task (PERF-01), asserted by call counter. (xfail W10)
 - [ ] **W1.15a** *(tier 1)* `tests/test_provider_pools.py` — **the pool test CI actually runs.**
@@ -2039,13 +2039,13 @@ Each new test must demonstrably fail against unpatched code — record the pre-f
 
 The 14 failures assert a **Cursor-tree copy** of briefs that already exist, authored and tracked, at
 `src/tripll/skw/agents/`. The defect is not missing content — it is that `hash_agent_def`
-(`task_sync.py:42`) hardcodes `.cursor/agents/`, an IDE-vendor path, as the identity source for
+(`task_sync.py:42`) hardcodes `src/tripll/skw/agents/`, an IDE-vendor path, as the identity source for
 graph nodes in a tool that dispatches to `claude_code`, `cursor_local` and `cursor_cloud` equally.
 That is the same class of defect as ARCH-CW.
 
 - [ ] **W2.1** Harvest first, delete second. Review the two local Cursor trees —
-      `/Users/alex/Documents/code/tripll/.cursor/agents/` (7 files) and
-      `/Users/alex/Documents/code/sevn.bot/sevn/.cursor/agents/` (~15 files) — and port any brief
+      `/Users/alex/Documents/code/tripll/src/tripll/skw/agents/` (7 files) and
+      `/Users/alex/Documents/code/sevn.bot/sevn/src/tripll/skw/agents/` (~15 files) — and port any brief
       with **no `skw/agents/` counterpart** into `src/tripll/skw/agents/`, reviewed and adapted for
       tripll (they were written for a different repo). Candidates with no counterpart:
       `wave-plan-executor`, `parallel-plan-implementer`, `v1-wave`, `wave-plan-author`,
@@ -2057,7 +2057,7 @@ That is the same class of defect as ARCH-CW.
       Verify: `git diff HEAD -- .gitignore` is empty at wave close.
 - [ ] **W2.4** Update `tests/test_agent_roster.py` per W1.13 (test-creator re-dispatch — impl waves
       do not edit `tests/`).
-- [ ] **W2.5** Repoint every `.cursor/agents/…` reference in `docs/agents/*.md` and
+- [ ] **W2.5** Repoint every `src/tripll/skw/agents/…` reference in `docs/agents/*.md` and
       `docs/skw/SPEC-KIT-STANDARDS.md` to `src/tripll/skw/agents/…`; verify each resolves.
 - [ ] **W2.6** Relocate the git-safety rule: move `no-destructive-git-clean` content into a tracked
       path (`docs/runbooks/` or `CLAUDE.md` inline) and fix `CLAUDE.md`'s dead link to
@@ -2072,7 +2072,7 @@ That is the same class of defect as ARCH-CW.
 
 ```bash
 cd "$(mktemp -d)" && git clone <repo> t && cd t && make check      # exit 0 — first ever
-grep -rn '\.cursor/agents' src tests docs | wc -l                   # 0
+grep -rn '\src/tripll/skw/agents' src tests docs | wc -l                   # 0
 git diff HEAD~1 -- .gitignore | wc -l                               # 0 — nothing un-ignored
 gh run list --workflow=CI --limit 1 --json conclusion               # "success"
 ```
@@ -2672,7 +2672,7 @@ grep -rn 'xfail' tests/ | grep -c 'green after W'                   # 0 — no s
 grep -rn 'pullfrog_success' src/tripll | grep -v 'exits.py:'        # >= 1 (or W7 parked)
 grep -n '^bench:' Makefile                                          # non-empty
 grep -c '^' config/log-hide-keys.toml                               # >= 15
-grep -rn '\.cursor/agents' src tests docs | wc -l                   # 0
+grep -rn '\src/tripll/skw/agents' src tests docs | wc -l                   # 0
 ```
 
 ### Change summary
@@ -2753,7 +2753,7 @@ god modules `#16` · dependency scanning `#17` · live-run verification `#18`.
 - [ ] `make check` passes from a clean clone with **no untracked prerequisites**
 - [ ] `hash_agent_def` returns a digest for all 14 section-11 slugs from the **tracked**
       `src/tripll/skw/agents/` tree; AgentDef nodes materialize in the task graph;
-      `grep -rn '\.cursor/agents' src tests docs` is empty; `.gitignore` is unchanged
+      `grep -rn '\src/tripll/skw/agents' src tests docs` is empty; `.gitignore` is unchanged
 - [ ] With `TRIPLL_API_TOKEN` set, **no** HTML route — page or form — bypasses the boundary the JSON
       API enforces; CSRF blocks forged POSTs; open dev mode unchanged when the token is unset
 - [ ] No token appears in any URL except the `EventSource` stream; `base.html` emits it via `tojson`

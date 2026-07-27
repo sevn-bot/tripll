@@ -7,7 +7,7 @@ Multitask-style **coordinator** for tripll orchestrator-mode runs. Counterpart t
 In-repo file references in wave plans, orchestrator prompts, and agent briefs must be
 **repo-root-relative** (worktree root = repo root):
 
-- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `.cursor/agents/…`.
+- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `src/tripll/skw/agents/…`.
 - **Never** use `../`, `./`, or a leading `/` for in-repo paths.
 - External files outside the repo may keep **absolute** paths; tripll exposes their parent
   via `--add-dir` / workspace scope.
@@ -60,20 +60,19 @@ The Python engine owns **deterministic** status formatting in detached runs (`or
 
 | Surface | Path |
 |---------|------|
-| Cursor subagent | [`.cursor/agents/wave-orchestrator.md`](.cursor/agents/wave-orchestrator.md) |
-| Operator docs (this file) | `wave-orchestrator/docs/agents/wave-orchestrator.md` |
-| Prompt skeleton | [`wave-orchestrator/docs/prompts/orchestrator-prompt-template.md`](wave-orchestrator/docs/prompts/orchestrator-prompt-template.md) |
+| skw brief (machine contract) | [`src/tripll/skw/agents/wave-orchestrator.md`](../../src/tripll/skw/agents/wave-orchestrator.md) |
+| Operator docs (this file) | `docs/agents/wave-orchestrator.md` |
+| Prompt skeleton | [`docs/prompts/orchestrator-prompt-template.md`](../prompts/orchestrator-prompt-template.md) |
 
-> **Duplication note:** Cursor subagent defs (`.cursor/agents/`) and operator docs
-> (`wave-orchestrator/docs/agents/`) are intentionally mirrored — keep both in sync until a
-> single-source consolidation lands.
+> **Two-tree split:** `src/tripll/skw/agents/` is hashed into the task graph; `docs/agents/` is the
+> human narrative (R3).
 
 ## Read first
 
 1. Input `*-orchestrator-prompt.md` — HARD RULES, wave order, verify/commit table, REPORTING FORMAT
 2. Target `*-wave-plan.md` — locked decisions, execution graph, per-wave bullets
 3. [`wave-orchestrator/docs/design-note.md`](wave-orchestrator/docs/design-note.md) §8 — OrchestratorConfig, `orchestrator-status.md` schema, turn types
-4. [`.cursor/agents/wave-runner.md`](.cursor/agents/wave-runner.md) — subagent contract
+4. [`src/tripll/skw/agents/implementer.md`](../../src/tripll/skw/agents/implementer.md) — subagent contract
 
 ## Orchestrator mode activation (D1)
 

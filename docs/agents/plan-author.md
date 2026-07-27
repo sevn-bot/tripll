@@ -26,5 +26,4 @@ Successor to [`wave-plan-author.md`](wave-plan-author.md) for v3 plans.
 |---------|------|
 | Operator docs (this file) | `docs/agents/plan-author.md` |
 | skw brief | [`src/tripll/skw/agents/plan-author.md`](../../src/tripll/skw/agents/plan-author.md) |
-| Cursor subagent | [`.cursor/agents/plan-author.md`](../../.cursor/agents/plan-author.md) |
 | Legacy v1 converter | [`wave-plan-author.md`](wave-plan-author.md) |
