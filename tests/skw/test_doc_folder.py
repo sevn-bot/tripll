@@ -3,7 +3,8 @@
 Exports:
     test_validate_command_returns_per_file_and_rollup — validate returns per-file + rollup.
     test_score_command_flags_sub_threshold_done — score flags sub-threshold done docs.
-    test_sync_refreshes_frontmatter_without_fabricating_prose — sync refreshes frontmatter only.
+    test_sync_command_rejected — sync removed in favour of tripll init (ONB-05).
+    test_module_has_no_sevn_dependency — no sevn import in doc_folder.
     test_kind_dispatch_rejects_unknown_kind — unknown kind is rejected.
 
 Examples:
@@ -209,30 +210,26 @@ def test_score_command_flags_sub_threshold_done(
     assert result.rollup["below_threshold"]
 
 
-def test_sync_refreshes_frontmatter_without_fabricating_prose(
-    repo_root: Path,
-    tmp_path: Path,
-) -> None:
-    """D6/D8: ``sync`` refreshes frontmatter but leaves ``status: scaffold`` when body empty.
-
-    Args:
-        repo_root (Path): Minimal repo fixture with gateway module.
-        tmp_path (Path): Temporary directory for test docs.
-
-    Examples:
-        >>> "scaffold" in {"draft", "scaffold", "done"}
-        True
-    """
-    pytest.importorskip("sevn")
+def test_sync_command_rejected(tmp_path: Path, repo_root: Path) -> None:
+    """ONB-05: ``sync`` is removed — brownfield ``tripll init`` replaces it."""
+    doc_folder = require_module("tripll.skw.doc_folder")
     docs_dir = tmp_path / "specs"
-    path = _write_kind_doc(docs_dir, kind="spec", status="scaffold")
-    body = path.read_text(encoding="utf-8").split("---", maxsplit=2)[-1]
-    assert "Offline scaffold" in body or "Authored content" in body
-    result = _run("sync", kind="spec", directory=docs_dir, repo_root=repo_root)
-    assert result.exit_code == 0
-    refreshed = path.read_text(encoding="utf-8")
-    assert "fingerprint:" in refreshed
-    assert "status: scaffold" in refreshed
+    docs_dir.mkdir()
+    with pytest.raises(ValueError, match="sync was removed"):
+        doc_folder.run_docs_command(
+            "sync",
+            kind="spec",
+            directory=docs_dir,
+            repo_root=repo_root,
+        )
+
+
+def test_module_has_no_sevn_dependency() -> None:
+    """ONB-05: doc_folder must not import or mutate sys.path for sevn."""
+    path = Path(__file__).resolve().parents[2] / "src" / "tripll" / "skw" / "doc_folder.py"
+    text = path.read_text(encoding="utf-8")
+    assert "sevn" not in text
+    assert "sys.path" not in text
 
 
 def test_kind_dispatch_rejects_unknown_kind(tmp_path: Path, repo_root: Path) -> None:

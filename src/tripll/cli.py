@@ -423,18 +423,29 @@ def doctor(
 @app.command()
 def init(
     runs_root: RunsRootOpt = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing onboarding artefacts."),
+    ] = False,
 ) -> None:
-    """Initialise the runs root with input/, processing/, processed/, failed/ subdirs.
+    """Initialise a repository for tripll (brownfield onboarding + runs layout).
 
-    Safe to run on an existing root (idempotent).
+    Creates ``tripll.toml``, starter specs/PRDs/plans, a repo evaluation, the
+    code graph under ``.tripll/``, and the runs root (``input/``, ``processing/``,
+    ``processed/``, ``failed/``). Safe to re-run: existing operator-edited files
+    are preserved unless ``--force`` is set.
     """
+    from tripll.onboard.brownfield import run_brownfield_init
+
     rr = _resolve_runs_root(runs_root)
-    rr.init()
-    typer.echo(f"Initialised runs root: {rr.root}")
-    typer.echo(f"  input/      → {rr.input_dir}")
-    typer.echo(f"  processing/ → {rr.processing_dir}")
-    typer.echo(f"  processed/  → {rr.processed_dir}")
-    typer.echo(f"  failed/     → {rr.failed_dir}")
+    result = run_brownfield_init(runs_root=rr.root, force=force)
+    typer.echo("Brownfield init complete.")
+    for line in result.messages:
+        typer.echo(f"  {line}")
+    typer.echo(f"  input/      → {result.runs_root / 'input'}")
+    typer.echo(f"  processing/ → {result.runs_root / 'processing'}")
+    typer.echo(f"  processed/  → {result.runs_root / 'processed'}")
+    typer.echo(f"  failed/     → {result.runs_root / 'failed'}")
     typer.echo("Next: tripll setup (once per machine), then tripll doctor")
 
 
