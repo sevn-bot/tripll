@@ -286,7 +286,7 @@ def create_app(
 
     Args:
         runs_root (Path | None): Override the runs root directory.  Defaults to
-            the ``TRIPLL_RUNS`` env var or ``wave-orchestrator/runs/``.
+            the ``TRIPLL_RUNS`` env var or ``<repo_root>/runs/``.
 
     Returns:
         FastAPI: Configured application instance.
@@ -1320,7 +1320,7 @@ def _resolve_runs_root(runs_root: Path | None) -> RunsRoot:
     is identical whether tripll is invoked via ``tripll serve`` from the
     repo root, from inside ``wave-orchestrator/``, or from any other CWD.
 
-    The default path is ``<repo_root>/wave-orchestrator/runs/`` where
+    The default path is ``<repo_root>/runs/`` where
     *repo_root* is resolved by :func:`~tripll.repo_root.resolve_repo_root`
     (honours ``TRIPLL_REPO_ROOT`` env, then walks up for ``.git``).
 

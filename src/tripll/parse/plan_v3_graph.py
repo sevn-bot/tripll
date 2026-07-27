@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tripll.graph import Batch, Lane, RunGraph, derive_forbidden_paths
+from tripll.graph import Batch, Lane, RunGraph, batch_cw_seams, derive_forbidden_paths
 from tripll.parse.orchestrator_prompt import attach_orchestrator_config
 from tripll.parse.plan_files import _slug, collect_pre0_gates_from_plans, parse_plan_file
 from tripll.parse.plan_v3 import read_plan_file
@@ -92,11 +92,7 @@ def build_graph_from_v3_plan(path: Path, *, run_id: str) -> RunGraph:
     specs = _wave_specs_from_v3(waves)
     batch_specs: list[BatchSpec] = _infer_batches_from_waves(specs)
     for bs in batch_specs:
-        cw: list[str] = []
-        if bs.batch_id == "A":
-            cw = ["CW-1", "CW-2"]
-        elif bs.batch_id == "Final":
-            cw = ["CW-3", "CW-4", "CW-5"]
+        cw = batch_cw_seams(bs.batch_id)
         label = bs.batch_id
         if bs.wave_ids:
             label = f"{bs.batch_id} — {', '.join(bs.wave_ids)}"

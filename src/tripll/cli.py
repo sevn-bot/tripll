@@ -64,7 +64,7 @@ RunsRootOpt = Annotated[
         "--runs-root",
         "-r",
         envvar="TRIPLL_RUNS",
-        help="Runs root directory (default: wave-orchestrator/runs/ or $TRIPLL_RUNS).",
+        help="Runs root directory (default: <repo_root>/runs/ or $TRIPLL_RUNS).",
         show_default=True,
     ),
 ]
@@ -74,13 +74,11 @@ def _resolve_runs_root(runs_root: Path | None) -> RunsRoot:
     """Resolve and return a :class:`~tripll.pipeline.RunsRoot`.
 
     Resolution order: an explicit ``runs_root`` wins; otherwise the
-    ``TRIPLL_RUNS`` env var; otherwise ``<repo_root>/wave-orchestrator/runs``
+    ``TRIPLL_RUNS`` env var; otherwise ``<repo_root>/runs``
     where *repo_root* comes from :func:`~tripll.repo_root.resolve_repo_root`
     (honours ``TRIPLL_REPO_ROOT``, then walks up for ``.git``). Anchoring the
-    default at the repo root — rather than resolving ``wave-orchestrator/runs``
-    against the process CWD — keeps the runs directory identical whether
-    tripll is invoked from the repo root or from inside ``wave-orchestrator/``
-    (which otherwise doubled the path to ``wave-orchestrator/wave-orchestrator``).
+    default at the repo root keeps the runs directory identical whether
+    tripll is invoked from the repo root or from a subdirectory.
 
     Args:
         runs_root (Path | None): Explicit path from CLI, or ``None`` to use default.

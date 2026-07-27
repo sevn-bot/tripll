@@ -80,7 +80,7 @@ from tripll.brief import (
     write_brief,
 )
 from tripll.git_commit import commit_and_push_wave
-from tripll.graph import CW_HOTSPOTS, Batch, OrchestratorConfig, RunGraph, WaveNode, paths_overlap
+from tripll.graph import Batch, OrchestratorConfig, RunGraph, WaveNode, paths_overlap
 from tripll.harness.boundary import (
     assert_verify_isolation,
     build_verify_dispatch,
@@ -150,8 +150,11 @@ def _resolve_grep_brief(grep_brief: bool | None) -> bool:
     return not kg_extra_available()
 
 
-# Late-coordination hotspots that must serialise within a phase (CW-4/CW-5).
-_LATE_CW_PATHS: frozenset[str] = frozenset(CW_HOTSPOTS["CW-4"] + CW_HOTSPOTS["CW-5"])
+def _late_cw_paths() -> frozenset[str]:
+    import tripll.graph as graph_mod
+
+    hotspots = graph_mod.CW_HOTSPOTS
+    return frozenset(hotspots.get("CW-4", []) + hotspots.get("CW-5", []))
 
 
 def human_gate_node_ids(graph: RunGraph) -> set[str]:
@@ -362,7 +365,7 @@ def _touches_late_cw(node: WaveNode) -> bool:
     """
     for owned in node.owned_paths:
         o = owned.rstrip("/")
-        for cw in _LATE_CW_PATHS:
+        for cw in _late_cw_paths():
             c = cw.rstrip("/")
             if o == c or o.startswith(c + "/") or c.startswith(o + "/"):
                 return True

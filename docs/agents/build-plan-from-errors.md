@@ -40,7 +40,7 @@ root):
 
 **One** `*-wave-plan.md` file written to:
 
-`wave-orchestrator/runs/input/from-errors-{{RUN_ID}}/`
+`runs/input/from-errors-{{RUN_ID}}/`
 
 Only when the driver run found **≥1** error turn (**D6**). Runs with zero new errors emit
 no plan file.

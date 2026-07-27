@@ -23,6 +23,7 @@ from tripll.graph import (
     Lane,
     RunGraph,
     WaveNode,
+    batch_cw_seams,
     derive_forbidden_paths,
 )
 from tripll.parse.markdown import find_table_rows, strip_md
@@ -338,11 +339,7 @@ def build_graph_from_v1_dir(input_dir: Path, *, run_id: str) -> RunGraph:
         lane_ids_for_batch: list[str] = []
         if bs.wave_ids:
             lane_ids_for_batch = [lane_id]
-        cw: list[str] = []
-        if bs.batch_id == "A":
-            cw = ["CW-1", "CW-2"]
-        elif bs.batch_id == "Final":
-            cw = ["CW-3", "CW-4", "CW-5"]
+        cw = batch_cw_seams(bs.batch_id)
         label = bs.batch_id
         if bs.wave_ids:
             label = f"{bs.batch_id} — {', '.join(bs.wave_ids)}"

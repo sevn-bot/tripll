@@ -46,7 +46,7 @@ def test_select_concurrent_set_overlapping_excluded() -> None:
     assert "c" not in [n.node_id for n in result]
 
 
-def test_select_concurrent_set_late_cw_excluded() -> None:
+def test_select_concurrent_set_late_cw_excluded(legacy_cw_hotspots: None) -> None:
     """Two nodes that both touch CW-4/CW-5 are not both selected."""
     # CW-4 paths: src/sevn/ui/dashboard/app.js and src/sevn/ui/dashboard/api/tab_registry.py
     # CW-5 paths: infra/sevn.schema.json

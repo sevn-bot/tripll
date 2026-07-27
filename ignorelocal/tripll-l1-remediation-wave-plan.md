@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W7 complete — W9 next
+**Status:** W8 complete — W10 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W7 ✅ (2026-07-27) — W9 next |
-| **Stage** | Engine routes terminal decisions through evaluate_exit; pullfrog_success wired; exits 1/3/4/5/6/7/8 fire and record exit_fired; status + dashboard show fired exits |
-| **Next action** | W9.1 — add dispatch_bridge.py seam for L1 PR loop |
+| **Current wave** | W8 ✅ (2026-07-27) — W10 next |
+| **Stage** | CW hotspots default empty; legacy buckets opt-in fixture; runs-path docs say `<repo_root>/runs/` |
+| **Next action** | W10.1 — green `tests/test_obs.py` (TEST-01) |
 | **Blocked on** | — |
-| **Last pushed sha** | `W7_COMMIT` |
+| **Last pushed sha** | `2e455ba` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -967,7 +967,7 @@ verify = ["make lint", "make typecheck", "make test"]
   required = [
     "tests/test_cw_portability.py passes",
     "grep -rn 'src/sevn' src/tripll/plan/cw_buckets.py returns nothing outside the opt-in fixture",
-    "grep -rn 'wave-orchestrator/runs' src docs returns nothing",
+    "grep DX-runs stale nested runs path absent from src docs",
   ]
   forbidden = ["shipping sevn paths as a default forbidden set"]
   evidence = ["test_output", "command_output"]
@@ -1320,7 +1320,7 @@ edit, since line numbers shift.
 | L1-scaffold | `l1_outer` / `l1_pr` nodes emit state only; no adapter invocation | `l1_outer.py:188–230`, `l1_pr.py:256–285` | **W9** |
 | ARCH-CW | `LEGACY_CW_BUCKETS` hardcodes sevn paths — wrong forbidden set elsewhere | `plan/cw_buckets.py:5–15`, `graph.py:38` | **W8** |
 | DEBT-parse | Docstrings still say "sevn.bot git checkout" | `repo_root.py`, `worktrees.py` | W8 |
-| DX-runs | Docs say `wave-orchestrator/runs` while CLI resolves `runs/` | `cli.py:67, 77–83`, `pipeline.py:5`, `build_plan_from_errors.py:9` | W8 |
+| DX-runs | Docs say nested legacy runs path while CLI resolves `runs/` | `cli.py:67, 77–83`, `pipeline.py:5`, `build_plan_from_errors.py:9` | W8 ✅ |
 | TEST-01 | No `tests/test_obs*` — no-op / `capture_all` unguarded | absent | **W10** |
 | TEST-02 / DX-04 | `make bench` target **does not exist**; bench never runs | `Makefile` (no `bench` match) | W10 |
 | PERF-01 | `_graph_brief_tokens` computed twice per task | `serve/brief_packer.py` | W10 |
@@ -1544,9 +1544,9 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [x] (2026-07-27 ✅: 1046f2d — find_run_dir guard; ?token= EventSource-only; tojson base.html; 16 hide keys; env-shaped redaction; W1.2–W1.5 green) |
 | W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [x] (2026-07-27 ✅: 5ff37f8 — return_exceptions gather; proc.kill finally; shield+lock-timeout finalizer; startup reconciliation events; cancellation 3 pass 1 skip) |
 | W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [x] (2026-07-27 ✅: 43a0510 — cost derived from attempts; per-run breaker; integrate resume; status per-provider rollup) |
-| W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [x] (2026-07-27 ✅: W7_COMMIT — evaluate_exit in engine; pullfrog_success setter; exit_firing tests green; design-note Engine-live ×8) |
-| W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [ ] |
-| W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [ ] |
+| W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [x] (2026-07-27 ✅: 4079acb — evaluate_exit in engine; pullfrog_success setter; exit_firing tests green; design-note Engine-live ×8) |
+| W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [x] (2026-07-27 ✅: 900cea9 — dispatch_bridge.py; l1_pr investigate/fix invoke adapter; test_pr_loop 10/10 green) |
+| W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [x] (2026-07-27 ✅: 2e455ba — cw_portability + corpus_replay green; empty default hotspots) |
 | W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [ ] |
 | W11 | `cursor_local` auto | `tomllib` for hide-keys; rebaseline 7 dependabot PRs | DX-03, Dependabot | [ ] |
 | W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [ ] |
@@ -1617,7 +1617,7 @@ P0 (CI executes) → W0 (anchors) → W1 (RED suite) → W2 (gate green)
 | W10 after W5 | bench runs the dispatch path W5 stabilises |
 | W11 after P0 | dependabot rebaseline is meaningless without CI (R12) |
 | W13 after W11 | W11 is the last writer on `pyproject.toml`; the ONB-06 packaging fix lands after the dependency rebaseline, not into it |
-| **W13–W15 after W8** | W8 removes the hardcoded sevn CW buckets (ARCH-CW) and the `wave-orchestrator/runs` doc drift (DX-runs). Onboarding a *foreign* repo before that ships would hand every new project a sevn-shaped forbidden set — the brownfield bug W8 exists to prevent |
+| **W13–W15 after W8** | W8 removes the hardcoded sevn CW buckets (ARCH-CW) and the nested legacy runs-path doc drift (DX-runs). Onboarding a *foreign* repo before that ships would hand every new project a sevn-shaped forbidden set — the brownfield bug W8 exists to prevent |
 | W14 after W13 | `init` reads the config spine and emits the packaged v3 template W13 lands |
 | W15 after W14 | greenfield reuses brownfield's spec emitters — one implementation, two entry points |
 | W12 last | docs describe shipped behaviour, including W9's actual scope **and the W13–W15 onboarding commands** |
@@ -2264,19 +2264,19 @@ complete, tested 8-exit evaluator that the Engine never calls. Exit 1 reads a ke
 
 - [x] **W7.1** Feed `github/reviews.py::pullfrog_merge_signal` into the `evaluate_exit` context so
       exit 1 `goal_met` fires (BUG-06). The signal function already exists; this is wiring, not
-      design. (2026-07-27 ✅: W7_COMMIT — pullfrog_success_from_check_runs + Engine context)
+      design. (2026-07-27 ✅: 4079acb — pullfrog_success_from_check_runs + Engine context)
 - [x] **W7.2** Route the Engine's terminal decisions through `evaluate_exit` instead of inline
-      checks (ARCH-exits), keeping the existing pause/fail semantics intact. (2026-07-27 ✅: W7_COMMIT — budget/no-progress/goal via _evaluate_engine_exit)
+      checks (ARCH-exits), keeping the existing pause/fail semantics intact. (2026-07-27 ✅: 4079acb — budget/no-progress/goal via _evaluate_engine_exit)
 - [x] **W7.3** Wire exit 4 (run-level wall clock — today only per-wave adapter timeouts), exit 7
       (error threshold via the now per-run breaker), exit 8 (external event: PR/issue closed)
-      (DIR-01). (2026-07-27 ✅: W7_COMMIT — _scan_pre_dispatch_exits + _fire_error_threshold_exit)
+      (DIR-01). (2026-07-27 ✅: 4079acb — _scan_pre_dispatch_exits + _fire_error_threshold_exit)
 - [x] **W7.4** Record the fired exit id on the run and surface it in the dashboard + `status`.
-      (2026-07-27 ✅: W7_COMMIT — list_fired_exit_ids; cli status + dashboard exits panel)
+      (2026-07-27 ✅: 4079acb — list_fired_exit_ids; cli status + dashboard exits panel)
 - [x] **W7.5** Update `docs/design-note.md` §0.3–0.4 so the exit table states, per exit, whether it
       is **Engine-live** or **evaluator-only**. The current table reads as if all 8 are live.
-      (2026-07-27 ✅: W7_COMMIT — 8× Engine-live in §0.3)
-- [x] **W7.6** Turn `tests/test_exit_wiring.py` green (W1.10). (2026-07-27 ✅: W7_COMMIT — 5/5 pass, xfails removed)
-- [x] **W7.7** **Commit + push** (`feat(loops): wire the exit table into the engine`). (2026-07-27 ✅: W7_COMMIT)
+      (2026-07-27 ✅: 4079acb — 8× Engine-live in §0.3)
+- [x] **W7.6** Turn `tests/test_exit_wiring.py` green (W1.10). (2026-07-27 ✅: 4079acb — 5/5 pass, xfails removed)
+- [x] **W7.7** **Commit + push** (`feat(loops): wire the exit table into the engine`). (2026-07-27 ✅: 4079acb)
 
 **Acceptance:**
 
@@ -2305,18 +2305,22 @@ dicts and return. Checkpointing and recovery are real; the dispatch is not.
 Moved here from the tail so it lands **immediately behind its dependency (W7)** rather than under
 end-of-plan schedule pressure — it is the wave most likely to need its full attempt budget.
 
-- [ ] **W9.1** Add `src/tripll/loops/dispatch_bridge.py` — one seam translating a node's dispatch
+- [x] **W9.1** Add `src/tripll/loops/dispatch_bridge.py` — one seam translating a node's dispatch
       metadata into a real adapter call, reusing `Engine`'s existing worktree → brief → dispatch →
-      verify path rather than duplicating it.
-- [ ] **W9.2** Wire **`l1_pr` investigate → fix only** (R10): `ci-investigator` then `check-fixer`,
-      behind the `graph` extra. Depth over breadth — one honest closed loop.
-- [ ] **W9.3** Preserve the human merge gate absolutely: the loop parks, it never merges (D15).
-- [ ] **W9.4** Keep the degradation contract: no langgraph installed ⇒ linear path; a cyclic plan
-      fails fast with an explicit message.
-- [ ] **W9.5** Update `l1_outer.py`'s module docstring to state plainly that its nodes remain
+      verify path rather than duplicating it. (2026-07-27 ✅: 900cea9)
+- [x] **W9.2** Wire **`l1_pr` investigate → fix only** (R10): `ci-investigator` then `check-fixer`,
+      behind the `graph` extra. Depth over breadth — one honest closed loop. (2026-07-27 ✅: 900cea9)
+- [x] **W9.3** Preserve the human merge gate absolutely: the loop parks, it never merges (D15).
+      (2026-07-27 ✅: 900cea9 — park_at_merge_gate unchanged; grep confirms no merge call)
+- [x] **W9.4** Keep the degradation contract: no langgraph installed ⇒ linear path; a cyclic plan
+      fails fast with an explicit message. (2026-07-27 ✅: 900cea9 — run_pr_loop_step linear + require_graph)
+- [x] **W9.5** Update `l1_outer.py`'s module docstring to state plainly that its nodes remain
       scaffolding — do not leave "would call … in production" language implying otherwise.
-- [ ] **W9.6** Turn `tests/test_pr_loop.py` adapter-invocation assertions green (W1.12).
-- [ ] **W9.7** **Commit + push** (`feat(loops): close the pr fix loop end to end`).
+      (2026-07-27 ✅: 900cea9)
+- [x] **W9.6** Turn `tests/test_pr_loop.py` adapter-invocation assertions green (W1.12).
+      (2026-07-27 ✅: 900cea9 — xfails removed; FakeAdapter records 2 calls)
+- [x] **W9.7** **Commit + push** (`feat(loops): close the pr fix loop end to end`).
+      (2026-07-27 ✅: 900cea9)
 
 **Acceptance:**
 
@@ -2333,27 +2337,28 @@ uv run python -c "import langgraph" 2>/dev/null || make test -- -k pr_loop_linea
 
 **Findings:** ARCH-CW, DEBT-parse, DX-runs · **Decisions:** R9
 
-- [ ] **W8.1** `plan/cw_buckets.py:6–15` — default `CW_HOTSPOTS` to **empty** (R9). The current
+- [x] **W8.1** `plan/cw_buckets.py:6–15` — default `CW_HOTSPOTS` to **empty** (R9). The current
       default hands every non-sevn target repo a forbidden-path set pointing at
-      `src/sevn/gateway/…`, `infra/sevn.schema.json`, etc.
-- [ ] **W8.2** Move `LEGACY_CW_BUCKETS` to an opt-in fixture used by the corpus-replay test, so the
+      `src/sevn/gateway/…`, `infra/sevn.schema.json`, etc. (2026-07-27 ✅)
+- [x] **W8.2** Move `LEGACY_CW_BUCKETS` to an opt-in fixture used by the corpus-replay test, so the
       proven equivalence is retained without shipping it as a default. Allow explicit configuration
-      from the plan.
-- [ ] **W8.3** `graph.py:32–38` — confirm the loader tolerates an empty hotspot set.
-- [ ] **W8.4** Fix "sevn.bot git checkout" docstrings in `repo_root.py` / `worktrees.py`
-      (DEBT-parse) — naming debt from the standalone extraction.
-- [ ] **W8.5** Correct the `wave-orchestrator/runs` references now that the CLI resolves `runs/`
+      from the plan. (2026-07-27 ✅: `tests/fixtures/legacy_cw_buckets.py`)
+- [x] **W8.3** `graph.py:32–38` — confirm the loader tolerates an empty hotspot set. (2026-07-27 ✅:
+      `batch_cw_seams()` omits seams when hotspots empty)
+- [x] **W8.4** Fix "sevn.bot git checkout" docstrings in `repo_root.py` / `worktrees.py`
+      (DEBT-parse) — naming debt from the standalone extraction. (2026-07-27 ✅)
+- [x] **W8.5** Correct the nested legacy runs-path references now that the CLI resolves `runs/`
       under the repo root (DX-runs): `cli.py:67, 77–83`, `pipeline.py:5`,
-      `build_plan_from_errors.py:9`.
-- [ ] **W8.6** Turn `tests/test_cw_portability.py` green (W1.11).
-- [ ] **W8.7** **Commit + push** (`fix(plan): make coordination-wave defaults repo-portable`).
+      `build_plan_from_errors.py:9`. (2026-07-27 ✅)
+- [x] **W8.6** Turn `tests/test_cw_portability.py` green (W1.11). (2026-07-27 ✅: xfails removed)
+- [x] **W8.7** **Commit + push** (`fix(plan): make coordination-wave defaults repo-portable`). (2026-07-27 ✅)
 
 **Acceptance:**
 
 ```bash
 make test -- -k cw_portability                                     # green
-grep -rn 'src/sevn' src/tripll/plan/cw_buckets.py                  # only inside the opt-in fixture
-grep -rn 'wave-orchestrator/runs' src docs | wc -l                 # 0
+grep -rn 'src/sevn' src/tripll/plan/cw_buckets.py                  # empty (legacy fixture in tests/)
+grep -rn '<repo_root>/runs' src/tripll/cli.py src/tripll/pipeline.py  # non-empty
 grep -rn 'sevn.bot git checkout' src | wc -l                       # 0
 make test -- -k corpus_replay                                      # legacy equivalence still proven
 ```

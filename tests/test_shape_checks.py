@@ -98,8 +98,19 @@ def test_single_wave_over_module_limit_refused() -> None:
 
 
 def test_cw_hotspots_reproduced_by_derivation() -> None:
-    from tripll.graph import CW_HOTSPOTS
+    from tests.fixtures.legacy_cw_buckets import LEGACY_CW_BUCKETS
 
     derive_one_writer_map = require_module("tripll.plan.shape_checks", attr="derive_one_writer_map")
-    derived = derive_one_writer_map(_FIXTURES)
-    assert set(derived.keys()) == set(CW_HOTSPOTS.keys())
+    derived = derive_one_writer_map(_FIXTURES, legacy_buckets=LEGACY_CW_BUCKETS)
+    assert set(derived.keys()) == set(LEGACY_CW_BUCKETS.keys())
+
+
+def test_corpus_replay_matches_legacy_buckets() -> None:
+    from tests.fixtures.legacy_cw_buckets import LEGACY_CW_BUCKETS
+
+    replay_corpus_vs_legacy = require_module(
+        "tripll.plan.shape_checks",
+        attr="replay_corpus_vs_legacy",
+    )
+    result = replay_corpus_vs_legacy([_FIXTURES], legacy_buckets=LEGACY_CW_BUCKETS)
+    assert result["empty"] is True

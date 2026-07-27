@@ -2,7 +2,7 @@
 
 Input directories move through: input/ → processing/<run-id>/ → processed/ | failed/.
 
-The *runs root* defaults to ``wave-orchestrator/runs/`` (configurable via
+The *runs root* defaults to ``<repo_root>/runs/`` (configurable via
 :class:`RunsRoot`).  ``tripll init`` creates the four top-level folders;
 ``claim_input`` atomically renames an input directory into ``processing/``
 with a fresh run-id; ``complete_run`` and ``fail_run`` promote or demote it.

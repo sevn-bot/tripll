@@ -149,7 +149,7 @@ def allocate_worktree(
     already-registered worktree at *path*.
 
     Args:
-        repo_root (Path): The sevn.bot git checkout.
+        repo_root (Path): The target repository git checkout.
         worktrees_dir (Path): Directory under which the worktree is created.
         run_id (str): Run identifier (for the branch name).
         lane_id (str): Lane id.
@@ -420,7 +420,7 @@ def cleanup_worktree(repo_root: Path, worktree: Worktree, *, force: bool = True)
     """Remove an allocated worktree via ``git worktree remove``.
 
     Args:
-        repo_root (Path): The sevn.bot git checkout.
+        repo_root (Path): The target repository git checkout.
         worktree (Worktree): The worktree to remove.
         force (bool): Pass ``--force`` (default True).
 

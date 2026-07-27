@@ -1,4 +1,4 @@
-"""tripll.repo_root — locate the sevn.bot git checkout for worktrees.
+"""tripll.repo_root — locate the target git checkout for worktrees.
 
 Exports:
     resolve_repo_root — walk up from CWD or honor ``TRIPLL_REPO_ROOT``.

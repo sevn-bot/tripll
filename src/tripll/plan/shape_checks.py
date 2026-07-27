@@ -6,7 +6,6 @@ import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from tripll.plan.cw_buckets import LEGACY_CW_BUCKETS
 from tripll.plan.format_v3 import VALID_DEPENDS_REASONS
 
 if TYPE_CHECKING:
@@ -248,18 +247,24 @@ def _collect_plan_paths(corpus_dir: Path) -> list[Path]:
     return paths
 
 
-def _path_to_cw_bucket(path: str) -> str | None:
-    for cw_id, paths in LEGACY_CW_BUCKETS.items():
+def _path_to_cw_bucket(path: str, legacy_buckets: dict[str, list[str]]) -> str | None:
+    for cw_id, paths in legacy_buckets.items():
         if path in paths:
             return cw_id
     return None
 
 
-def derive_one_writer_map(corpus_dir: Path) -> dict[str, list[str]]:
+def derive_one_writer_map(
+    corpus_dir: Path,
+    *,
+    legacy_buckets: dict[str, list[str]] | None = None,
+) -> dict[str, list[str]]:
     """Derive coordination-wave hotspots from a plan corpus."""
     from tripll.plan.compat_v1_v2 import read_legacy_plan
 
-    hotspots: dict[str, list[str]] = {f"CW-{i}": [] for i in range(1, 6)}
+    legacy = legacy_buckets or {}
+    bucket_keys = sorted(set(legacy) | {f"CW-{i}" for i in range(1, 6)})
+    hotspots: dict[str, list[str]] = {key: [] for key in bucket_keys}
     seen: dict[str, set[str]] = {key: set() for key in hotspots}
 
     for plan_path in _collect_plan_paths(corpus_dir):
@@ -282,19 +287,23 @@ def derive_one_writer_map(corpus_dir: Path) -> dict[str, list[str]]:
             for target, wave_ids in target_hits.items():
                 if len(wave_ids) < 2:
                     continue
-                bucket = _path_to_cw_bucket(target) or f"CW-{len(seen) % 5 + 1}"
+                bucket = _path_to_cw_bucket(target, legacy) or f"CW-{len(seen) % 5 + 1}"
                 if target not in seen[bucket]:
                     seen[bucket].add(target)
                     hotspots[bucket].append(target)
 
-    for cw_id, paths in LEGACY_CW_BUCKETS.items():
+    for cw_id, paths in legacy.items():
         for path in paths:
             if path not in seen[cw_id]:
                 hotspots[cw_id].append(path)
     return hotspots
 
 
-def replay_corpus_vs_legacy(corpus_dirs: list[Path]) -> dict[str, Any]:
+def replay_corpus_vs_legacy(
+    corpus_dirs: list[Path],
+    *,
+    legacy_buckets: dict[str, list[str]],
+) -> dict[str, Any]:
     """Replay corpus plans and diff derived hotspots against legacy buckets."""
     from pathlib import Path as PathCls
 
@@ -303,12 +312,12 @@ def replay_corpus_vs_legacy(corpus_dirs: list[Path]) -> dict[str, Any]:
         root = PathCls(corpus_dir)
         if not root.is_dir():
             continue
-        partial = derive_one_writer_map(root)
+        partial = derive_one_writer_map(root, legacy_buckets=legacy_buckets)
         for key, paths in partial.items():
             for path in paths:
                 if path not in derived[key]:
                     derived[key].append(path)
-    legacy = {key: list(paths) for key, paths in LEGACY_CW_BUCKETS.items()}
+    legacy = {key: list(paths) for key, paths in legacy_buckets.items()}
     diff: dict[str, dict[str, list[str]]] = {}
     for key in legacy:
         only_derived = sorted(set(derived.get(key, [])) - set(legacy.get(key, [])))
@@ -318,11 +327,16 @@ def replay_corpus_vs_legacy(corpus_dirs: list[Path]) -> dict[str, Any]:
     return {"derived": derived, "legacy": legacy, "diff": diff, "empty": not diff}
 
 
-def write_corpus_replay_report(path: Path, *, corpus_dirs: list[Path]) -> dict[str, Any]:
+def write_corpus_replay_report(
+    path: Path,
+    *,
+    corpus_dirs: list[Path],
+    legacy_buckets: dict[str, list[str]],
+) -> dict[str, Any]:
     """Persist corpus replay diff for W4.4 audit."""
     from pathlib import Path as PathCls
 
-    result = replay_corpus_vs_legacy(corpus_dirs)
+    result = replay_corpus_vs_legacy(corpus_dirs, legacy_buckets=legacy_buckets)
     out = PathCls(path)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

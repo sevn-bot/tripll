@@ -24,6 +24,7 @@ from tripll.graph import (
     Lane,
     RunGraph,
     WaveNode,
+    batch_cw_seams,
     derive_forbidden_paths,
 )
 from tripll.parse.markdown import find_table_rows, strip_md
@@ -259,11 +260,7 @@ def build_run_graph(
                 label = "Integration gate"
             else:
                 label = ", ".join(lane_names) if lane_names else f"Batch {batch_id}"
-            cw: list[str] = []
-            if batch_id == "A" and not is_gate:
-                cw = ["CW-1", "CW-2"]
-            elif batch_id == "Final":
-                cw = ["CW-3", "CW-4", "CW-5"]
+            cw = batch_cw_seams(batch_id)
             graph.batches.append(
                 Batch(
                     batch_id=batch_id,
@@ -283,9 +280,7 @@ def build_run_graph(
             batch_lane_map.setdefault(batch_id, []).append(lid)
 
         for batch_id, label, is_gate in BATCH_ORDER:
-            cw = ["CW-1", "CW-2"] if batch_id == "A" else []
-            if batch_id == "Final":
-                cw = ["CW-3", "CW-4", "CW-5"]
+            cw = batch_cw_seams(batch_id)
             graph.batches.append(
                 Batch(
                     batch_id=batch_id,
