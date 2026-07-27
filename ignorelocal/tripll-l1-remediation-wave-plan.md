@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Greenfield `tripll new`: packaged skeleton + shared brownfield emitters |
 | **Next action** | W12.1 — dispatch-status banner on `docs/agents/*.md` (ARCH-06) |
 | **Blocked on** | — |
-| **Last pushed sha** | `2dab628` |
+| **Last pushed sha** | `f767d3d` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
