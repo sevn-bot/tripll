@@ -297,6 +297,12 @@ Local advisory review: `make review`.
 
 See [`../harness-checks.md`](../harness-checks.md) and [`../graph-serving.md`](../graph-serving.md).
 
+**Graph-packed briefs:** with the `[kg]` extra, wave dispatch defaults to graph-packed
+briefs. A cold or empty `.tripll/graph.db` sets `graph_pack_insufficient` and allows
+scoped exploration within `workspace_scope` only — see
+[`../graph-serving.md`](../graph-serving.md#cold-or-empty-graph-store). Pass
+`--grep-brief` to force the legacy grep-style directive.
+
 ## 9. Orchestrator mode (headless Multitask parity)
 
 Orchestrator mode is **opt-in** when an input set contains `*-orchestrator-prompt.md`
