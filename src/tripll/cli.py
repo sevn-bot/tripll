@@ -208,6 +208,7 @@ def _finalize_run_result(
     result: RunResult,
     *,
     integrate: bool = False,
+    deliver: bool = False,
     wait_for_hitl: bool = False,
     engine: Engine | None = None,
 ) -> None:
@@ -249,10 +250,10 @@ def _finalize_run_result(
     if result.state == "failed":
         raise typer.Exit(1)
     if integrate and result.state == "done":
-        _run_integration(rr, result.run_id)
+        _run_integration(rr, result.run_id, deliver=deliver)
 
 
-def _run_integration(rr: RunsRoot, run_id: str) -> None:
+def _run_integration(rr: RunsRoot, run_id: str, *, deliver: bool = False) -> None:
     """Execute autonomous per-batch integration for a completed run."""
     from tripll.integrate import GitMakeRunner, execute_integration, plan_integration
     from tripll.parse import build_graph_from_dir
@@ -270,6 +271,39 @@ def _run_integration(rr: RunsRoot, run_id: str) -> None:
     typer.echo("[integrate] Running per-batch integration…")
     for line in execute_integration(plan, runner):
         typer.echo(f"  {line}")
+    if deliver:
+        _run_deliver(rr, run_id)
+
+
+def _run_deliver(rr: RunsRoot, run_id: str) -> None:
+    """Push integration branch and open PR after successful integrate (D15: no auto-merge)."""
+    from tripll.loops.l1_pr import shepherd_run
+
+    run_dir = rr.run_dir(run_id)
+    typer.echo("")
+    typer.echo("[deliver] Pushing integration branch and opening PR…")
+    result = shepherd_run(run_id=run_id, run_dir=run_dir, phase="deliver")
+    if not isinstance(result, dict):
+        typer.echo("[deliver] Unexpected shepherd result.", err=True)
+        raise typer.Exit(1)
+    for action in result.get("actions") or []:
+        name = action.get("action", "?")
+        replayed = action.get("replayed")
+        dry = action.get("dry_run")
+        suffix = ""
+        if replayed:
+            suffix = " (replayed — no side effect)"
+        elif dry:
+            suffix = " (dry-run — no side effect)"
+        typer.echo(f"  {name}: ok{suffix}")
+        payload = action.get("result") or {}
+        if url := payload.get("url"):
+            typer.echo(f"    PR: {url}")
+    typer.echo("")
+    typer.echo(
+        "[deliver] Next: tripll findings sync, tripll pr shepherd --phase investigate_and_fix"
+    )
+    typer.echo("[deliver] Merge gate: tripll pr approve-merge (never auto-merge)")
 
 
 def _refresh_report(rr: RunsRoot, run_id: str, *, current_node_id: str | None = None) -> None:
@@ -832,6 +866,7 @@ def _run_dry_run(
     *,
     backend: str,
     integrate: bool,
+    deliver: bool = False,
     model: str | None = None,
     agent: str | None = None,
 ) -> None:
@@ -841,6 +876,7 @@ def _run_dry_run(
         input_path (Path): Input directory (parallel-wave set or plain folder).
         backend (str): Backend name.
         integrate (bool): Whether ``--integrate`` was requested.
+        deliver (bool): Whether ``--deliver`` was requested (requires integrate).
     """
     from tripll.adapters import get_adapter
     from tripll.brief import render_json_brief
@@ -852,6 +888,7 @@ def _run_dry_run(
     typer.echo(f"[dry-run] Run-id      : {run_id}")
     typer.echo(f"[dry-run] Backend     : {backend}")
     typer.echo(f"[dry-run] Integrate   : {integrate}")
+    typer.echo(f"[dry-run] Deliver     : {deliver}")
 
     adapter = get_adapter(
         backend, options=_backend_options(backend=backend, model=model, agent=agent)[1]
@@ -902,6 +939,14 @@ def _run_dry_run(
         plan = plan_integration(graph, run_id=run_id)
         for line in render_dry_run(plan):
             typer.echo(line)
+        if deliver:
+            from tripll.loops.l1_pr import render_deliver_dry_run
+
+            for line in render_deliver_dry_run(
+                run_id=run_id,
+                integration_branch=plan.integration_branch,
+            ):
+                typer.echo(line)
 
     trace_env = os.environ.get("TRIPLL_TRACE", "1").strip().lower()
     if trace_env not in {"0", "false", "no", "off"}:
@@ -977,6 +1022,13 @@ def run(
             help="Enable autonomous per-batch merge + make ci + commit (default OFF).",
         ),
     ] = False,
+    deliver: Annotated[
+        bool,
+        typer.Option(
+            "--deliver/--no-deliver",
+            help="After --integrate, push integration branch and open PR (default OFF).",
+        ),
+    ] = False,
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", help="Print the planned run graph without executing."),
@@ -1029,8 +1081,21 @@ def run(
         typer.echo(f"Input path not found: {input_path}", err=True)
         raise typer.Exit(1)
 
+    if deliver and not integrate:
+        typer.echo(
+            "--deliver requires --integrate (local integration before push/open PR).", err=True
+        )
+        raise typer.Exit(1)
+
     if dry_run:
-        _run_dry_run(input_path, backend=backend, integrate=integrate, model=model, agent=agent)
+        _run_dry_run(
+            input_path,
+            backend=backend,
+            integrate=integrate,
+            deliver=deliver,
+            model=model,
+            agent=agent,
+        )
         return
 
     import asyncio
@@ -1068,6 +1133,7 @@ def run(
         rr,
         result,
         integrate=integrate,
+        deliver=deliver,
         wait_for_hitl=wait_for_hitl,
         engine=engine,
     )

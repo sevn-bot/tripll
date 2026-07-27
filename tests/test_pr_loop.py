@@ -217,3 +217,75 @@ def test_shepherd_second_invoke_idempotent_at_merge_gate(
     assert isinstance(second, dict)
     assert len(push_calls) == 1
     assert second.get("paused") is True or second.get("merge_gate") is not None
+
+
+def test_shepherd_deliver_push_and_open_pr_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deliver phase must push/open once; replay is no-op."""
+    run_pr_action = require_module("tripll.github.pr", attr="run_pr_action")
+    shepherd_run = require_module("tripll.loops.l1_pr", attr="shepherd_run")
+    action_calls: list[str] = []
+
+    def counting_action(
+        action: str,
+        *,
+        idempotency_key: str,
+        context: dict[str, object],
+    ) -> dict[str, object]:
+        result = run_pr_action(action, idempotency_key=idempotency_key, context=context)
+        if result.get("executed"):
+            action_calls.append(idempotency_key)
+        return result
+
+    monkeypatch.setattr("tripll.github.pr.run_pr_action", counting_action)
+    monkeypatch.setenv("TRIPLL_PR_DRY_RUN", "1")
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    first = shepherd_run(run_id="run-deliver", run_dir=run_dir, phase="deliver")
+    assert isinstance(first, dict)
+    assert first.get("phase") == "deliver"
+    assert len(action_calls) == 2
+    assert action_calls == ["push:run-deliver", "open_pr:run-deliver"]
+
+    second = shepherd_run(run_id="run-deliver", run_dir=run_dir, phase="deliver")
+    assert isinstance(second, dict)
+    assert len(action_calls) == 2
+    replayed = [a for a in second.get("actions") or [] if a.get("replayed")]
+    assert len(replayed) == 2
+
+
+def test_shepherd_deliver_includes_integration_branch_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deliver context must target the integration branch."""
+    shepherd_run = require_module("tripll.loops.l1_pr", attr="shepherd_run")
+    seen: list[dict[str, object]] = []
+
+    def capture_action(
+        action: str,
+        *,
+        idempotency_key: str,
+        context: dict[str, object],
+    ) -> dict[str, object]:
+        seen.append(dict(context))
+        return {
+            "action": action,
+            "executed": True,
+            "replayed": False,
+            "idempotency_key": idempotency_key,
+            "result": {"dry_run": True},
+            "dry_run": True,
+        }
+
+    monkeypatch.setattr("tripll.github.pr.run_pr_action", capture_action)
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    shepherd_run(run_id="run-ctx", run_dir=run_dir, phase="deliver")
+    assert seen
+    assert seen[0]["branch"] == "tripll/integrate/run-ctx"
+    assert seen[0]["head"] == "tripll/integrate/run-ctx"

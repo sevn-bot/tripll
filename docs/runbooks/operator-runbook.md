@@ -254,7 +254,11 @@ Dispatch-only is the default (branches + `report.md`, no merges). To integrate:
 ```bash
 make tripll ARGS='run <set> --integrate --dry-run'   # preview merges/gates/commits
 make tripll ARGS='run <set> --integrate'             # merge → docs → make ci → 1 commit
+make tripll ARGS='run <set> --integrate --deliver --dry-run'  # + push/open PR plan
+make tripll ARGS='run <set> --integrate --deliver'   # integrate then push + open PR
 ```
+
+Integration branch: `tripll/integrate/<run-id>` (push target for `--deliver`).
 
 Pre-0 / review-gate batches never auto-commit; a failing gate aborts the batch
 before committing.
@@ -265,12 +269,14 @@ After implementation waves, the **PR phase** pushes the branch, opens a pull req
 ingests CI failures and review comments as `Finding` nodes, and dispatches fix agents until
 required checks pass. The loop **stops at the human merge gate** — tripll never auto-merges.
 
-``tripll pr shepherd`` compiles and invokes the LangGraph PR loop (``[graph]`` extra required
-for ``investigate_and_fix``). Investigate/fix nodes dispatch real adapters; deliver runs
-idempotent push/open actions.
+``tripll run … --integrate --deliver`` chains local integration with idempotent push/open
+(D15: never auto-merge). ``tripll pr shepherd`` compiles and invokes the LangGraph PR loop
+(``[graph]`` extra required for ``investigate_and_fix``). Investigate/fix nodes dispatch
+real adapters; deliver runs idempotent push/open actions.
 
 ```bash
-tripll pr shepherd --run <run-id> --phase deliver
+tripll run <set> --integrate --deliver          # integrate → push → open PR
+tripll pr shepherd --run <run-id> --phase deliver   # manual deliver (same push/open)
 tripll findings sync --pr <n> --run-id <run-id>
 tripll pr shepherd --run <run-id> --phase investigate_and_fix
 tripll findings list [--state open]
