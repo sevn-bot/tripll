@@ -100,9 +100,6 @@ def test_cli_starts_when_logfire_import_fails(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(
-    reason="green after W10: configure vs spine distinction documented", strict=False
-)
 def test_configurator_distinct_from_tracing_spine() -> None:
     """Configurator lives in obs.py; spine lives in tracing/ — no duplicate ownership."""
     import tripll.obs as obs_mod

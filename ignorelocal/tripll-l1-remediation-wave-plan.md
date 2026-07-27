@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W8 complete — W10 next
+**Status:** W10 complete — W11 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W8 ✅ (2026-07-27) — W10 next |
-| **Stage** | CW hotspots default empty; legacy buckets opt-in fixture; runs-path docs say `<repo_root>/runs/` |
-| **Next action** | W10.1 — green `tests/test_obs.py` (TEST-01) |
+| **Current wave** | W10 ✅ (2026-07-27) — W11 next |
+| **Stage** | Observability guarded; `make bench` + non-blocking CI job; brief-packer single-compute; dispatch spans on `_execute_node` / batch |
+| **Next action** | W11.1 — replace hand-rolled TOML parse in `log_redact.py` with stdlib `tomllib` (DX-03) |
 | **Blocked on** | — |
-| **Last pushed sha** | `2e455ba` |
+| **Last pushed sha** | `ddad66d` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1547,7 +1547,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [x] (2026-07-27 ✅: 4079acb — evaluate_exit in engine; pullfrog_success setter; exit_firing tests green; design-note Engine-live ×8) |
 | W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [x] (2026-07-27 ✅: 900cea9 — dispatch_bridge.py; l1_pr investigate/fix invoke adapter; test_pr_loop 10/10 green) |
 | W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [x] (2026-07-27 ✅: 15d2028 — cw_portability + corpus_replay green; empty default hotspots) |
-| W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [ ] |
+| W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [x] (2026-07-27 ✅: ddad66d — obs+brief_packer 14/14; make bench; CI continue-on-error; PERF-01; execute_node/batch spans) |
 | W11 | `cursor_local` auto | `tomllib` for hide-keys; rebaseline 7 dependabot PRs | DX-03, Dependabot | [ ] |
 | W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [ ] |
 | W14 | `cursor_local` auto | **Brownfield `tripll init`**: specs, PRDs, plans, `tripll.toml` and a **repo evaluation**; cut the sevn import | ONB-02, ONB-03, ONB-05 | [ ] |
@@ -2369,20 +2369,21 @@ make test -- -k corpus_replay                                      # legacy equi
 
 **Findings:** TEST-01, TEST-02, DX-04, PERF-01
 
-- [ ] **W10.1** Green `tests/test_obs.py` (TEST-01) — the no-exporter contract without
+- [x] **W10.1** Green `tests/test_obs.py` (TEST-01) — the no-exporter contract without
       `LOGFIRE_TOKEN` (local sinks still write — TRACE-04), the `capture_all` guard re-verified in
       W4.6, and "obs must never break the CLI". P3 owns the implementation; W1 authored the RED test;
-      W10 only reconciles what is left.
-- [ ] **W10.2** Add a `bench` target to the `Makefile` (TEST-02/DX-04) — it does not exist today.
-      Tier 2: minutes, not seconds.
-- [ ] **W10.3** Add a CI job running the brief-packing benchmark on a sealed task set, **non-blocking
+      W10 only reconciles what is left. (2026-07-27 ✅ — xfail removed; 6/6 tier-1 green)
+- [x] **W10.2** Add a `bench` target to the `Makefile` (TEST-02/DX-04) — it does not exist today.
+      Tier 2: minutes, not seconds. (2026-07-27 ✅ — `make bench` → `tripll bench run`)
+- [x] **W10.3** Add a CI job running the brief-packing benchmark on a sealed task set, **non-blocking
       at first**, so graph-brief vs grep regressions surface. The D23 verdict (keep the packer) has
-      no guard against silent regression.
-- [ ] **W10.4** Fix the double computation of `_graph_brief_tokens` per task (PERF-01).
-- [ ] **W10.5** Add a first-class span around `_execute_node` / batch dispatch so Logfire traces
-      correlate with ledger attempts (audit §11: correlation is thin).
-- [ ] **W10.6** Turn W1.5 and W1.14 green.
-- [ ] **W10.7** **Commit + push** (`test(obs): guard observability and productize bench`).
+      no guard against silent regression. (2026-07-27 ✅ — `bench` job with `continue-on-error: true`)
+- [x] **W10.4** Fix the double computation of `_graph_brief_tokens` per task (PERF-01).
+      (2026-07-27 ✅ — cache per-task tokens in `run_benchmark` loop)
+- [x] **W10.5** Add a first-class span around `_execute_node` / batch dispatch so Logfire traces
+      correlate with ledger attempts (audit §11: correlation is thin). (2026-07-27 ✅ — `tripll.execute_node` + `tripll.batch_dispatch` spans)
+- [x] **W10.6** Turn W1.5 and W1.14 green. (2026-07-27 ✅ — xfail markers removed from test_obs.py, test_brief_packer.py)
+- [x] **W10.7** **Commit + push** (`test(obs): guard observability and productize bench`). (2026-07-27 ✅: ddad66d)
 
 **Acceptance:**
 

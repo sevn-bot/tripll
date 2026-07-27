@@ -96,17 +96,22 @@ def run_benchmark(
     root = bench_dir or bench_root()
     tasks = load_tasks(root)
     baseline = load_baseline(root)
-    db = graph_db or Path(".tripll/graph.db")
-    if not db.is_file():
-        db = root.parent / ".tripll" / "graph.db"
+    if graph_db is not None:
+        db = graph_db
+    else:
+        db = Path(".tripll/graph.db")
+        if not db.is_file():
+            db = root.parent / ".tripll" / "graph.db"
 
     graph_wins = 0
     graph_tokens = 0
     grep_tokens = 0
     for task in tasks:
-        graph_tokens += _graph_brief_tokens(task, db)
-        grep_tokens += _grep_brief_tokens(task)
-        if _graph_brief_tokens(task, db) <= _grep_brief_tokens(task):
+        task_graph_tokens = _graph_brief_tokens(task, db)
+        task_grep_tokens = _grep_brief_tokens(task)
+        graph_tokens += task_graph_tokens
+        grep_tokens += task_grep_tokens
+        if task_graph_tokens <= task_grep_tokens:
             graph_wins += 1
 
     task_count = max(len(tasks), 1)

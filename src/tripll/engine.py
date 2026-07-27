@@ -2525,10 +2525,18 @@ class Engine:
             list[NodeResult]: One result per node, in the same order as *nodes*.
         """
 
+        from tripll.tracing.spans import trace_span
+
         async def _guarded(node: WaveNode) -> NodeResult:
             return await self._execute_node(lc, run_id, graph, node)
 
-        raw = await asyncio.gather(*(_guarded(n) for n in nodes), return_exceptions=True)
+        with trace_span(  # batch_dispatch
+            "tripll.batch_dispatch",
+            run_id=run_id,
+            batch_size=len(nodes),
+            node_ids=[n.node_id for n in nodes],
+        ):
+            raw = await asyncio.gather(*(_guarded(n) for n in nodes), return_exceptions=True)
         results: list[NodeResult] = []
         for node, item in zip(nodes, raw, strict=True):
             if isinstance(item, BaseException):
@@ -2598,6 +2606,21 @@ class Engine:
         self, lc: LedgerConnection, run_id: str, graph: RunGraph, node: WaveNode
     ) -> NodeResult:
         """Dispatch, verify, and checkpoint one wave node (with retries and scope checks)."""
+        from tripll.tracing.spans import trace_span
+
+        with trace_span(  # execute_node
+            "tripll.execute_node",
+            run_id=run_id,
+            node_id=node.node_id,
+            wave_id=node.wave_id,
+            lane=node.lane,
+        ):
+            return await self._execute_node_body(lc, run_id, graph, node)
+
+    async def _execute_node_body(
+        self, lc: LedgerConnection, run_id: str, graph: RunGraph, node: WaveNode
+    ) -> NodeResult:
+        """Inner dispatch loop for :meth:`_execute_node` (ledger + verify + retries)."""
         worktree = self.wtm.allocate(run_id, node.plan_id, node.wave_id)
         self._last_worktree_path = worktree.path
         run_dir = self.runs_root.run_dir(run_id)

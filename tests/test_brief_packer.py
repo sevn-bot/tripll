@@ -102,10 +102,9 @@ def test_fresh_session_identifies_next_action_from_handoff_only() -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(
-    reason="green after W10: _graph_brief_tokens computed once per task", strict=False
-)
-def test_graph_brief_tokens_computed_once_per_task(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_graph_brief_tokens_computed_once_per_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """PERF-01: benchmark must not double-call ``_graph_brief_tokens`` per task."""
     import tripll.bench as bench_mod
 
@@ -128,5 +127,7 @@ def test_graph_brief_tokens_computed_once_per_task(monkeypatch: pytest.MonkeyPat
         "load_baseline",
         lambda _root=None: {k: 0.0 for k in bench_mod.METRIC_KEYS},
     )
-    bench_mod.run_benchmark(bench_dir=Path("/nonexistent"), graph_db=Path("/nonexistent/graph.db"))
+    graph_db = tmp_path / "graph.db"
+    graph_db.touch()
+    bench_mod.run_benchmark(bench_dir=tmp_path / "bench", graph_db=graph_db)
     assert calls == 1
