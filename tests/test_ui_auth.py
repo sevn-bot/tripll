@@ -9,7 +9,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tripll.api.app import create_app
+from tripll.ledger import insert_run, open_ledger
 from tripll.pipeline import RunsRoot
+from tripll.profiles import control_plane_db_path, open_profile_store, upsert_profile
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_ROOT = REPO_ROOT / "src" / "tripll" / "api" / "ui" / "templates"
@@ -26,12 +28,38 @@ PAGE_GETS = ["/", "/agents", "/agents/new", "/agents/edit-id/edit", "/settings",
 AUTH_HEADER = {"Authorization": "Bearer test-token-secret"}
 
 
+def _seed_auth_page_fixtures(rr: RunsRoot) -> None:
+    """Seed profile + run paths exercised by ``PAGE_GETS`` auth tests."""
+    db_path = control_plane_db_path(rr.root)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with open_profile_store(db_path) as store:
+        upsert_profile(
+            store,
+            profile_id="edit-id",
+            name="Edit Me",
+            backend="claude_code",
+            model="claude-sonnet-5",
+            agent="wave-plan-executor",
+        )
+    run_dir = rr.processing_dir / "run-1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with open_ledger(run_dir / "ledger.db") as lc:
+        insert_run(
+            lc,
+            run_id="run-1",
+            slug="run-1",
+            source_mode="A",
+            input_path="/tmp/run-1",
+        )
+
+
 @pytest.fixture
 def token_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Dashboard with ``TRIPLL_API_TOKEN`` enforced."""
     monkeypatch.setenv("TRIPLL_API_TOKEN", "test-token-secret")
     rr = RunsRoot(tmp_path / "runs")
     rr.init()
+    _seed_auth_page_fixtures(rr)
     app = create_app(runs_root=rr.root)
     with TestClient(app) as tc:
         yield tc
@@ -50,7 +78,6 @@ def open_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
 @pytest.mark.tier1
 @pytest.mark.parametrize(("path", "payload"), MUTATING_POSTS)
-@pytest.mark.xfail(reason="green after W3: mutating HTML POST auth", strict=False)
 def test_mutating_post_requires_token(
     token_client: TestClient,
     path: str,
@@ -74,7 +101,6 @@ def test_mutating_post_succeeds_with_token(
 
 @pytest.mark.tier1
 @pytest.mark.parametrize("path", PAGE_GETS)
-@pytest.mark.xfail(reason="green after W3: page shell auth", strict=False)
 def test_page_shell_requires_token(token_client: TestClient, path: str) -> None:
     response = token_client.get(path)
     assert response.status_code in (401, 403)
@@ -82,14 +108,12 @@ def test_page_shell_requires_token(token_client: TestClient, path: str) -> None:
 
 @pytest.mark.tier1
 @pytest.mark.parametrize("path", PAGE_GETS)
-@pytest.mark.xfail(reason="green after W3: page shell auth with bearer", strict=False)
 def test_page_shell_succeeds_with_token(token_client: TestClient, path: str) -> None:
     response = token_client.get(path, headers=AUTH_HEADER)
     assert response.status_code == 200
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W3: CSRF on state-changing POST", strict=False)
 def test_post_with_token_but_no_csrf_rejected(token_client: TestClient) -> None:
     response = token_client.post(
         "/settings",

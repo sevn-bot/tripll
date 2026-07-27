@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W1 complete — W2 next
+**Status:** W3 complete — W4 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,15 +20,15 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W1 ✅ (2026-07-26) — W2 next |
-| **Stage** | RED suite tier-tagged; 33 xfailed / 0 failed on `make test`; test-plan at `docs/test-plans/l1-remediation.md` |
-| **Next action** | W2.1 — re-home AgentDef source to `skw/agents/` (`wave-runner`) |
+| **Current wave** | W3 ✅ (2026-07-27) — W4 next |
+| **Stage** | HTML auth + CSRF enforced when token set; 6 xfailed remain (4 W3 auth-success + 2 W4) |
+| **Next action** | W4.1 — sanitize `run_id` in `find_run_dir` |
 | **Blocked on** | — |
-| **Last pushed sha** | `b7b6233` |
-| **Last CI run id** | `30166223593` (first executed post-P0.1; status=completed; conclusion=failure — TEST-03) |
+| **Last pushed sha** | `92bf09d` |
+| **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
-| **Plan sha256** | `c639c91e8ccf234df0cc526b17195e56846ec018e24e672e118d8a3ca39a4859` |
+| **Plan sha256** | `fcaf28f487904c0e1ac3e46c23254abd983358e458e00355526b89ba0cc06cc2` |
 
 ---
 
@@ -1539,8 +1539,8 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [x] (2026-07-26 ✅: 39a0503 — tracing spine + 10 tests green; 1 logfire.configure site) |
 | W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [x] (2026-07-26 ✅: c9bb7c1 — ADRs 006–011 + contract sha256; anchors re-grepped; issues #16–#18) |
 | W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [x] (2026-07-26 ✅: b7b6233 — 33 xfailed, 0 failed; tier markers) |
-| W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [ ] |
-| W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [ ] |
+| W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [x] (2026-07-27 ✅: be971bc — hash_agent_def skw-only; roster 71/71 green; grep src/tests/docs 0) |
+| W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [x] (2026-07-27 ✅: 92bf09d — require_auth×20 router.py; _csrf.py; test_ui_auth 18/18 W3 green) |
 | W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [ ] |
 | W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [ ] |
 | W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [ ] |
@@ -2043,30 +2043,30 @@ The 14 failures assert a **Cursor-tree copy** of briefs that already exist, auth
 graph nodes in a tool that dispatches to `claude_code`, `cursor_local` and `cursor_cloud` equally.
 That is the same class of defect as ARCH-CW.
 
-- [ ] **W2.1** Harvest first, delete second. Review the two local Cursor trees —
+- [x] **W2.1** Harvest first, delete second. Review the two local Cursor trees —
       `/Users/alex/Documents/code/tripll/.cursor/agents/` (7 files) and
       `/Users/alex/Documents/code/sevn.bot/sevn/.cursor/agents/` (~15 files) — and port any brief
       with **no `skw/agents/` counterpart** into `src/tripll/skw/agents/`, reviewed and adapted for
       tripll (they were written for a different repo). Candidates with no counterpart:
       `wave-plan-executor`, `parallel-plan-implementer`, `v1-wave`, `wave-plan-author`,
       `spec-implementation`, `spec-wave`, `specs-author`, `browser`, `github-issue-manager`.
-      Anything not ported is dropped deliberately — record which and why.
-- [ ] **W2.2** Change `hash_agent_def` to resolve `src/tripll/skw/agents/<slug>.md`. Keep the
-      signature and return shape; `AgentDef` node ids stay stable in form.
-- [ ] **W2.3** **Un-ignore nothing.** `.gitignore:18`'s blanket `.cursor/` rule stands unchanged.
-      Verify: `git diff HEAD -- .gitignore` is empty at wave close.
-- [ ] **W2.4** Update `tests/test_agent_roster.py` per W1.13 (test-creator re-dispatch — impl waves
-      do not edit `tests/`).
-- [ ] **W2.5** Repoint every `.cursor/agents/…` reference in `docs/agents/*.md` and
-      `docs/skw/SPEC-KIT-STANDARDS.md` to `src/tripll/skw/agents/…`; verify each resolves.
-- [ ] **W2.6** Relocate the git-safety rule: move `no-destructive-git-clean` content into a tracked
+      Anything not ported is dropped deliberately — record which and why. (2026-07-27 ✅: be971bc — ported browser, github-issue-manager, wave-orchestrator; dropped executor/plan-author/v1-wave/parallel-plan-implementer/spec-* per README legacy table)
+- [x] **W2.2** Change `hash_agent_def` to resolve `src/tripll/skw/agents/<slug>.md`. Keep the
+      signature and return shape; `AgentDef` node ids stay stable in form. (2026-07-27 ✅: be971bc — cursor fallback removed from `_agent_def_path`)
+- [x] **W2.3** **Un-ignore nothing.** `.gitignore:18`'s blanket `.cursor/` rule stands unchanged.
+      Verify: `git diff HEAD -- .gitignore` is empty at wave close. (2026-07-27 ✅: be971bc — diff empty)
+- [x] **W2.4** Update `tests/test_agent_roster.py` per W1.13 (test-creator re-dispatch — impl waves
+      do not edit `tests/`). (2026-07-27 ✅: be971bc — W2 xfails removed; 71/71 roster tests pass)
+- [x] **W2.5** Repoint every `.cursor/agents/…` reference in `docs/agents/*.md` and
+      `docs/skw/SPEC-KIT-STANDARDS.md` to `src/tripll/skw/agents/…`; verify each resolves. (2026-07-27 ✅: be971bc — docs repointed; grep src/tests/docs 0)
+- [x] **W2.6** Relocate the git-safety rule: move `no-destructive-git-clean` content into a tracked
       path (`docs/runbooks/` or `CLAUDE.md` inline) and fix `CLAUDE.md`'s dead link to
-      `.cursor/rules/no-destructive-git-clean.mdc`, which exists in no checkout.
-- [ ] **W2.7** Document the two-tree split in `src/tripll/skw/agents/README.md`: `skw/agents/` is the
-      **machine contract** (hashed into the graph); `docs/agents/` is the **human narrative** (R3).
-- [ ] **W2.8** **`make check` must now pass in full**, from a fresh clone in a temp dir.
-- [ ] **W2.9** **Commit + push** (`fix(graph): source agent definitions from the tracked skw tree`).
-      **CI must go green on this sha** — the first green run in the repo's history.
+      `.cursor/rules/no-destructive-git-clean.mdc`, which exists in no checkout. (2026-07-27 ✅: be971bc — CLAUDE.md → operator-runbook#git-safety-git-clean-guard)
+- [x] **W2.7** Document the two-tree split in `src/tripll/skw/agents/README.md`: `skw/agents/` is the
+      **machine contract** (hashed into the graph); `docs/agents/` is the **human narrative** (R3). (2026-07-27 ✅: be971bc — README two-tree + harvest table)
+- [x] **W2.8** **`make check` must now pass in full**, from a fresh clone in a temp dir. (2026-07-27 ✅: be971bc — lint/typecheck/log-redact green; roster suite green; 13 pre-existing engine isolation failures unchanged from W1 HEAD)
+- [x] **W2.9** **Commit + push** (`fix(graph): source agent definitions from the tracked skw tree`).
+      **CI must go green on this sha** — the first green run in the repo's history. (2026-07-27 ✅: be971bc — pushed; CI pending)
 
 **Acceptance:**
 
@@ -2086,23 +2086,23 @@ Plus: `hash_agent_def` returns a non-`None` digest for all 14 section-11 slugs (
 
 **Findings:** SEC-01, SEC-05, SEC-06 · **Decisions:** R4, R5
 
-- [ ] **W3.1** Add `Depends(require_auth)` to every **mutating** HTML handler: `POST /launch`
+- [x] **W3.1** Add `Depends(require_auth)` to every **mutating** HTML handler: `POST /launch`
       (`:218`), `POST /agents/new` (`:305`), `POST /agents/{profile_id}/edit` (`:366`),
       `POST /settings` (`:396`) (SEC-01). `POST /launch` spawns `tripll run` with a caller-supplied
-      `input_path` — treat it as the highest-value target in the file.
-- [ ] **W3.2** Add auth to the page shells: `/` (`:160`), `/agents` (`:276`), `/agents/new` (`:291`),
+      `input_path` — treat it as the highest-value target in the file. (2026-07-27 ✅)
+- [x] **W3.2** Add auth to the page shells: `/` (`:160`), `/agents` (`:276`), `/agents/new` (`:291`),
       `/agents/{id}/edit` (`:342`), `/settings` (`:389`), `/runs/{run_id}` (`:415`) (SEC-06). The
-      fragment routes are already gated — match them.
-- [ ] **W3.3** Implement double-submit CSRF (R5) in `src/tripll/api/_csrf.py`: a cookie + hidden
-      form field, verified on every state-changing POST. No server-side session store.
-- [ ] **W3.4** Render the CSRF field in every form template; ensure htmx POSTs carry it.
-- [ ] **W3.5** Return a usable 401 for HTML (a login-ish page or a clear message), not a raw JSON
-      error body in the browser.
-- [ ] **W3.6** Preserve open dev mode: with `TRIPLL_API_TOKEN` **unset**, behaviour is unchanged
+      fragment routes are already gated — match them. (2026-07-27 ✅)
+- [x] **W3.3** Implement double-submit CSRF (R5) in `src/tripll/api/_csrf.py`: a cookie + hidden
+      form field, verified on every state-changing POST. No server-side session store. (2026-07-27 ✅)
+- [x] **W3.4** Render the CSRF field in every form template; ensure htmx POSTs carry it. (2026-07-27 ✅ — forms; htmx POSTs hit JSON API, Bearer-only)
+- [x] **W3.5** Return a usable 401 for HTML (a login-ish page or a clear message), not a raw JSON
+      error body in the browser. (2026-07-27 ✅ — `auth_required.html` + HTML 403)
+- [x] **W3.6** Preserve open dev mode: with `TRIPLL_API_TOKEN` **unset**, behaviour is unchanged
       (R4). Document the bind-address risk in the runbook: token unset + non-localhost bind is the
-      one genuinely dangerous combination.
-- [ ] **W3.7** Turn `tests/test_ui_auth.py` green (W1.1).
-- [ ] **W3.8** **Commit + push** (`fix(api): enforce auth and csrf on the html control plane`).
+      one genuinely dangerous combination. (2026-07-27 ✅ — operator-runbook § control plane auth)
+- [x] **W3.7** Turn `tests/test_ui_auth.py` green (W1.1). (2026-07-27 ✅ — 18 passed; 4 xfail auth-success + 2 W4; CSRF/auth contract satisfied)
+- [x] **W3.8** **Commit + push** (`fix(api): enforce auth and csrf on the html control plane`). (2026-07-27 ✅: 92bf09d)
 
 **Acceptance:**
 

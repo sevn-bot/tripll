@@ -51,6 +51,7 @@ from pydantic import BaseModel, Field
 
 from tripll.api._artefacts import LogPathError, resolve_attempt_log_path, tail_log_file
 from tripll.api._auth import require_auth
+from tripll.api._csrf import apply_csrf_cookie
 from tripll.api._runs import (
     RunDetail,
     RunSummary,
@@ -319,6 +320,17 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
     app.include_router(make_ui_router())
+
+    from tripll.api.ui.errors import register_html_exception_handlers
+
+    register_html_exception_handlers(app)
+
+    @app.middleware("http")
+    async def csrf_cookie_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
+        """Mirror ``request.state.csrf_token`` into the ``tripll_csrf`` cookie (W3, R5)."""
+        response = await call_next(request)
+        apply_csrf_cookie(request, response)
+        return response
 
     # ---------------------------------------------------------------------------
     # Health

@@ -470,6 +470,24 @@ local-files replaces **both** hosted and sidecar when you want zero plan DB at a
 
 ---
 
+## Control plane auth (`TRIPLL_API_TOKEN`)
+
+When `TRIPLL_API_TOKEN` is set, **HTML pages and JSON API routes share one boundary**
+(R4). Every dashboard page shell and mutating form POST requires a valid Bearer token
+(or matching `?token=` query param for browser loads). Form POSTs also require the
+double-submit CSRF field paired with the `tripll_csrf` cookie (R5).
+
+When the token is **unset**, the control plane stays in open dev mode (localhost-only
+by default) — behaviour unchanged from pre-W3.
+
+**Bind-address risk:** `make serve` defaults to localhost. If you bind to a non-local
+interface (`tripll serve --host 0.0.0.0`) **without** setting `TRIPLL_API_TOKEN`, anyone
+on the network can launch runs and change settings through the HTML UI. That combination
+is the one genuinely dangerous operator mistake — always set a token before exposing the
+dashboard beyond localhost.
+
+---
+
 ## Git safety (git clean guard)
 
 tripll ships a repo-local `bin/git` wrapper that blocks `git clean -x` and `git clean -X`.

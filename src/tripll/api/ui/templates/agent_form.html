@@ -10,6 +10,7 @@
 {% endif %}
 
 <form class="ui-form" method="post" action="{{ form_action }}">
+  {% include "_csrf_field.html" %}
   {% if is_new %}
   <label for="profile_id">Profile ID <span class="muted">(optional — derived from name if blank)</span></label>
   <input type="text" id="profile_id" name="profile_id" value="{{ profile.profile_id or '' }}" />

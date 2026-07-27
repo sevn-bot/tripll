@@ -10,6 +10,7 @@
 {% endif %}
 
 <form class="ui-form" method="post" action="/settings">
+  {% include "_csrf_field.html" %}
   <label for="model_default">Default model</label>
   <input type="text" id="model_default" name="model_default" value="{{ config.model_default }}" required />
 

@@ -128,7 +128,7 @@ def client_authed(tmp_rr: RunsRoot, monkeypatch: pytest.MonkeyPatch) -> TestClie
     """TestClient with TRIPLL_API_TOKEN set to 'test-token'."""
     monkeypatch.setenv("TRIPLL_API_TOKEN", "test-token")
     app = create_app(runs_root=tmp_rr.root)
-    with TestClient(app) as tc:
+    with TestClient(app, headers={"Authorization": "Bearer test-token"}) as tc:
         yield tc  # type: ignore[misc]
 
 

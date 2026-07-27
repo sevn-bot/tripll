@@ -62,6 +62,7 @@ from tripll.api._artefacts import (
     tail_log_file,
 )
 from tripll.api._auth import require_auth
+from tripll.api._csrf import ensure_csrf_token, require_csrf
 from tripll.api._l1_panels import build_l1_panels
 from tripll.api._orchestrator_ui import build_orchestrator_view
 from tripll.api._runs import RunSummary, _find_ledger, _is_run_live, _list_all_runs
@@ -158,7 +159,10 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/", response_class=HTMLResponse)
-    async def dashboard_home(request: Request) -> HTMLResponse:
+    async def dashboard_home(
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the dashboard home page.
 
         Displays all runs (active, processed, failed), agent profiles, and
@@ -203,6 +207,7 @@ def make_ui_router() -> APIRouter:
                 )
 
         ctx: dict[str, Any] = _ui_context(
+            request,
             nav_section="runs",
             runs=runs,
             profiles=profiles,
@@ -216,7 +221,11 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.post("/launch")
-    async def launch_run_form(request: Request) -> RedirectResponse:
+    async def launch_run_form(
+        request: Request,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
         """Accept launch-run form POST; spawn engine and redirect to run detail."""
         rr: RunsRoot = request.app.state.runs_root
         form = await request.form()
@@ -274,14 +283,17 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/agents", response_class=HTMLResponse)
-    async def agents_list(request: Request) -> HTMLResponse:
+    async def agents_list(
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the agent profiles list page."""
         rr: RunsRoot = request.app.state.runs_root
         db_path = control_plane_db_path(rr.root)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         with open_profile_store(db_path) as store:
             profiles = list_profiles(store)
-        ctx = _ui_context(nav_section="agents", profiles=profiles)
+        ctx = _ui_context(request, nav_section="agents", profiles=profiles)
         return templates.TemplateResponse(request, "agents.html", ctx)
 
     # ------------------------------------------------------------------
@@ -289,9 +301,13 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/agents/new", response_class=HTMLResponse)
-    async def agents_new_form(request: Request) -> HTMLResponse:
+    async def agents_new_form(
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the new-agent profile form."""
         ctx = _ui_context(
+            request,
             nav_section="agents",
             form_title="New agent profile",
             form_action="/agents/new",
@@ -303,7 +319,11 @@ def make_ui_router() -> APIRouter:
         return templates.TemplateResponse(request, "agent_form.html", ctx)
 
     @router.post("/agents/new")
-    async def agents_new_submit(request: Request) -> RedirectResponse:
+    async def agents_new_submit(
+        request: Request,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
         """Create an agent profile from form POST."""
         rr: RunsRoot = request.app.state.runs_root
         form = await request.form()
@@ -340,7 +360,11 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/agents/{profile_id}/edit", response_class=HTMLResponse)
-    async def agents_edit_form(request: Request, profile_id: str) -> HTMLResponse:
+    async def agents_edit_form(
+        request: Request,
+        profile_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the edit-agent profile form."""
         rr: RunsRoot = request.app.state.runs_root
         db_path = control_plane_db_path(rr.root)
@@ -353,6 +377,7 @@ def make_ui_router() -> APIRouter:
                 ) from exc
 
         ctx = _ui_context(
+            request,
             nav_section="agents",
             form_title=f"Edit {row.name}",
             form_action=f"/agents/{profile_id}/edit",
@@ -364,7 +389,12 @@ def make_ui_router() -> APIRouter:
         return templates.TemplateResponse(request, "agent_form.html", ctx)
 
     @router.post("/agents/{profile_id}/edit")
-    async def agents_edit_submit(request: Request, profile_id: str) -> RedirectResponse:
+    async def agents_edit_submit(
+        request: Request,
+        profile_id: str,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
         """Update an agent profile from form POST."""
         rr: RunsRoot = request.app.state.runs_root
         form = await request.form()
@@ -387,14 +417,21 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/settings", response_class=HTMLResponse)
-    async def settings_page(request: Request) -> HTMLResponse:
+    async def settings_page(
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the settings form bound to runtime config env vars."""
         saved = request.query_params.get("saved") == "1"
-        ctx = _ui_context(nav_section="settings", config=_read_config(), saved=saved)
+        ctx = _ui_context(request, nav_section="settings", config=_read_config(), saved=saved)
         return templates.TemplateResponse(request, "settings.html", ctx)
 
     @router.post("/settings")
-    async def settings_submit(request: Request) -> RedirectResponse:
+    async def settings_submit(
+        request: Request,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
         """Update runtime config from form POST."""
         form = await request.form()
         model_default = str(form.get("model_default", "")).strip()
@@ -413,7 +450,11 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/runs/{run_id}", response_class=HTMLResponse)
-    async def run_detail(request: Request, run_id: str) -> HTMLResponse:
+    async def run_detail(
+        request: Request,
+        run_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the hydrated run-detail page for *run_id* (W1.1).
 
         Shows a per-wave table merged with ``latest_events_by_node`` (D2),
@@ -433,7 +474,7 @@ def make_ui_router() -> APIRouter:
         ctx = _build_run_detail_context(rr, run_id)
         if ctx is None:
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
-        ctx.update(_ui_context(nav_section="runs"))
+        ctx.update(_ui_context(request, nav_section="runs"))
         ctx["sse_url"] = f"/api/runs/{run_id}/events/stream"
         return templates.TemplateResponse(request, "run_detail.html", ctx)
 
@@ -623,7 +664,7 @@ def make_ui_router() -> APIRouter:
                 "truncated": truncated,
                 "full_log_url": None,
                 "log_available": True,
-                **_ui_context(nav_section="runs"),
+                **_ui_context(request, nav_section="runs"),
             },
         )
 
@@ -735,17 +776,21 @@ def _get_token() -> str:
     return os.environ.get("TRIPLL_API_TOKEN", "").strip()
 
 
-def _ui_context(*, nav_section: str, **extra: Any) -> dict[str, Any]:
-    """Build common template context with nav chrome (W2.1).
+def _ui_context(request: Request, *, nav_section: str, **extra: Any) -> dict[str, Any]:
+    """Build common template context with nav chrome (W2.1 + W3 CSRF).
 
     Args:
+        request (Request): Active request (CSRF token + cookie pairing).
         nav_section (str): Active nav item (``runs``, ``agents``, ``settings``).
         **extra: Additional template variables.
 
     Returns:
-        dict[str, Any]: Context dict including ``api_token`` and ``nav_section``.
+        dict[str, Any]: Context dict including ``api_token``, ``csrf_token``, and
+        ``nav_section``.
     """
     ctx: dict[str, Any] = {"api_token": _get_token(), "nav_section": nav_section}
+    if _get_token():
+        ctx["csrf_token"] = ensure_csrf_token(request)
     ctx.update(extra)
     return ctx
 
