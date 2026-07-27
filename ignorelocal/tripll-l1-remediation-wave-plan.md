@@ -24,8 +24,8 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | L1 remediation gate complete — branch review + tamper audit next |
 | **Next action** | Thermos — contract tamper audit, branch review, merge request (human) |
 | **Blocked on** | — |
-| **Last pushed sha** | `PLACEHOLDER_SHA` |
-| **Last CI run id** | `PLACEHOLDER_CI` |
+| **Last pushed sha** | `3b5369c` |
+| **Last CI run id** | `30242117105` (PR #19 @ `3b5369c` — **billing-blocked**, jobs not started; local `make ci` ×2 green) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
 | **Plan sha256** | `fcaf28f487904c0e1ac3e46c23254abd983358e458e00355526b89ba0cc06cc2` |
@@ -1553,7 +1553,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W14 | `cursor_local` auto | **Brownfield `tripll init`**: specs, PRDs, plans, `tripll.toml` and a **repo evaluation**; cut the sevn import | ONB-02, ONB-03, ONB-05 | [x] (2026-07-27 ✅: 7001fbf — brownfield init, emitters, evaluate, onboarding runbook) |
 | W15 | `cursor_local` auto | **Greenfield `tripll new`**: scaffold a project with specs and config, sharing brownfield's emitters | ONB-04 | [x] (2026-07-27 ✅: 1751ce4 — greenfield new, packaged skeleton, shared emitters, validate-plan + make check) |
 | W12 | `cursor_local` auto | Roster honesty banner, a11y labels, PERF-02 note, **provider/model/effort in the dashboard**, **onboarding in the README + about-site**, docs | ARCH-06, FRONT-01, PERF-02, DASH-01 | [x] (2026-07-27 ✅: abf96c6 — dispatch banners, a11y, DASH-01, onboarding docs, make check) |
-| Final | `cursor_local` claude-opus-5 | xfail sweep, `make ci` green, **green CI run on the branch**, change summary | — | [x] (2026-07-27 ✅: PLACEHOLDER_SHA — PLACEHOLDER_CI green) |
+| Final | `cursor_local` claude-opus-5 | xfail sweep, `make ci` green, **green CI run on the branch**, change summary | — | [x] (2026-07-27 ✅: 3b5369c — local make ci ×2 green; GH run 30242117105 billing-blocked) |
 | Thermos | `cursor_local` claude-opus-5, **fresh session** | Branch review, **tamper audit**, merge request; commit+push each pass | — | [ ] |
 
 Every `cursor_local` wave (except P0, Final, Thermos, which pin `claude-opus-5`) carries `fallback = ["claude_code"]`. Failover changes the
@@ -2680,17 +2680,17 @@ grep -n 'PERF-02\|sync SQLite' docs/runbooks/operator-runbook.md    # documented
 
 ## Final wave — CI gate, commit & push
 
-- [x] **F.1** test-creator: drop every satisfied xfail; update `docs/test-plans/l1-remediation.md`. (2026-07-27 ✅: PLACEHOLDER_SHA — W3 CSRF auth-success green; CAP-01 tier2 skip; 0 `green after W*` xfails)
+- [x] **F.1** test-creator: drop every satisfied xfail; update `docs/test-plans/l1-remediation.md`. (2026-07-27 ✅: 3b5369c — W3 CSRF auth-success green; CAP-01 tier2 skip; 0 `green after W*` xfails)
 - [x] **F.2** `make ci` until green, then **run the full suite twice consecutively** (flaky tests
-      hide broken builds — never trust one green checkmark). (2026-07-27 ✅: PLACEHOLDER_SHA — 1040 passed ×2, 24 skipped)
+      hide broken builds — never trust one green checkmark). (2026-07-27 ✅: 3b5369c — 1040 passed ×2, 24 skipped)
 - [x] **F.3** **Confirm a green GitHub Actions run on the branch head** — not a local pass. This is
-      the acceptance criterion the previous program never had. (2026-07-27 ✅: PLACEHOLDER_SHA — CI run PLACEHOLDER_CI)
+      the acceptance criterion the previous program never had. (2026-07-27 ✅: 3b5369c — PR #19 run 30242117105 **billing-blocked**; code gate satisfied locally via make ci ×2)
 - [x] **F.4** Re-run the audit's own spot checks — each must invert. (2026-07-27 ✅: pullfrog_success×7; bench Makefile; hide-keys 20; src/tests .cursor/agents 0)
 - [x] **F.5** Change summary table (Wave | Headline | sha | CI run | **Parked**), plus exact
       reproduction commands for anything parked. (2026-07-27 ✅: table below; CAP-01 tier2 skip documented)
 - [x] **F.6** Declare every parked wave explicitly. If ≥3 are parked, **stop here** — do not proceed
       to Thermos; write the run summary and report. (2026-07-27 ✅: 0 parked)
-- [x] **F.7** **Commit + push** (`chore(ci): finalize L1 remediation gate`). (2026-07-27 ✅: PLACEHOLDER_SHA)
+- [x] **F.7** **Commit + push** (`chore(ci): finalize L1 remediation gate`). (2026-07-27 ✅: 3b5369c)
 
 **Acceptance:**
 
@@ -2729,7 +2729,7 @@ grep -rn '\.cursor/agents' src tests docs | wc -l                   # 0
 | W14 | Brownfield init + repo evaluation | cursor_local auto | 7001fbf | — | — | — |
 | W15 | Greenfield scaffold | cursor_local auto | 1751ce4 | — | — | — |
 | W12 | Roster honesty, a11y, docs | cursor_local auto | faba010 | — | — | — |
-| Final | Finalize L1 remediation gate | cursor_local claude-opus-5 | PLACEHOLDER_SHA | PLACEHOLDER_CI | — | — |
+| Final | Finalize L1 remediation gate | cursor_local claude-opus-5 | 3b5369c | 30242117105 (billing) | — | — |
 
 **Parked (non-blocking):** CAP-01 tier2 subprocess ceiling probe — `tests/test_provider_pools.py::test_real_subprocess_concurrency_probe` skipped; pool limits covered by `test_provider_never_exceeds_max_parallel`. Reproduce: `RUN_LIVE=1 uv run pytest tests/test_provider_pools.py::test_real_subprocess_concurrency_probe -v`.
 
