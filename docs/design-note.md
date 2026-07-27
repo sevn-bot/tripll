@@ -1,6 +1,6 @@
 # wave-orchestrator / tripll — design note (code factory L1)
 
-**Status:** Code factory L1 — W12 docs (2026-07-25)
+**Status:** Code factory L1 — post-remediation (2026-07-27)
 **Date:** 2026-06-15 (W0) · updated 2026-07-25 (L1 task graph)
 **Author:** wave-runner W0 pass · L1 executor W12
 **Design:** `.ignorelocal/design/plan/tripll-code-factory-design.md` (§7–§13)
@@ -69,6 +69,19 @@ stale-finding rate, human gate wait, total cost, graph-brief vs grep-brief (D23)
 5. `build_plan_from_errors` kept as sevn turn-bundle entry point.
 6. `skw run --wave` preserved as thin alias.
 7. Extras: `graph`, `kg`; stale `ai` extra dropped.
+
+### 0.6 Post-L1 capability boundaries
+
+L1 remediation (W9, W10, D15, ADR 009) closed **one** honest PR investigate→fix path and
+shipped graph-packed briefs as the default dispatch context. These boundaries remain after
+`wave/l1-remediation`:
+
+| Topic | Shipped in L1 | Still not automatic / out of scope |
+|-------|---------------|-------------------------------------|
+| **PR → CI fix → review fix loop** | `loops/l1_pr.py` + `dispatch_bridge.py` (W9): LangGraph investigate/fix nodes call real adapters (`ci-investigator` → `check-fixer`, review triager/fixer). Idempotent push/open via `github/pr.py`. Operator CLI: `tripll pr shepherd`, `findings sync`, `pr approve-merge`. | **Not wired into `Engine._drive` or `tripll run`.** The outer loop (`l1_outer.py`) is still scaffolding — wave dispatch stays on the batch Engine path. One closed loop only (R10); no auto-merge (D15) — loop parks at the human merge gate. |
+| **`--integrate`** | Per-batch local merge → Docs&Menu → `make ci` → one Conventional Commit on `tripll/integrate/<run-id>` (`integrate.py`). Resume-safe branch creation (no blind `checkout -B`). | **Default OFF.** Does not open GitHub PRs; delivery to remote CI/review is the separate PR phase above. |
+| **Dispatch briefs** | Graph-packed brief is the **default** when the code graph is available (`engine._resolve_grep_brief`, `brief.enrich_brief_with_graph_pack`, W10/D23). Packed subgraph replaces the legacy no-exploration line. | Agents still must not run repo-wide grep, graphify, or architecture tours unless the packed context is insufficient (`brief.GRAPH_PACKED_DIRECTIVE`). Legacy grep brief: `--grep-brief` for A/B replay. |
+| **LangGraph vs ledger** | Optional `graph` extra: L1 PR loop + durable `AsyncSqliteSaver` checkpoints (`thread_id == run_id`). | **`ledger.db` remains the system of record** (§0.2, D6). Checkpoints are derived; recovery replays from the ledger. Linear DAG runs work without LangGraph. |
 
 ---
 
