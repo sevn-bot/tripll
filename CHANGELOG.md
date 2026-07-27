@@ -14,8 +14,8 @@ All notable changes to this project are documented here. The format is based on
   `make lint`/`make typecheck`, plan self-hosting (`[pipeline] creates` validate-plan exemption),
   `human_gates` config (`prompt` | `auto_accept` | `fail`) with tier-4 CI canary parking, and
   per-wave stop-rule threshold (SHAPE-01).
-- Final L1 gate: xfail sweep complete (0 xfails); `make ci` green (905 passed, 25 skipped);
-  tripll self-graph extracted (6310 nodes, 5412 edges @ HEAD).
+- Final L1 gate: xfail sweep complete (0 `green after W*` xfails); W3 CSRF auth-success tests
+  green; CAP-01 tier2 probe skipped; `make ci` green twice on branch head.
 - W12 docs and operator guides: L1 design-note §0 (task graph, `unverified`, exits, ledger vs
   checkpoint), control-plane §12 (LangGraph seam), `docs/ontology.md`, `docs/harness-checks.md`,
   PR-loop runbook, updated `about-tripll` architecture page.

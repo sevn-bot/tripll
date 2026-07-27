@@ -72,10 +72,15 @@ def test_init_idempotent_preserves_operator_edits(
     assert toml.read_text(encoding="utf-8").count("operator edit") == 1
 
 
-def test_brownfield_programmatic(foreign_repo: Path) -> None:
+def test_brownfield_programmatic(
+    foreign_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TRIPLL_RUNS", raising=False)
+    monkeypatch.delenv("TRIPLL_REPO_ROOT", raising=False)
     result = run_brownfield_init(repo_root=foreign_repo)
     assert result.evaluation_path is not None
-    assert result.runs_root.is_dir()
+    assert result.runs_root == foreign_repo / "runs"
     assert (foreign_repo / "runs" / "input").is_dir()
 
 

@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from fastapi.testclient import TestClient
 
+from tripll.api._csrf import CSRF_COOKIE, CSRF_FORM_FIELD
 from tripll.api.app import create_app
 from tripll.ledger import insert_run, open_ledger
 from tripll.pipeline import RunsRoot
 from tripll.profiles import control_plane_db_path, open_profile_store, upsert_profile
+
+if TYPE_CHECKING:
+    from httpx import Response
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_ROOT = REPO_ROOT / "src" / "tripll" / "api" / "ui" / "templates"
@@ -26,6 +31,21 @@ MUTATING_POSTS: list[tuple[str, dict[str, str] | None]] = [
 PAGE_GETS = ["/", "/agents", "/agents/new", "/agents/edit-id/edit", "/settings", "/runs/run-1"]
 
 AUTH_HEADER = {"Authorization": "Bearer test-token-secret"}
+
+
+def _post_with_auth_and_csrf(
+    client: TestClient,
+    path: str,
+    payload: dict[str, str] | None,
+) -> Response:
+    """POST with bearer auth and double-submit CSRF (W3 success path)."""
+    prime = client.get("/", headers=AUTH_HEADER)
+    assert prime.status_code == 200
+    csrf = client.cookies.get(CSRF_COOKIE, "")
+    assert csrf
+    data = dict(payload or {})
+    data[CSRF_FORM_FIELD] = csrf
+    return client.post(path, data=data, headers=AUTH_HEADER)
 
 
 def _seed_auth_page_fixtures(rr: RunsRoot) -> None:
@@ -89,13 +109,12 @@ def test_mutating_post_requires_token(
 
 @pytest.mark.tier1
 @pytest.mark.parametrize(("path", "payload"), MUTATING_POSTS)
-@pytest.mark.xfail(reason="green after W3: mutating HTML POST auth with bearer", strict=False)
 def test_mutating_post_succeeds_with_token(
     token_client: TestClient,
     path: str,
     payload: dict[str, str] | None,
 ) -> None:
-    response = token_client.post(path, data=payload or {}, headers=AUTH_HEADER)
+    response = _post_with_auth_and_csrf(token_client, path, payload)
     assert response.status_code not in (401, 403)
 
 
