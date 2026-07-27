@@ -975,6 +975,9 @@ class Engine:
         self._last_dispatch_result_text: str = ""
         self._last_worktree_path: Path | None = None
         self._last_checkpoint_sha: str = ""
+        self._run_wall_clock_start: float | None = None
+        self._run_deadline_ts: float | None = None
+        self._last_fired_exit_id: int | None = None
 
     # -- public API ---------------------------------------------------------
 
@@ -1530,6 +1533,169 @@ class Engine:
             return False
         return get_run_cost(lc, run_id) >= self.cost_budget_usd
 
+    def _init_run_wall_clock(self, graph: RunGraph) -> None:
+        """Record run-level wall-clock deadline for exit 4."""
+        import time
+
+        self._run_wall_clock_start = time.time()
+        env_limit = os.environ.get("TRIPLL_RUN_WALL_CLOCK_S", "").strip()
+        limit_s = 0.0
+        if env_limit:
+            try:
+                limit_s = max(0.0, float(env_limit))
+            except ValueError:
+                limit_s = 0.0
+        if limit_s <= 0:
+            limit_s = float(sum(n.wall_clock_limit_s for n in graph.nodes.values()))
+        self._run_deadline_ts = self._run_wall_clock_start + limit_s if limit_s > 0 else None
+
+    def _load_check_runs_for_run(self, run_id: str) -> list[dict[str, Any]]:
+        """Load cached GitHub check-runs for *run_id* when present."""
+        run_dir = self.runs_root.run_dir(run_id)
+        path = run_dir / "check-runs.json"
+        if not path.is_file():
+            return []
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return []
+        return data if isinstance(data, list) else []
+
+    def _external_event_state(self, run_id: str) -> tuple[str, str]:
+        """Return PR/issue state inputs for exit 8."""
+        pr_state = os.environ.get("TRIPLL_PR_STATE", "").strip()
+        issue_state = os.environ.get("TRIPLL_ISSUE_STATE", "").strip()
+        marker = self.runs_root.run_dir(run_id) / "external-event.json"
+        if marker.is_file():
+            try:
+                payload = json.loads(marker.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                payload = {}
+            if isinstance(payload, dict):
+                pr_state = str(payload.get("pr_state") or pr_state)
+                issue_state = str(payload.get("issue_state") or issue_state)
+        return pr_state, issue_state
+
+    def _build_exit_eval_context(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        *,
+        node: WaveNode | None = None,
+        turn_hashes: list[str] | None = None,
+        outcome_satisfied: bool = False,
+        ci_green: bool = False,
+        record: bool = True,
+    ) -> dict[str, Any]:
+        """Assemble the ``evaluate_exit`` context for Engine terminal checks."""
+        from tripll.github.reviews import pullfrog_success_from_check_runs
+
+        check_runs = self._load_check_runs_for_run(run_id)
+        pr_state, issue_state = self._external_event_state(run_id)
+        ctx: dict[str, Any] = {
+            "run_id": run_id,
+            "ledger": lc,
+            "record": record,
+            "cost_usd": get_run_cost(lc, run_id),
+            "budget_usd": self.cost_budget_usd,
+            "spent_usd": get_run_cost(lc, run_id),
+            "pullfrog_success": pullfrog_success_from_check_runs(check_runs),
+            "outcome_satisfied": outcome_satisfied,
+            "ci_green": ci_green,
+            "pr_state": pr_state,
+            "issue_state": issue_state,
+            "pause_requested": self._pause_requested(run_id),
+        }
+        if self._run_deadline_ts is not None:
+            ctx["deadline_ts"] = self._run_deadline_ts
+        if node is not None:
+            ctx["agent"] = node.agent or node.model or "wave"
+            ctx["problem_type"] = node.wave_id
+            ctx["attempt_count"] = get_wave(lc, run_id, node.node_id).attempt_count
+            ctx["max_attempts"] = self.max_attempts
+        if turn_hashes is not None:
+            ctx["turn_hashes"] = turn_hashes
+        return ctx
+
+    def _evaluate_engine_exit(
+        self,
+        exit_id: int,
+        lc: LedgerConnection,
+        run_id: str,
+        **extra: Any,
+    ) -> Any:
+        """Evaluate one exit from the Engine path; records ``exit_fired`` when it fires."""
+        from tripll.loops.exits import evaluate_exit
+
+        ctx_keys = {"node", "turn_hashes", "outcome_satisfied", "ci_green", "record"}
+        ctx = self._build_exit_eval_context(
+            lc,
+            run_id,
+            **{k: v for k, v in extra.items() if k in ctx_keys},
+        )
+        ctx.update(extra)
+        result = evaluate_exit(exit_id, ctx)
+        if result.fired:
+            self._last_fired_exit_id = result.exit_id
+        return result
+
+    def _scan_pre_dispatch_exits(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+    ) -> int | None:
+        """Evaluate human_interrupt, external_event, and wall_clock before dispatch."""
+        for exit_id in (6, 8, 4):
+            fired = self._evaluate_engine_exit(exit_id, lc, run_id)
+            if fired.fired:
+                return exit_id
+        return None
+
+    def _fire_goal_met_exit(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        *,
+        ci_green: bool,
+        outcome_satisfied: bool,
+    ) -> None:
+        """Record exit 1 when the run outcome contract is satisfied."""
+        self._evaluate_engine_exit(
+            1,
+            lc,
+            run_id,
+            ci_green=ci_green,
+            outcome_satisfied=outcome_satisfied,
+        )
+
+    def _fire_error_threshold_exit(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        *,
+        node: WaveNode,
+        failures: int,
+    ) -> None:
+        """Open the per-run circuit breaker and record exit 7 when tripped."""
+        from tripll.loops.exits import circuit_breaker_open
+
+        agent = str(node.agent or node.model or "wave")
+        problem_type = str(node.wave_id)
+        circuit_breaker_open(
+            agent=agent,
+            problem_type=problem_type,
+            failures=failures,
+            run_id=run_id,
+        )
+        self._evaluate_engine_exit(
+            7,
+            lc,
+            run_id,
+            node=node,
+            agent=agent,
+            problem_type=problem_type,
+        )
+
     def _verify_with_retries(self, worktree_path: Path, targets: list[str]) -> tuple[bool, str]:
         """Run verify targets with transient-flap retries (verify-only, no re-dispatch)."""
         evidence = ""
@@ -1755,6 +1921,7 @@ class Engine:
                             )
 
                     transition_run(lc, run_id, "active")
+                    self._init_run_wall_clock(graph)
 
                     if graph_available():
                         record_loop_snapshot(
@@ -1835,6 +2002,13 @@ class Engine:
                     state: RunState = "failed" if blocked else "done"
                     if blocked:
                         self._write_escalation(run_id, blocked, results)
+                    else:
+                        self._fire_goal_met_exit(
+                            lc,
+                            run_id,
+                            ci_green=True,
+                            outcome_satisfied=True,
+                        )
                     transition_run(lc, run_id, state)
 
                 self._sync_report(run_id, graph, partial_results=results)
@@ -2224,7 +2398,20 @@ class Engine:
 
             # Pause-marker check: honour API pause before dispatching new waves.
             # In-flight waves are NOT killed -- they run to completion.
-            if self._pause_requested(run_id):
+            pre_exit = self._scan_pre_dispatch_exits(lc, run_id)
+            if pre_exit == 8:
+                logger.warning("engine: {} external_event exit fired — abandoning run", run_id)
+                async with self._ledger_lock:
+                    transition_run(lc, run_id, "failed")
+                self._sync_report(run_id, graph, partial_results=results)
+                return RunResult(run_id=run_id, state="failed", nodes=results)
+            if pre_exit == 4:
+                logger.warning("engine: {} wall_clock exit fired — pausing run", run_id)
+                async with self._ledger_lock:
+                    transition_run(lc, run_id, "paused")
+                self._sync_report(run_id, graph, partial_results=results)
+                return RunResult(run_id=run_id, state="paused", nodes=results)
+            if pre_exit == 6 or self._pause_requested(run_id):
                 logger.info(
                     "engine: {} pause-requested marker found -- pausing before next dispatch",
                     run_id,
@@ -2288,6 +2475,7 @@ class Engine:
 
             if pause_cost is not None:
                 async with self._ledger_lock:
+                    self._evaluate_engine_exit(3, lc, run_id)
                     self._write_cost_pause(run_id, get_run_cost(lc, run_id))
                     transition_run(lc, run_id, "paused")
                 self._sync_report(run_id, graph, partial_results=results)
@@ -2415,6 +2603,7 @@ class Engine:
         wave = get_wave(lc, run_id, node.node_id)
         if self._cost_budget_exceeded(lc, run_id):
             spent = get_run_cost(lc, run_id)
+            self._evaluate_engine_exit(3, lc, run_id)
             self._write_cost_pause(run_id, spent)
             return NodeResult(
                 node.node_id,
@@ -2444,6 +2633,7 @@ class Engine:
             while attempts_used < self.max_attempts:
                 if self._cost_budget_exceeded(lc, run_id):
                     spent = get_run_cost(lc, run_id)
+                    self._evaluate_engine_exit(3, lc, run_id)
                     self._write_cost_pause(run_id, spent)
                     return NodeResult(
                         node.node_id,
@@ -2455,6 +2645,14 @@ class Engine:
                 # No-progress early exit: if we already hit the cap, escalate now
                 # instead of dispatching another doomed full attempt.
                 if no_progress_dispatches >= _MAX_NO_PROGRESS_DISPATCHES:
+                    from tripll.loops.exits import NO_PROGRESS_STREAK
+
+                    self._evaluate_engine_exit(
+                        5,
+                        lc,
+                        run_id,
+                        turn_hashes=["no-progress"] * NO_PROGRESS_STREAK,
+                    )
                     evidence = (
                         f"no-progress escalation after {no_progress_dispatches} "
                         f"dispatch(es) produced no edits in owned paths "
@@ -2467,6 +2665,7 @@ class Engine:
                         node.node_id,
                         evidence,
                     )
+                    self._fire_error_threshold_exit(lc, run_id, node=node, failures=attempts_used)
                     async with self._ledger_lock:
                         transition_wave(lc, run_id, node.node_id, "blocked")
                     return NodeResult(node.node_id, "blocked", attempts_used, evidence)
@@ -2751,6 +2950,7 @@ class Engine:
                             last_action=f"cost budget ${self.cost_budget_usd:.2f} reached",
                             cost_usd=result.cost_usd,
                         )
+                    self._evaluate_engine_exit(3, lc, run_id)
                     self._write_cost_pause(run_id, spent)
                     return NodeResult(
                         node.node_id,
@@ -2917,6 +3117,7 @@ class Engine:
                     async with self._ledger_lock:
                         transition_wave(lc, run_id, node.node_id, "queued")
 
+            self._fire_error_threshold_exit(lc, run_id, node=node, failures=attempts_used)
             async with self._ledger_lock:
                 transition_wave(lc, run_id, node.node_id, "blocked")
                 append_event(

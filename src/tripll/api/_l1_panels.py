@@ -254,12 +254,14 @@ def build_exits_panel(
     waves: list[WaveRow],
     run_cost: float,
     max_attempts: int = DEFAULT_MAX_TURNS,
+    fired_exit_ids: list[int] | None = None,
 ) -> list[ExitCapRow]:
     """Show exit caps and proximity (§12 dashboard)."""
     budget = float(os.environ.get("TRIPLL_COST_BUDGET_USD") or DEFAULT_BUDGET_USD)
     peak_attempts = max((w.attempt_count for w in waves), default=0)
     blocked = sum(1 for w in waves if w.state == "blocked")
     unverified = sum(1 for w in waves if w.state == "unverified")
+    fired = set(fired_exit_ids or [])
 
     def row(
         exit_id: int,
@@ -282,35 +284,47 @@ def build_exits_panel(
     attempt_ratio = peak_attempts / max_attempts if max_attempts else 0.0
     budget_ratio = run_cost / budget if budget > 0 else 0.0
     return [
-        row(2, "Turn cap", str(peak_attempts), str(max_attempts), attempt_ratio),
-        row(3, "Budget cap", f"${run_cost:.2f}", f"${budget:.2f}", budget_ratio),
+        row(
+            2,
+            "Turn cap",
+            "fired" if 2 in fired else str(peak_attempts),
+            str(max_attempts),
+            attempt_ratio,
+        ),
+        row(
+            3,
+            "Budget cap",
+            "fired" if 3 in fired else f"${run_cost:.2f}",
+            f"${budget:.2f}",
+            budget_ratio,
+        ),
         row(
             7,
             "Error threshold",
-            str(blocked),
+            "fired" if 7 in fired else str(blocked),
             "circuit breaker",
             min(blocked / 5.0, 1.0) if blocked else 0.0,
         ),
         row(
             1,
             "Goal met",
-            "pending",
+            "fired" if 1 in fired else "pending",
             "CI + pullfrog-approval",
-            0.0,
+            1.0 if 1 in fired else 0.0,
         ),
         row(
             5,
             "No progress",
-            "—",
+            "fired" if 5 in fired else "—",
             "3 unchanged turns",
-            0.0,
+            1.0 if 5 in fired else 0.0,
         ),
         row(
             4,
             "Wall clock",
-            f"{unverified} unverified",
+            "fired" if 4 in fired else f"{unverified} unverified",
             "per-wave limit",
-            0.0,
+            1.0 if 4 in fired else 0.0,
         ),
     ]
 
@@ -321,10 +335,15 @@ def build_l1_panels(
     waves: list[WaveRow],
     run_cost: float,
     repo_root: Path | None = None,
+    fired_exit_ids: list[int] | None = None,
 ) -> L1PanelsView:
     """Build all three L1 dashboard panels."""
     return L1PanelsView(
         graph=build_graph_panel(run_dir=run_dir, waves=waves, repo_root=repo_root),
         findings=build_findings_panel(run_dir=run_dir, repo_root=repo_root),
-        exits=build_exits_panel(waves=waves, run_cost=run_cost),
+        exits=build_exits_panel(
+            waves=waves,
+            run_cost=run_cost,
+            fired_exit_ids=fired_exit_ids,
+        ),
     )

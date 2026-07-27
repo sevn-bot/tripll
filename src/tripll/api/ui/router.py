@@ -83,6 +83,7 @@ from tripll.ledger import (
     latest_events_by_node,
     list_attempts,
     list_events,
+    list_fired_exit_ids,
     list_waves,
     open_ledger,
 )
@@ -1110,6 +1111,7 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         latest = latest_events_by_node(lc, run_id)
         timeline_events = _timeline_events(lc, run_id)
         run_cost = get_run_cost(lc, run_id)
+        fired_exit_ids = list_fired_exit_ids(lc, run_id)
         wave_rows = _build_wave_rows(waves, latest, rr=rr, run_id=run_id, lc=lc)
         ledger_node_ids = [w.node_id for w in waves]
         batch_timeline = build_batch_timeline(
@@ -1135,6 +1137,7 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         waves=waves,
         run_cost=run_cost,
         repo_root=resolve_repo_root(),
+        fired_exit_ids=fired_exit_ids,
     )
 
     return {

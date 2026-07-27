@@ -251,7 +251,7 @@ def evaluate_exit(exit_id: int, context: dict[str, Any] | None = None) -> ExitFi
 
     run_id = ctx.get("run_id")
     ledger = ctx.get("ledger")
-    if fired and run_id and ledger is not None:
+    if fired and run_id and ledger is not None and ctx.get("record", True):
         record_exit_on_run(ledger, run_id=str(run_id), exit_id=exit_id, name=name)
         recorded = True
     elif fired and ctx.get("record", True):

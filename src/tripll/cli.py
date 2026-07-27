@@ -617,12 +617,18 @@ def _status_run(rr: RunsRoot, run_id: str) -> None:
         typer.echo(f"Run not found: {run_id}", err=True)
         raise typer.Exit(1)
 
-    from tripll.ledger import get_run_cost, get_run_cost_by_provider, list_attempts
+    from tripll.ledger import (
+        get_run_cost,
+        get_run_cost_by_provider,
+        list_attempts,
+        list_fired_exit_ids,
+    )
 
     with open_ledger(ledger_path) as lc:
         waves = list_waves(lc, run_id)
         run_cost = get_run_cost(lc, run_id)
         cost_by_provider = get_run_cost_by_provider(lc, run_id)
+        fired_exits = list_fired_exit_ids(lc, run_id)
         evidence = {
             w.node_id: next(
                 (a.evidence for a in reversed(list_attempts(lc, run_id, w.node_id)) if a.evidence),
@@ -650,6 +656,9 @@ def _status_run(rr: RunsRoot, run_id: str) -> None:
             typer.echo(f"    {backend}: ${amount:.4f}")
     if budget > 0:
         typer.echo(f"  budget: ${budget:.2f} (${run_cost:.4f} spent)")
+
+    if fired_exits:
+        typer.echo(f"\nExits fired: {', '.join(str(exit_id) for exit_id in fired_exits)}")
 
     run_dir = rr.find_run_dir(run_id)
     wt_root = (run_dir / "worktrees") if run_dir else None

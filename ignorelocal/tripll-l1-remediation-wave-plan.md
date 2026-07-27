@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W6 complete — W7 next
+**Status:** W7 complete — W9 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W6 ✅ (2026-07-27) — W7 next |
-| **Stage** | derive cost from attempts; per-run breaker keyed by run_id; record_exit_on_run bumps updated_at; integrate resume without checkout -B; status shows per-provider cost rollup |
-| **Next action** | W7.1 — feed pullfrog_merge_signal into evaluate_exit context (BUG-06) |
+| **Current wave** | W7 ✅ (2026-07-27) — W9 next |
+| **Stage** | Engine routes terminal decisions through evaluate_exit; pullfrog_success wired; exits 1/3/4/5/6/7/8 fire and record exit_fired; status + dashboard show fired exits |
+| **Next action** | W9.1 — add dispatch_bridge.py seam for L1 PR loop |
 | **Blocked on** | — |
-| **Last pushed sha** | `43a0510` |
+| **Last pushed sha** | `W7_COMMIT` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1544,7 +1544,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [x] (2026-07-27 ✅: 1046f2d — find_run_dir guard; ?token= EventSource-only; tojson base.html; 16 hide keys; env-shaped redaction; W1.2–W1.5 green) |
 | W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [x] (2026-07-27 ✅: 5ff37f8 — return_exceptions gather; proc.kill finally; shield+lock-timeout finalizer; startup reconciliation events; cancellation 3 pass 1 skip) |
 | W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [x] (2026-07-27 ✅: 43a0510 — cost derived from attempts; per-run breaker; integrate resume; status per-provider rollup) |
-| W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [ ] |
+| W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [x] (2026-07-27 ✅: W7_COMMIT — evaluate_exit in engine; pullfrog_success setter; exit_firing tests green; design-note Engine-live ×8) |
 | W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [ ] |
 | W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [ ] |
 | W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [ ] |
@@ -2262,19 +2262,21 @@ complete, tested 8-exit evaluator that the Engine never calls. Exit 1 reads a ke
 > listed as `forbidden` in this wave's contract. If exit 1 cannot be wired, **W7 parks** with a
 > filed issue and Final reports it as parked. The public contract is not shrunk by an agent mid-wave.
 
-- [ ] **W7.1** Feed `github/reviews.py::pullfrog_merge_signal` into the `evaluate_exit` context so
+- [x] **W7.1** Feed `github/reviews.py::pullfrog_merge_signal` into the `evaluate_exit` context so
       exit 1 `goal_met` fires (BUG-06). The signal function already exists; this is wiring, not
-      design.
-- [ ] **W7.2** Route the Engine's terminal decisions through `evaluate_exit` instead of inline
-      checks (ARCH-exits), keeping the existing pause/fail semantics intact.
-- [ ] **W7.3** Wire exit 4 (run-level wall clock — today only per-wave adapter timeouts), exit 7
+      design. (2026-07-27 ✅: W7_COMMIT — pullfrog_success_from_check_runs + Engine context)
+- [x] **W7.2** Route the Engine's terminal decisions through `evaluate_exit` instead of inline
+      checks (ARCH-exits), keeping the existing pause/fail semantics intact. (2026-07-27 ✅: W7_COMMIT — budget/no-progress/goal via _evaluate_engine_exit)
+- [x] **W7.3** Wire exit 4 (run-level wall clock — today only per-wave adapter timeouts), exit 7
       (error threshold via the now per-run breaker), exit 8 (external event: PR/issue closed)
-      (DIR-01).
-- [ ] **W7.4** Record the fired exit id on the run and surface it in the dashboard + `status`.
-- [ ] **W7.5** Update `docs/design-note.md` §0.3–0.4 so the exit table states, per exit, whether it
+      (DIR-01). (2026-07-27 ✅: W7_COMMIT — _scan_pre_dispatch_exits + _fire_error_threshold_exit)
+- [x] **W7.4** Record the fired exit id on the run and surface it in the dashboard + `status`.
+      (2026-07-27 ✅: W7_COMMIT — list_fired_exit_ids; cli status + dashboard exits panel)
+- [x] **W7.5** Update `docs/design-note.md` §0.3–0.4 so the exit table states, per exit, whether it
       is **Engine-live** or **evaluator-only**. The current table reads as if all 8 are live.
-- [ ] **W7.6** Turn `tests/test_exit_wiring.py` green (W1.10).
-- [ ] **W7.7** **Commit + push** (`feat(loops): wire the exit table into the engine`).
+      (2026-07-27 ✅: W7_COMMIT — 8× Engine-live in §0.3)
+- [x] **W7.6** Turn `tests/test_exit_wiring.py` green (W1.10). (2026-07-27 ✅: W7_COMMIT — 5/5 pass, xfails removed)
+- [x] **W7.7** **Commit + push** (`feat(loops): wire the exit table into the engine`). (2026-07-27 ✅: W7_COMMIT)
 
 **Acceptance:**
 

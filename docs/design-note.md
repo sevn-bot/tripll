@@ -36,25 +36,28 @@ Ontology: `src/tripll/ontology/ontology.yaml`. Docs: [`docs/ontology.md`](ontolo
 
 ### 0.3 Exit table (§7.10)
 
-| # | Name | Fires when |
-|---|------|------------|
-| 1 | goal_met | Outcome contract + CI green + `pullfrog-approval` success |
-| 2 | turn_cap | `max_attempts=5` exhausted (impl waves) |
-| 3 | budget_cap | `TRIPLL_COST_BUDGET_USD` exceeded |
-| 4 | wall_clock | Per-wave limit or run deadline |
-| 5 | no_progress | Three identical graph-delta hashes |
-| 6 | human_interrupt | Operator pause / kill switch |
-| 7 | error_threshold | Circuit breaker per `(agent, problem_type)` |
-| 8 | external_event | PR merged/closed or source issue closed |
+| # | Name | Fires when | Engine |
+|---|------|------------|--------|
+| 1 | goal_met | Outcome contract + CI green + `pullfrog-approval` success | **Engine-live** |
+| 2 | turn_cap | `max_attempts=5` exhausted (impl waves) | **Engine-live** |
+| 3 | budget_cap | `TRIPLL_COST_BUDGET_USD` exceeded | **Engine-live** |
+| 4 | wall_clock | Per-wave limit or run deadline | **Engine-live** |
+| 5 | no_progress | Three identical graph-delta hashes | **Engine-live** |
+| 6 | human_interrupt | Operator pause / kill switch | **Engine-live** |
+| 7 | error_threshold | Circuit breaker per `(agent, problem_type)` | **Engine-live** |
+| 8 | external_event | PR merged/closed or source issue closed | **Engine-live** |
 
-Implementation: `src/tripll/loops/exits.py`. Dashboard shows caps near firing (§12).
+Implementation: `src/tripll/loops/exits.py` (`evaluate_exit`); the Engine routes
+terminal decisions through it and records ``exit_fired`` events on the ledger.
+Dashboard shows caps near firing and marks fired exits (§12).
 
 ### 0.4 Telemetry seams (§12 — L2 inputs, recorded in v1)
 
 Per attempt: agent/prompt hashes, model, `EnvFingerprint`, tokens, cost, wall clock, outcome,
 scope breaches, grader results, findings raised/fixed.
 
-Per run: attempts-to-green, first-attempt pass rate, escalations, exit fired, findings by kind,
+Per run: attempts-to-green, first-attempt pass rate, escalations, **exit fired** (via
+``exit_fired`` ledger events), findings by kind,
 stale-finding rate, human gate wait, total cost, graph-brief vs grep-brief (D23).
 
 ### 0.5 Migration (§13)

@@ -90,6 +90,25 @@ def pullfrog_merge_signal(check_runs: list[dict[str, Any]]) -> str | None:
     return None
 
 
+def pullfrog_success_from_check_runs(check_runs: list[dict[str, Any]]) -> bool:
+    """Return True when ``pullfrog-approval`` concluded success.
+
+    Args:
+        check_runs (list[dict[str, Any]]): GitHub check-run payloads.
+
+    Returns:
+        bool: True when the pullfrog merge signal is ``success``.
+
+    Examples:
+        >>> pullfrog_success_from_check_runs(
+        ...     [{"name": "pullfrog-approval", "conclusion": "success"}]
+        ... )
+        True
+    """
+    signal = pullfrog_merge_signal(check_runs)
+    return signal is not None and signal.lower() == "success"
+
+
 def normalize_review_comments(
     comments: list[dict[str, Any]],
     *,

@@ -29,6 +29,7 @@ Exports:
     end_attempt — set outcome + ended_at on an attempt row.
     append_event — append a per-node event row.
     list_events — fetch events for a run, ordered by event_id (optionally paged).
+    list_fired_exit_ids — distinct exit ids recorded via ``exit_fired`` events.
     latest_events_by_node — collapse events to one row per node_id (D2 hydration).
     ORCHESTRATOR_NODE_ID — synthetic node_id for orchestrator phase events.
     get_run — fetch one run row.
@@ -1005,6 +1006,50 @@ def list_events(
         )
         for r in rows
     ]
+
+
+def list_fired_exit_ids(lc: LedgerConnection, run_id: str) -> list[int]:
+    """Return distinct exit ids recorded via ``exit_fired`` events.
+
+    Args:
+        lc (LedgerConnection): Open ledger connection.
+        run_id (str): Parent run.
+
+    Returns:
+        list[int]: Exit numbers in firing order (deduplicated).
+
+    Examples:
+        >>> import json
+        >>> lc = open_ledger(":memory:")
+        >>> insert_run(lc, run_id="r1", slug="t", source_mode="A", input_path="/tmp")
+        >>> _ = append_event(
+        ...     lc,
+        ...     run_id="r1",
+        ...     node_id="__loop__",
+        ...     phase="exit_fired",
+        ...     metadata=json.dumps({"exit_id": 3, "name": "budget_cap"}),
+        ... )
+        >>> list_fired_exit_ids(lc, "r1")
+        [3]
+        >>> lc.close()
+    """
+    import json
+
+    seen: set[int] = set()
+    fired: list[int] = []
+    for event in list_events(lc, run_id):
+        if event.phase != "exit_fired" or not event.metadata:
+            continue
+        try:
+            payload = json.loads(event.metadata)
+            exit_id = int(payload.get("exit_id") or 0)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if exit_id <= 0 or exit_id in seen:
+            continue
+        seen.add(exit_id)
+        fired.append(exit_id)
+    return fired
 
 
 def latest_events_by_node(lc: LedgerConnection, run_id: str) -> dict[str, EventRow]:
