@@ -1,9 +1,10 @@
 """L1 outer LangGraph loop — validate → waves → verify → commit → review → generate.
 
 Compiles a durable ``AsyncSqliteSaver`` graph keyed ``thread_id == run_id`` with
-``durability="sync"`` on gate-bearing invocations. Nodes are thin wrappers that
-would call ``run_dispatch.dispatch()`` in production; tests use deterministic
-step markers.
+``durability="sync"`` on gate-bearing invocations. Outer-loop nodes remain
+**scaffolding**: they record step markers and ledger snapshots only; real wave
+dispatch stays on the batch ``Engine`` path. PR investigate/fix wiring lives in
+``l1_pr`` + ``dispatch_bridge`` (W9).
 
 Exports:
     OUTER_NODES — ordered node names for the outer loop.

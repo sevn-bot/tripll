@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -42,6 +43,17 @@ def test_push_invokes_git_when_not_dry_run(monkeypatch: pytest.MonkeyPatch) -> N
     assert (result.get("result") or {}).get("dry_run") is not True
 
 
+def test_pr_loop_linear_degradation_path() -> None:
+    """Without LangGraph graph execution, ``run_pr_loop_step`` remains the linear path."""
+    run_pr_loop_step = require_module("tripll.loops.l1_pr", attr="run_pr_loop_step")
+    steps = run_pr_loop_step(
+        findings=[{"kind": "ci_check", "state": "open", "finding_id": "f1"}],
+        phase="investigate_and_fix",
+    )
+    assert isinstance(steps, list)
+    assert steps[0]["agent"] == "ci-investigator"
+
+
 def test_loop_dispatches_investigator_then_fixer() -> None:
     run_pr_loop_step = require_module("tripll.loops.l1_pr", attr="run_pr_loop_step")
     steps = run_pr_loop_step(
@@ -61,8 +73,6 @@ def test_parks_at_merge_gate_never_auto_merges() -> None:
     assert result.get("merged") is not True
 
 
-@pytest.mark.tier3
-@pytest.mark.xfail(reason="green after W9: investigate node invokes adapter", strict=False)
 def test_investigate_invokes_adapter_not_just_dict() -> None:
     """L1-scaffold: ``_node_investigate`` must call an adapter, not only emit dicts."""
     import inspect
@@ -73,8 +83,6 @@ def test_investigate_invokes_adapter_not_just_dict() -> None:
     assert "dispatch_bridge" in source or "adapter.dispatch" in source
 
 
-@pytest.mark.tier3
-@pytest.mark.xfail(reason="green after W9: fix node invokes adapter", strict=False)
 def test_fix_invokes_adapter_not_just_dict() -> None:
     import inspect
 
@@ -83,6 +91,38 @@ def test_fix_invokes_adapter_not_just_dict() -> None:
     source = inspect.getsource(l1_pr)
     assert "FakeAdapter" not in source  # placeholder — real wiring uses adapter calls
     assert "run_dispatch" in source or "dispatch_bridge" in source
+
+
+@pytest.mark.tier3
+def test_dispatch_bridge_records_fake_adapter_calls(tmp_path: Path) -> None:
+    """Fake adapter must record invocations through ``invoke_loop_dispatches``."""
+    from tests._fakes import FakeAdapter
+    from tripll.loops.dispatch_bridge import invoke_loop_dispatches
+
+    adapter = FakeAdapter()
+    state = {
+        "run_id": "run-test",
+        "thread_id": "run-test",
+        "run_dir": str(tmp_path),
+    }
+    meta = [
+        {
+            "agent": "ci-investigator",
+            "action": "investigate",
+            "finding_id": "f1",
+            "kind": "ci_check",
+        },
+        {
+            "agent": "check-fixer",
+            "action": "fix",
+            "finding_id": "f1",
+            "kind": "ci_check",
+        },
+    ]
+    results = invoke_loop_dispatches(state, meta, node="investigate", adapter=adapter)
+    assert adapter.calls == 2
+    assert [r.agent for r in results] == ["ci-investigator", "check-fixer"]
+    assert all(r.outcome == "done" for r in results)
 
 
 def test_exit_8_abandons_when_pr_closed_externally() -> None:

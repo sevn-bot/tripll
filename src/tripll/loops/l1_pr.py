@@ -210,8 +210,18 @@ def _dispatch_for_finding(finding: dict[str, Any]) -> list[dict[str, Any]]:
     investigator, fixer = _AGENT_CHAINS.get(kind, _AGENT_CHAINS["ci_check"])
     finding_id = finding.get("finding_id") or finding.get("id")
     return [
-        {"agent": investigator, "action": "investigate", "finding_id": finding_id},
-        {"agent": fixer, "action": "fix", "finding_id": finding_id},
+        {
+            "agent": investigator,
+            "action": "investigate",
+            "finding_id": finding_id,
+            "kind": kind,
+        },
+        {
+            "agent": fixer,
+            "action": "fix",
+            "finding_id": finding_id,
+            "kind": kind,
+        },
     ]
 
 
@@ -254,9 +264,14 @@ def _node_poll(state: L1OuterState) -> L1OuterState:
 
 
 def _node_investigate(state: L1OuterState) -> L1OuterState:
+    from tripll.loops.dispatch_bridge import dispatch_results_as_dicts, invoke_loop_dispatches
+
     findings = _state_findings(state)
     dispatch = [_dispatch_for_finding(f)[0] for f in _open_findings(findings)]
-    delta = graph_delta_hash({"node": "investigate", "dispatch": dispatch})
+    results = invoke_loop_dispatches(state, dispatch, node="investigate")
+    delta = graph_delta_hash(
+        {"node": "investigate", "dispatch": dispatch, "outcomes": [r.outcome for r in results]}
+    )
     return cast(
         "L1OuterState",
         {
@@ -265,14 +280,20 @@ def _node_investigate(state: L1OuterState) -> L1OuterState:
             "graph_delta_hash": delta,
             "turn_hashes": [delta],
             "dispatch": dispatch,
+            "dispatch_results": dispatch_results_as_dicts(results),
         },
     )
 
 
 def _node_fix(state: L1OuterState) -> L1OuterState:
+    from tripll.loops.dispatch_bridge import dispatch_results_as_dicts, invoke_loop_dispatches
+
     findings = _state_findings(state)
     dispatch = [_dispatch_for_finding(f)[1] for f in _open_findings(findings)]
-    delta = graph_delta_hash({"node": "fix", "dispatch": dispatch})
+    results = invoke_loop_dispatches(state, dispatch, node="fix")
+    delta = graph_delta_hash(
+        {"node": "fix", "dispatch": dispatch, "outcomes": [r.outcome for r in results]}
+    )
     return cast(
         "L1OuterState",
         {
@@ -281,6 +302,7 @@ def _node_fix(state: L1OuterState) -> L1OuterState:
             "graph_delta_hash": delta,
             "turn_hashes": [delta],
             "dispatch": dispatch,
+            "dispatch_results": dispatch_results_as_dicts(results),
         },
     )
 
