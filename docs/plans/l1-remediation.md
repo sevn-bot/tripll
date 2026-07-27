@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W8 complete — W10 next
+**Status:** W0 complete — W1 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,15 +20,15 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W8 ✅ (2026-07-27) — W10 next |
-| **Stage** | CW hotspots default empty; legacy buckets opt-in fixture; runs-path docs say `<repo_root>/runs/` |
-| **Next action** | W10.1 — green `tests/test_obs.py` (TEST-01) |
+| **Current wave** | W0 ✅ (2026-07-26) — W1 next |
+| **Stage** | Baseline recorded; ADRs 006–011 pinned; contract copied to `docs/plans/l1-remediation.md` |
+| **Next action** | W1.1 — RED suite (`test-creator`, tier-tagged xfail guards) |
 | **Blocked on** | — |
-| **Last pushed sha** | `2e455ba` |
-| **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
+| **Last pushed sha** | `8d051fa` |
+| **Last CI run id** | `30166223593` (first executed post-P0.1; status=completed; conclusion=failure — TEST-03) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
-| **Plan sha256** | `fcaf28f487904c0e1ac3e46c23254abd983358e458e00355526b89ba0cc06cc2` |
+| **Plan sha256** | `c639c91e8ccf234df0cc526b17195e56846ec018e24e672e118d8a3ca39a4859` |
 
 ---
 
@@ -88,7 +88,7 @@ product quota**, and today tripll cannot express it:
 
 ### Config surface (P1 implements)
 
-```   
+```
 [providers.claude_code]
 max_parallel = 3
 default_model = "claude-opus-5"
@@ -967,7 +967,7 @@ verify = ["make lint", "make typecheck", "make test"]
   required = [
     "tests/test_cw_portability.py passes",
     "grep -rn 'src/sevn' src/tripll/plan/cw_buckets.py returns nothing outside the opt-in fixture",
-    "grep DX-runs stale nested runs path absent from src docs",
+    "grep -rn 'wave-orchestrator/runs' src docs returns nothing",
   ]
   forbidden = ["shipping sevn paths as a default forbidden set"]
   evidence = ["test_output", "command_output"]
@@ -1320,7 +1320,7 @@ edit, since line numbers shift.
 | L1-scaffold | `l1_outer` / `l1_pr` nodes emit state only; no adapter invocation | `l1_outer.py:188–230`, `l1_pr.py:256–285` | **W9** |
 | ARCH-CW | `LEGACY_CW_BUCKETS` hardcodes sevn paths — wrong forbidden set elsewhere | `plan/cw_buckets.py:5–15`, `graph.py:38` | **W8** |
 | DEBT-parse | Docstrings still say "sevn.bot git checkout" | `repo_root.py`, `worktrees.py` | W8 |
-| DX-runs | Docs say nested legacy runs path while CLI resolves `runs/` | `cli.py:67, 77–83`, `pipeline.py:5`, `build_plan_from_errors.py:9` | W8 ✅ |
+| DX-runs | Docs say `wave-orchestrator/runs` while CLI resolves `runs/` | `cli.py:67, 77–83`, `pipeline.py:5`, `build_plan_from_errors.py:9` | W8 |
 | TEST-01 | No `tests/test_obs*` — no-op / `capture_all` unguarded | absent | **W10** |
 | TEST-02 / DX-04 | `make bench` target **does not exist**; bench never runs | `Makefile` (no `bench` match) | W10 |
 | PERF-01 | `_graph_brief_tokens` computed twice per task | `serve/brief_packer.py` | W10 |
@@ -1537,16 +1537,16 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | P1 | `cursor_local` auto | **Provider fabric**: per-provider pools, per-wave routing, infra-failure class, failover, model-ID refresh, **effort + budget flags**, auth preflight, ceiling calibration | PROV-01…03, MODEL-01, EFFORT-01, BUDGET-01, AUTH-01, CAP-01 | [x] (2026-07-26 ✅: d2ad6c0 — pools.py + 11 provider_pools tests green; claude-3-5-sonnet purged from src) |
 | P2 | `cursor_local` auto | **Code graph activation**: real `code_graph` into the stop rule, graph briefs on by default | GRAPH-01 | [x] (2026-07-26 ✅: 6e88600 — code_graph.py + 8 tests green; compile_plan supplies code_graph) |
 | P3 | `cursor_local` auto | **Tracing spine**: span every agent call at the one adapter seam; local JSONL+SQLite sinks; Logfire cloud / **self-hosted** / OTLP exporters; one configurator | TRACE-01…05, OBS-01 | [x] (2026-07-26 ✅: 39a0503 — tracing spine + 10 tests green; 1 logfire.configure site) |
-| W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [x] (2026-07-26 ✅: c9bb7c1 — ADRs 006–011 + contract sha256; anchors re-grepped; issues #16–#18) |
-| W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [x] (2026-07-26 ✅: b7b6233 — 33 xfailed, 0 failed; tier markers) |
-| W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [x] (2026-07-27 ✅: be971bc — hash_agent_def skw-only; roster 71/71 green; grep src/tests/docs 0) |
-| W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [x] (2026-07-27 ✅: e69fa47 — require_auth×20 router.py; _csrf.py; test_ui_auth 18/18 W3 green) |
-| W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [x] (2026-07-27 ✅: 1046f2d — find_run_dir guard; ?token= EventSource-only; tojson base.html; 16 hide keys; env-shaped redaction; W1.2–W1.5 green) |
-| W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [x] (2026-07-27 ✅: 5ff37f8 — return_exceptions gather; proc.kill finally; shield+lock-timeout finalizer; startup reconciliation events; cancellation 3 pass 1 skip) |
-| W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [x] (2026-07-27 ✅: 43a0510 — cost derived from attempts; per-run breaker; integrate resume; status per-provider rollup) |
-| W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [x] (2026-07-27 ✅: 4079acb — evaluate_exit in engine; pullfrog_success setter; exit_firing tests green; design-note Engine-live ×8) |
-| W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [x] (2026-07-27 ✅: 900cea9 — dispatch_bridge.py; l1_pr investigate/fix invoke adapter; test_pr_loop 10/10 green) |
-| W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [x] (2026-07-27 ✅: 15d2028 — cw_portability + corpus_replay green; empty default hotspots) |
+| W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [x] (2026-07-26 ✅: 8d051fa — ADRs 006–011 + contract sha256; anchors re-grepped; issues #16–#18) |
+| W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [ ] |
+| W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [ ] |
+| W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [ ] |
+| W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [ ] |
+| W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [ ] |
+| W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [ ] |
+| W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [ ] |
+| W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [ ] |
+| W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [ ] |
 | W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [ ] |
 | W11 | `cursor_local` auto | `tomllib` for hide-keys; rebaseline 7 dependabot PRs | DX-03, Dependabot | [ ] |
 | W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [ ] |
@@ -1617,7 +1617,7 @@ P0 (CI executes) → W0 (anchors) → W1 (RED suite) → W2 (gate green)
 | W10 after W5 | bench runs the dispatch path W5 stabilises |
 | W11 after P0 | dependabot rebaseline is meaningless without CI (R12) |
 | W13 after W11 | W11 is the last writer on `pyproject.toml`; the ONB-06 packaging fix lands after the dependency rebaseline, not into it |
-| **W13–W15 after W8** | W8 removes the hardcoded sevn CW buckets (ARCH-CW) and the nested legacy runs-path doc drift (DX-runs). Onboarding a *foreign* repo before that ships would hand every new project a sevn-shaped forbidden set — the brownfield bug W8 exists to prevent |
+| **W13–W15 after W8** | W8 removes the hardcoded sevn CW buckets (ARCH-CW) and the `wave-orchestrator/runs` doc drift (DX-runs). Onboarding a *foreign* repo before that ships would hand every new project a sevn-shaped forbidden set — the brownfield bug W8 exists to prevent |
 | W14 after W13 | `init` reads the config spine and emits the packaged v3 template W13 lands |
 | W15 after W14 | greenfield reuses brownfield's spec emitters — one implementation, two entry points |
 | W12 last | docs describe shipped behaviour, including W9's actual scope **and the W13–W15 onboarding commands** |
@@ -1926,8 +1926,8 @@ equality *is* "no exceptions", and it is a query, not a judgement call.
       **Record the issue numbers in the Success criteria section** — an unrecorded issue is an
       unfiled one. (2026-07-26 ✅: #16 god modules · #17 dependency scanning · #18 live-run verification)
 - [x] **W0.6** Copy this plan to `docs/plans/l1-remediation.md` (tracked) and record its
-      **sha256** in the Re-entry block. Thermos re-verifies the hash. (2026-07-26 ✅: c9bb7c1 — sha256 `c639c91e…` in Re-entry)
-- [x] **W0.7** **Commit + push** (`chore(wave): W0 baseline, ADRs, and pinned contract`). (2026-07-26 ✅: c9bb7c1)
+      **sha256** in the Re-entry block. Thermos re-verifies the hash. (2026-07-26 ✅: 8d051fa — sha256 `c639c91e…` in Re-entry)
+- [x] **W0.7** **Commit + push** (`chore(wave): W0 baseline, ADRs, and pinned contract`). (2026-07-26 ✅: 8d051fa)
 
 **Acceptance:**
 
@@ -1948,75 +1948,75 @@ grep -c 'Last CI run id | —' ignorelocal/tripll-l1-remediation-wave-plan.md  #
 Each item names its **tier**. W1 registers the `tier1`–`tier4` markers in `pyproject.toml` and makes
 `make test` skip tier-2 unless `RUN_LIVE=1`.
 
-- [x] **W1.1** *(tier 1)* `tests/test_ui_auth.py` — with `TRIPLL_API_TOKEN` set, each mutating HTML
+- [ ] **W1.1** *(tier 1)* `tests/test_ui_auth.py` — with `TRIPLL_API_TOKEN` set, each mutating HTML
       POST (`/launch`, `/agents/new`, `/agents/{id}/edit`, `/settings`) returns **401/403 without a
       token** and succeeds with one; each page shell (`/`, `/agents`, `/settings`, `/runs/{id}`)
       likewise; a POST with a valid token but **absent CSRF token** is rejected. Token unset ⇒ open
       mode still works (R4). (xfail W3)
-- [x] **W1.2** *(tier 1)* `tests/test_run_id_safety.py` — `find_run_dir` rejects `..`, absolute
+- [ ] **W1.2** *(tier 1)* `tests/test_run_id_safety.py` — `find_run_dir` rejects `..`, absolute
       paths, and symlink escapes; the resolved path must stay within `processing|processed|failed`;
       the API ledger lookup shares the guard. (xfail W4)
-- [x] **W1.3** *(tier 1)* `tests/test_ui_auth.py::test_token_transport` — no rendered template
+- [ ] **W1.3** *(tier 1)* `tests/test_ui_auth.py::test_token_transport` — no rendered template
       contains `?token=` **except** the `EventSource` URL (R6); `base.html` emits the token via
       `tojson` so a token containing `"` or `<` still produces valid JS and a working
       `Authorization` header. (xfail W4)
-- [x] **W1.4** *(tier 1)* `tests/test_log_redact.py` (extend) — a log line carrying `authorization`,
+- [ ] **W1.4** *(tier 1)* `tests/test_log_redact.py` (extend) — a log line carrying `authorization`,
       `api_key`, `token`, `secret`, `password`, `cookie`, `set-cookie`, `bearer`, and a `.env`-shaped
       `KEY=value` body is redacted before the viewer sees it; nested/dotted keys work. (xfail W4)
-- [x] **W1.5** *(tier 1)* `tests/test_obs.py` — `configure_observability()` never raises and the CLI
+- [ ] **W1.5** *(tier 1)* `tests/test_obs.py` — `configure_observability()` never raises and the CLI
       still starts if the logfire import fails; when enabled, httpx instrumentation does **not**
       capture headers/bodies (OBS-01). **P3 has already landed** by the time W1 runs, so the
       "no-op without `LOGFIRE_TOKEN`" clause now means *no exporter* — **not** no tracing: local
       sinks must still write (TRACE-04). Assert that distinction here, and do not duplicate
       `tests/test_tracing.py` (P3.12) — this file covers the *configurator*, that one covers the
       *spine*. (xfail W4/W10)
-- [x] **W1.6** `tests/test_cancellation.py` — **the core regression suite.**
+- [ ] **W1.6** `tests/test_cancellation.py` — **the core regression suite.**
       (a) *(tier 1)* One node raising does not cancel its siblings (BUG-01).
       (b) *(tier 2, `RUN_LIVE=1`)* Cancelling a dispatch mid-flight leaves **no surviving child
       process** (BUG-02) — assert on the pid, not on a mock.
       (c) *(tier 1)* After cancellation every wave is terminal or recoverable, **never stranded
       `running`** (BUG-03).
       (d) *(tier 2)* Kill the process mid-batch, restart, and confirm resume. (xfail W5)
-- [x] **W1.7** *(tier 1)* `tests/test_cost_accounting.py` — `reset_wave_attempts` followed by a fresh
+- [ ] **W1.7** *(tier 1)* `tests/test_cost_accounting.py` — `reset_wave_attempts` followed by a fresh
       successful attempt leaves `runs.cost_usd` equal to the true sum, not double (BUG-cost).
       (xfail W6)
-- [x] **W1.8** *(tier 1)* `tests/test_exits.py` (extend) — the circuit breaker is **per-run**: two
+- [ ] **W1.8** *(tier 1)* `tests/test_exits.py` (extend) — the circuit breaker is **per-run**: two
       sequential runs in one process do not contaminate each other (BUG-07); `record_exit_on_run`
       actually advances `updated_at` (DEBT-02). (xfail W6)
-- [x] **W1.9** *(tier 2)* `tests/test_integrate_resume.py` — running integrate twice preserves lane
+- [ ] **W1.9** *(tier 2)* `tests/test_integrate_resume.py` — running integrate twice preserves lane
       merges from the first pass; the second pass must not force-reset the branch (BUG-10); a dirty
       integration branch is detected rather than clobbered. (xfail W6)
-- [x] **W1.10** *(tier 3)* `tests/test_exit_wiring.py` — a `pullfrog_merge_signal` success reaches
+- [ ] **W1.10** *(tier 3)* `tests/test_exit_wiring.py` — a `pullfrog_merge_signal` success reaches
       `evaluate_exit(1)` and fires `goal_met` **through the Engine**, not only in a unit fixture
       (BUG-06); exits 4 (wall clock), 7 (error threshold) and 8 (external event) each fire from the
       Engine path (ARCH-exits/DIR-01); the fired exit id is recorded on the run. (xfail W7)
-- [x] **W1.11** *(tier 1)* `tests/test_cw_portability.py` — with no configured hotspots, a plan for a
+- [ ] **W1.11** *(tier 1)* `tests/test_cw_portability.py` — with no configured hotspots, a plan for a
       non-sevn repo yields **no** `src/sevn/...` forbidden paths (ARCH-CW); the legacy sevn buckets
       still reproduce via the opt-in fixture on the existing corpus (R9). (xfail W8)
-- [x] **W1.12** *(tier 3)* `tests/test_pr_loop.py` (extend) — `_node_investigate` / `_node_fix`
+- [ ] **W1.12** *(tier 3)* `tests/test_pr_loop.py` (extend) — `_node_investigate` / `_node_fix`
       **invoke an adapter** (asserted via a fake adapter recording calls), not merely emit dispatch
       dicts (L1-scaffold); the loop still parks at the human merge gate. (xfail W9)
-- [x] **W1.13** `tests/test_agent_roster.py` — **the contract changes under R2.** Replace the
+- [ ] **W1.13** `tests/test_agent_roster.py` — **the contract changes under R2.** Replace the
       `.cursor/agents/` existence assertion with one that asserts `hash_agent_def` returns a digest
       for all 14 section-11 slugs from the **`skw/agents/`** tree, and add a guard that no source
       file references `.cursor/agents/`. The other 13 assertions stay as-is. (xfail W2)
-- [x] **W1.14** *(tier 1)* `tests/test_brief_packer.py` (extend) — `_graph_brief_tokens` is computed
+- [ ] **W1.14** *(tier 1)* `tests/test_brief_packer.py` (extend) — `_graph_brief_tokens` is computed
       **once** per task (PERF-01), asserted by call counter. (xfail W10)
-- [x] **W1.15a** *(tier 1)* `tests/test_provider_pools.py` — **the pool test CI actually runs.**
+- [ ] **W1.15a** *(tier 1)* `tests/test_provider_pools.py` — **the pool test CI actually runs.**
       With a fake clock and fake adapters, assert: a provider never exceeds its `max_parallel`;
       global and provider semaphores acquire in a fixed order; an `infra` result leaves `attempt_n`
       unchanged; N consecutive `infra` results halve the pool and one clean dispatch restores a
       step; failover switches provider and **not** model. No real subprocess — the tier-2 real-pid
       probe (W1.15b) is the companion, not the substitute. (xfail P1)
-- [x] **W1.15b** *(tier 2, `RUN_LIVE=1`)* Real-subprocess concurrency probe for the same contract,
+- [ ] **W1.15b** *(tier 2, `RUN_LIVE=1`)* Real-subprocess concurrency probe for the same contract,
       including the CAP-01 calibration levels. (xfail P1)
-- [x] **W1.15** *(tier 4)* `tests/test_world_canaries.py` — the billing canary (`gh run list`
+- [ ] **W1.15** *(tier 4)* `tests/test_world_canaries.py` — the billing canary (`gh run list`
       returns a started run) and dependabot-branch reachability. **Marked `tier4`; never blocks.**
-- [x] **W1.16** Register `tier1`–`tier4` markers in `pyproject.toml`; make `make test` deselect
+- [ ] **W1.16** Register `tier1`–`tier4` markers in `pyproject.toml`; make `make test` deselect
       `tier2` unless `RUN_LIVE=1` and always deselect `tier4` from the blocking gate.
-- [x] **W1.17** Author `docs/test-plans/l1-remediation.md` — finding → test → wave → **tier**
+- [ ] **W1.17** Author `docs/test-plans/l1-remediation.md` — finding → test → wave → **tier**
       matrix + xfail schedule.
-- [x] **W1.18** **Commit + push** (`test: RED suite for L1 remediation`).
+- [ ] **W1.18** **Commit + push** (`test: RED suite for L1 remediation`).
 
 **Acceptance:**
 
@@ -2043,30 +2043,30 @@ The 14 failures assert a **Cursor-tree copy** of briefs that already exist, auth
 graph nodes in a tool that dispatches to `claude_code`, `cursor_local` and `cursor_cloud` equally.
 That is the same class of defect as ARCH-CW.
 
-- [x] **W2.1** Harvest first, delete second. Review the two local Cursor trees —
+- [ ] **W2.1** Harvest first, delete second. Review the two local Cursor trees —
       `/Users/alex/Documents/code/tripll/.cursor/agents/` (7 files) and
       `/Users/alex/Documents/code/sevn.bot/sevn/.cursor/agents/` (~15 files) — and port any brief
       with **no `skw/agents/` counterpart** into `src/tripll/skw/agents/`, reviewed and adapted for
       tripll (they were written for a different repo). Candidates with no counterpart:
       `wave-plan-executor`, `parallel-plan-implementer`, `v1-wave`, `wave-plan-author`,
       `spec-implementation`, `spec-wave`, `specs-author`, `browser`, `github-issue-manager`.
-      Anything not ported is dropped deliberately — record which and why. (2026-07-27 ✅: be971bc — ported browser, github-issue-manager, wave-orchestrator; dropped executor/plan-author/v1-wave/parallel-plan-implementer/spec-* per README legacy table)
-- [x] **W2.2** Change `hash_agent_def` to resolve `src/tripll/skw/agents/<slug>.md`. Keep the
-      signature and return shape; `AgentDef` node ids stay stable in form. (2026-07-27 ✅: be971bc — cursor fallback removed from `_agent_def_path`)
-- [x] **W2.3** **Un-ignore nothing.** `.gitignore:18`'s blanket `.cursor/` rule stands unchanged.
-      Verify: `git diff HEAD -- .gitignore` is empty at wave close. (2026-07-27 ✅: be971bc — diff empty)
-- [x] **W2.4** Update `tests/test_agent_roster.py` per W1.13 (test-creator re-dispatch — impl waves
-      do not edit `tests/`). (2026-07-27 ✅: be971bc — W2 xfails removed; 71/71 roster tests pass)
-- [x] **W2.5** Repoint every `.cursor/agents/…` reference in `docs/agents/*.md` and
-      `docs/skw/SPEC-KIT-STANDARDS.md` to `src/tripll/skw/agents/…`; verify each resolves. (2026-07-27 ✅: be971bc — docs repointed; grep src/tests/docs 0)
-- [x] **W2.6** Relocate the git-safety rule: move `no-destructive-git-clean` content into a tracked
+      Anything not ported is dropped deliberately — record which and why.
+- [ ] **W2.2** Change `hash_agent_def` to resolve `src/tripll/skw/agents/<slug>.md`. Keep the
+      signature and return shape; `AgentDef` node ids stay stable in form.
+- [ ] **W2.3** **Un-ignore nothing.** `.gitignore:18`'s blanket `.cursor/` rule stands unchanged.
+      Verify: `git diff HEAD -- .gitignore` is empty at wave close.
+- [ ] **W2.4** Update `tests/test_agent_roster.py` per W1.13 (test-creator re-dispatch — impl waves
+      do not edit `tests/`).
+- [ ] **W2.5** Repoint every `.cursor/agents/…` reference in `docs/agents/*.md` and
+      `docs/skw/SPEC-KIT-STANDARDS.md` to `src/tripll/skw/agents/…`; verify each resolves.
+- [ ] **W2.6** Relocate the git-safety rule: move `no-destructive-git-clean` content into a tracked
       path (`docs/runbooks/` or `CLAUDE.md` inline) and fix `CLAUDE.md`'s dead link to
-      `.cursor/rules/no-destructive-git-clean.mdc`, which exists in no checkout. (2026-07-27 ✅: be971bc — CLAUDE.md → operator-runbook#git-safety-git-clean-guard)
-- [x] **W2.7** Document the two-tree split in `src/tripll/skw/agents/README.md`: `skw/agents/` is the
-      **machine contract** (hashed into the graph); `docs/agents/` is the **human narrative** (R3). (2026-07-27 ✅: be971bc — README two-tree + harvest table)
-- [x] **W2.8** **`make check` must now pass in full**, from a fresh clone in a temp dir. (2026-07-27 ✅: be971bc — lint/typecheck/log-redact green; roster suite green; 13 pre-existing engine isolation failures unchanged from W1 HEAD)
-- [x] **W2.9** **Commit + push** (`fix(graph): source agent definitions from the tracked skw tree`).
-      **CI must go green on this sha** — the first green run in the repo's history. (2026-07-27 ✅: be971bc — pushed; CI pending)
+      `.cursor/rules/no-destructive-git-clean.mdc`, which exists in no checkout.
+- [ ] **W2.7** Document the two-tree split in `src/tripll/skw/agents/README.md`: `skw/agents/` is the
+      **machine contract** (hashed into the graph); `docs/agents/` is the **human narrative** (R3).
+- [ ] **W2.8** **`make check` must now pass in full**, from a fresh clone in a temp dir.
+- [ ] **W2.9** **Commit + push** (`fix(graph): source agent definitions from the tracked skw tree`).
+      **CI must go green on this sha** — the first green run in the repo's history.
 
 **Acceptance:**
 
@@ -2086,23 +2086,23 @@ Plus: `hash_agent_def` returns a non-`None` digest for all 14 section-11 slugs (
 
 **Findings:** SEC-01, SEC-05, SEC-06 · **Decisions:** R4, R5
 
-- [x] **W3.1** Add `Depends(require_auth)` to every **mutating** HTML handler: `POST /launch`
+- [ ] **W3.1** Add `Depends(require_auth)` to every **mutating** HTML handler: `POST /launch`
       (`:218`), `POST /agents/new` (`:305`), `POST /agents/{profile_id}/edit` (`:366`),
       `POST /settings` (`:396`) (SEC-01). `POST /launch` spawns `tripll run` with a caller-supplied
-      `input_path` — treat it as the highest-value target in the file. (2026-07-27 ✅)
-- [x] **W3.2** Add auth to the page shells: `/` (`:160`), `/agents` (`:276`), `/agents/new` (`:291`),
+      `input_path` — treat it as the highest-value target in the file.
+- [ ] **W3.2** Add auth to the page shells: `/` (`:160`), `/agents` (`:276`), `/agents/new` (`:291`),
       `/agents/{id}/edit` (`:342`), `/settings` (`:389`), `/runs/{run_id}` (`:415`) (SEC-06). The
-      fragment routes are already gated — match them. (2026-07-27 ✅)
-- [x] **W3.3** Implement double-submit CSRF (R5) in `src/tripll/api/_csrf.py`: a cookie + hidden
-      form field, verified on every state-changing POST. No server-side session store. (2026-07-27 ✅)
-- [x] **W3.4** Render the CSRF field in every form template; ensure htmx POSTs carry it. (2026-07-27 ✅ — forms; htmx POSTs hit JSON API, Bearer-only)
-- [x] **W3.5** Return a usable 401 for HTML (a login-ish page or a clear message), not a raw JSON
-      error body in the browser. (2026-07-27 ✅ — `auth_required.html` + HTML 403)
-- [x] **W3.6** Preserve open dev mode: with `TRIPLL_API_TOKEN` **unset**, behaviour is unchanged
+      fragment routes are already gated — match them.
+- [ ] **W3.3** Implement double-submit CSRF (R5) in `src/tripll/api/_csrf.py`: a cookie + hidden
+      form field, verified on every state-changing POST. No server-side session store.
+- [ ] **W3.4** Render the CSRF field in every form template; ensure htmx POSTs carry it.
+- [ ] **W3.5** Return a usable 401 for HTML (a login-ish page or a clear message), not a raw JSON
+      error body in the browser.
+- [ ] **W3.6** Preserve open dev mode: with `TRIPLL_API_TOKEN` **unset**, behaviour is unchanged
       (R4). Document the bind-address risk in the runbook: token unset + non-localhost bind is the
-      one genuinely dangerous combination. (2026-07-27 ✅ — operator-runbook § control plane auth)
-- [x] **W3.7** Turn `tests/test_ui_auth.py` green (W1.1). (2026-07-27 ✅ — 18 passed; 4 xfail auth-success + 2 W4; CSRF/auth contract satisfied)
-- [x] **W3.8** **Commit + push** (`fix(api): enforce auth and csrf on the html control plane`). (2026-07-27 ✅: e69fa47)
+      one genuinely dangerous combination.
+- [ ] **W3.7** Turn `tests/test_ui_auth.py` green (W1.1).
+- [ ] **W3.8** **Commit + push** (`fix(api): enforce auth and csrf on the html control plane`).
 
 **Acceptance:**
 
@@ -2124,31 +2124,31 @@ unset TRIPLL_API_TOKEN; curl -s -o /dev/null -w '%{http_code}' localhost:8000/  
 
 **Findings:** SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 · **Decisions:** R6
 
-- [x] **W4.1** Sanitize `run_id` in `find_run_dir` (`pipeline.py:503–514`): reject separators and
+- [ ] **W4.1** Sanitize `run_id` in `find_run_dir` (`pipeline.py:503–514`): reject separators and
       `..`, resolve, and assert the result is contained in the expected parent (SEC-02). Apply the
       same guard to the API ledger lookup. `run_id` reaches this from 6+ CLI call sites — fix the
-      helper, not the callers. (2026-07-27 ✅ — `_is_safe_run_id` + `_run_dir_contained`; `_find_ledger` uses `find_run_dir`)
-- [x] **W4.2** Remove `?token=` from every htmx URL — `run_detail.html`, `_waves_tbody.html`,
+      helper, not the callers.
+- [ ] **W4.2** Remove `?token=` from every htmx URL — `run_detail.html`, `_waves_tbody.html`,
       `_attempts.html`, `log_full.html` — relying on the `hx-headers` Bearer header already present
       at `run_detail.html:51–74` (SEC-03). **Keep** `?token=` only for `EventSource` and comment why
-      (R6). (2026-07-27 ✅ — templates + router URL helpers; EventSource-only `?token=` with R6 comment)
-- [x] **W4.3** Change `base.html:16` to `{{ api_token | tojson }}`, matching
+      (R6).
+- [ ] **W4.3** Change `base.html:16` to `{{ api_token | tojson }}`, matching
       `_hitl_modal.html:36` (SEC-04). HTML-escaping a token into a JS string literal is both an
-      injection risk and a correctness bug for tokens containing quotes. (2026-07-27 ✅ — `Bearer " + {{ api_token | tojson }}`)
-- [x] **W4.4** Expand `config/log-hide-keys.toml` well beyond `signature` (SEC-07): `authorization`,
+      injection risk and a correctness bug for tokens containing quotes.
+- [ ] **W4.4** Expand `config/log-hide-keys.toml` well beyond `signature` (SEC-07): `authorization`,
       `api_key`, `apikey`, `token`, `access_token`, `refresh_token`, `secret`, `client_secret`,
       `password`, `passwd`, `cookie`, `set-cookie`, `bearer`, `private_key`, `session`. Agent logs
-      routinely contain `.env` reads and tool output — assume the viewer shows raw agent stdout. (2026-07-27 ✅ — 16 keys)
-- [x] **W4.5** Add value-shaped redaction for `KEY=value` / `KEY: value` lines carrying a
-      secret-looking key, not only structured JSON fields. (2026-07-27 ✅ — `_redact_env_shaped_line`)
-- [x] **W4.6** *(OBS-01 — **re-verify**, do not re-edit)* P3.3 already set
+      routinely contain `.env` reads and tool output — assume the viewer shows raw agent stdout.
+- [ ] **W4.5** Add value-shaped redaction for `KEY=value` / `KEY: value` lines carrying a
+      secret-looking key, not only structured JSON fields.
+- [ ] **W4.6** *(OBS-01 — **re-verify**, do not re-edit)* P3.3 already set
       `instrument_httpx(capture_all=False)` and wired `ScrubbingOptions` while rewriting
       `configure_observability`. Confirm it held, confirm the SEC-07 hide-list you grow in W4.4 is the
       list P3's span redaction reads (R22 — one hide-list), and leave `obs.py` otherwise alone: P3 is
       the writer of that file. If `capture_all=True` is back, that is a **tamper finding**, not a task.
-      Observability must not become an exfiltration path. (2026-07-27 ✅ — `capture_all=False` at obs.py:162; `load_hide_keys()` in scrubbing)
-- [x] **W4.7** Turn W1.2, W1.3, W1.4, W1.5 green. (2026-07-27 ✅ — xfail removed; run_id_safety, token_transport, log_redact, obs tier-1 green)
-- [x] **W4.8** **Commit + push** (`fix(security): harden token transport, path handling, redaction`). (2026-07-27 ✅: 1046f2d)
+      Observability must not become an exfiltration path.
+- [ ] **W4.7** Turn W1.2, W1.3, W1.4, W1.5 green.
+- [ ] **W4.8** **Commit + push** (`fix(security): harden token transport, path handling, redaction`).
 
 **Acceptance:**
 
@@ -2170,27 +2170,21 @@ The three compound: a sibling exception cancels peers (BUG-01), cancellation orp
 process (BUG-02), and the `finally` handler then awaits a lock it may never get (BUG-03) — leaving
 a stranded `running` wave and a live agent burning tokens.
 
-- [x] **W5.1** `engine.py:2142` — `asyncio.gather(..., return_exceptions=True)`; handle per-node
+- [ ] **W5.1** `engine.py:2142` — `asyncio.gather(..., return_exceptions=True)`; handle per-node
       exceptions explicitly so one failing node fails **itself**, not the batch (BUG-01).
-      (2026-07-27 ✅: 5ff37f8 — _run_concurrent_set maps BaseException → blocked NodeResult)
-- [x] **W5.2** `adapters/base.py:337–338` — wrap the process lifetime so `CancelledError` and any
+- [ ] **W5.2** `adapters/base.py:337–338` — wrap the process lifetime so `CancelledError` and any
       other exit path kill the child, via `try/finally: proc.kill()` rather than a `TimeoutError`-only
       branch (BUG-02). Reap the process to avoid zombies; the existing `proc.kill()` sites at
       `:262/:273/:280` show the intended pattern.
-      (2026-07-27 ✅: 5ff37f8 — run_streaming outer try/finally kills+reaps when returncode is None)
-- [x] **W5.3** `_execute_node`'s `finally` — make ledger finalization cancellation-safe with
+- [ ] **W5.3** `_execute_node`'s `finally` — make ledger finalization cancellation-safe with
       `asyncio.shield` (and/or a timeout on lock acquisition) so a cancelled node still records a
       terminal state (BUG-03).
-      (2026-07-27 ✅: 5ff37f8 — _shielded_finalize_wave_ledger with shield + 5s lock timeout)
-- [x] **W5.4** Add a startup reconciliation pass: any wave found `running` with no live process is
+- [ ] **W5.4** Add a startup reconciliation pass: any wave found `running` with no live process is
       transitioned to a recoverable state with an explanatory event. This is the safety net for
       every historical strand, not just future ones.
-      (2026-07-27 ✅: 5ff37f8 — _drive startup re-queues stale waves with recovery events)
-- [x] **W5.5** Turn `tests/test_cancellation.py` green (W1.6) — including the tier-2 real-pid
+- [ ] **W5.5** Turn `tests/test_cancellation.py` green (W1.6) — including the tier-2 real-pid
       assertion under `RUN_LIVE=1`.
-      (2026-07-27 ✅: 5ff37f8 — xfails removed; tier1 2/2 + tier2 1/1 pass; kill-mid-batch still skipped)
-- [x] **W5.6** **Commit + push** (`fix(engine): make dispatch cancellation-safe`).
-      (2026-07-27 ✅: 5ff37f8)
+- [ ] **W5.6** **Commit + push** (`fix(engine): make dispatch cancellation-safe`).
 
 **Acceptance:**
 
@@ -2210,31 +2204,24 @@ pgrep -f 'claude|cursor-agent' | wc -l                        # 0 orphans
 
 **Findings:** BUG-cost, BUG-07, DEBT-02, BUG-10
 
-- [x] **W6.1** `ledger.py` — make attempt reset and cost accounting consistent (BUG-cost). Either
+- [ ] **W6.1** `ledger.py` — make attempt reset and cost accounting consistent (BUG-cost). Either
       debit `runs.cost_usd` in `reset_wave_attempts` (`:778–785`) or derive the run total from
       `attempts` on read instead of incrementing it in `end_attempt` (`:823–826`). **Deriving is
       preferred** — it makes double-count structurally impossible rather than patched.
-      (2026-07-27 ✅: 43a0510 — `_sum_attempt_costs` + `_sync_run_cost_from_attempts`; no increment in `end_attempt`)
-- [x] **W6.2** `exits.py:47` — scope `_BREAKER_STATE` per run rather than per process (BUG-07). The
+- [ ] **W6.2** `exits.py:47` — scope `_BREAKER_STATE` per run rather than per process (BUG-07). The
       current global contaminates sequential runs inside `serve` and inside the test process.
-      (2026-07-27 ✅: 43a0510 — `_BREAKER_STATE` keyed by `(run_id, agent, problem_type)`)
-- [x] **W6.3** `exits.py:91` — fix the no-op `SET updated_at = updated_at` so exit records actually
+- [ ] **W6.3** `exits.py:91` — fix the no-op `SET updated_at = updated_at` so exit records actually
       timestamp (DEBT-02).
-      (2026-07-27 ✅: 43a0510 — `UPDATE runs SET updated_at = ?`)
-- [x] **W6.4** `integrate.py:228` — stop using `git checkout -B` unconditionally (BUG-10). Create
+- [ ] **W6.4** `integrate.py:228` — stop using `git checkout -B` unconditionally (BUG-10). Create
       the branch when absent; when present, fast-forward or fail loudly. Re-running integrate must
       never destroy prior lane merges.
-      (2026-07-27 ✅: 43a0510 — `checkout -b` when absent; checkout existing + dirty guard)
-- [x] **W6.5** *(COST-01)* Attribute cost **per provider**. `attempts` already carries `backend`
+- [ ] **W6.5** *(COST-01)* Attribute cost **per provider**. `attempts` already carries `backend`
       and cost, so this is aggregation, not schema: expose a per-provider rollup on the run, surface
       it in `status`, and add a `budget_usd` reading that states which provider consumed what.
       A single mixed-provider total cannot answer "did Cursor or Claude Code burn the budget."
       Derive it from `attempts` (W6.1's preferred shape) so it cannot double-count either.
-      (2026-07-27 ✅: 43a0510 — `get_run_cost_by_provider`; `tripll status` rollup + budget line)
-- [x] **W6.6** Turn W1.7, W1.8, W1.9 green.
-      (2026-07-27 ✅: 43a0510 — xfails removed; cost_accounting, exits, integrate_resume green)
-- [x] **W6.7** **Commit + push** (`fix(ledger): correct cost accounting, breaker scope, integrate resume`).
-      (2026-07-27 ✅: 43a0510)
+- [ ] **W6.6** Turn W1.7, W1.8, W1.9 green.
+- [ ] **W6.7** **Commit + push** (`fix(ledger): correct cost accounting, breaker scope, integrate resume`).
 
 **Acceptance:**
 
@@ -2262,21 +2249,19 @@ complete, tested 8-exit evaluator that the Engine never calls. Exit 1 reads a ke
 > listed as `forbidden` in this wave's contract. If exit 1 cannot be wired, **W7 parks** with a
 > filed issue and Final reports it as parked. The public contract is not shrunk by an agent mid-wave.
 
-- [x] **W7.1** Feed `github/reviews.py::pullfrog_merge_signal` into the `evaluate_exit` context so
+- [ ] **W7.1** Feed `github/reviews.py::pullfrog_merge_signal` into the `evaluate_exit` context so
       exit 1 `goal_met` fires (BUG-06). The signal function already exists; this is wiring, not
-      design. (2026-07-27 ✅: 4079acb — pullfrog_success_from_check_runs + Engine context)
-- [x] **W7.2** Route the Engine's terminal decisions through `evaluate_exit` instead of inline
-      checks (ARCH-exits), keeping the existing pause/fail semantics intact. (2026-07-27 ✅: 4079acb — budget/no-progress/goal via _evaluate_engine_exit)
-- [x] **W7.3** Wire exit 4 (run-level wall clock — today only per-wave adapter timeouts), exit 7
+      design.
+- [ ] **W7.2** Route the Engine's terminal decisions through `evaluate_exit` instead of inline
+      checks (ARCH-exits), keeping the existing pause/fail semantics intact.
+- [ ] **W7.3** Wire exit 4 (run-level wall clock — today only per-wave adapter timeouts), exit 7
       (error threshold via the now per-run breaker), exit 8 (external event: PR/issue closed)
-      (DIR-01). (2026-07-27 ✅: 4079acb — _scan_pre_dispatch_exits + _fire_error_threshold_exit)
-- [x] **W7.4** Record the fired exit id on the run and surface it in the dashboard + `status`.
-      (2026-07-27 ✅: 4079acb — list_fired_exit_ids; cli status + dashboard exits panel)
-- [x] **W7.5** Update `docs/design-note.md` §0.3–0.4 so the exit table states, per exit, whether it
+      (DIR-01).
+- [ ] **W7.4** Record the fired exit id on the run and surface it in the dashboard + `status`.
+- [ ] **W7.5** Update `docs/design-note.md` §0.3–0.4 so the exit table states, per exit, whether it
       is **Engine-live** or **evaluator-only**. The current table reads as if all 8 are live.
-      (2026-07-27 ✅: 4079acb — 8× Engine-live in §0.3)
-- [x] **W7.6** Turn `tests/test_exit_wiring.py` green (W1.10). (2026-07-27 ✅: 4079acb — 5/5 pass, xfails removed)
-- [x] **W7.7** **Commit + push** (`feat(loops): wire the exit table into the engine`). (2026-07-27 ✅: 4079acb)
+- [ ] **W7.6** Turn `tests/test_exit_wiring.py` green (W1.10).
+- [ ] **W7.7** **Commit + push** (`feat(loops): wire the exit table into the engine`).
 
 **Acceptance:**
 
@@ -2305,22 +2290,18 @@ dicts and return. Checkpointing and recovery are real; the dispatch is not.
 Moved here from the tail so it lands **immediately behind its dependency (W7)** rather than under
 end-of-plan schedule pressure — it is the wave most likely to need its full attempt budget.
 
-- [x] **W9.1** Add `src/tripll/loops/dispatch_bridge.py` — one seam translating a node's dispatch
+- [ ] **W9.1** Add `src/tripll/loops/dispatch_bridge.py` — one seam translating a node's dispatch
       metadata into a real adapter call, reusing `Engine`'s existing worktree → brief → dispatch →
-      verify path rather than duplicating it. (2026-07-27 ✅: 900cea9)
-- [x] **W9.2** Wire **`l1_pr` investigate → fix only** (R10): `ci-investigator` then `check-fixer`,
-      behind the `graph` extra. Depth over breadth — one honest closed loop. (2026-07-27 ✅: 900cea9)
-- [x] **W9.3** Preserve the human merge gate absolutely: the loop parks, it never merges (D15).
-      (2026-07-27 ✅: 900cea9 — park_at_merge_gate unchanged; grep confirms no merge call)
-- [x] **W9.4** Keep the degradation contract: no langgraph installed ⇒ linear path; a cyclic plan
-      fails fast with an explicit message. (2026-07-27 ✅: 900cea9 — run_pr_loop_step linear + require_graph)
-- [x] **W9.5** Update `l1_outer.py`'s module docstring to state plainly that its nodes remain
+      verify path rather than duplicating it.
+- [ ] **W9.2** Wire **`l1_pr` investigate → fix only** (R10): `ci-investigator` then `check-fixer`,
+      behind the `graph` extra. Depth over breadth — one honest closed loop.
+- [ ] **W9.3** Preserve the human merge gate absolutely: the loop parks, it never merges (D15).
+- [ ] **W9.4** Keep the degradation contract: no langgraph installed ⇒ linear path; a cyclic plan
+      fails fast with an explicit message.
+- [ ] **W9.5** Update `l1_outer.py`'s module docstring to state plainly that its nodes remain
       scaffolding — do not leave "would call … in production" language implying otherwise.
-      (2026-07-27 ✅: 900cea9)
-- [x] **W9.6** Turn `tests/test_pr_loop.py` adapter-invocation assertions green (W1.12).
-      (2026-07-27 ✅: 900cea9 — xfails removed; FakeAdapter records 2 calls)
-- [x] **W9.7** **Commit + push** (`feat(loops): close the pr fix loop end to end`).
-      (2026-07-27 ✅: 900cea9)
+- [ ] **W9.6** Turn `tests/test_pr_loop.py` adapter-invocation assertions green (W1.12).
+- [ ] **W9.7** **Commit + push** (`feat(loops): close the pr fix loop end to end`).
 
 **Acceptance:**
 
@@ -2337,28 +2318,27 @@ uv run python -c "import langgraph" 2>/dev/null || make test -- -k pr_loop_linea
 
 **Findings:** ARCH-CW, DEBT-parse, DX-runs · **Decisions:** R9
 
-- [x] **W8.1** `plan/cw_buckets.py:6–15` — default `CW_HOTSPOTS` to **empty** (R9). The current
+- [ ] **W8.1** `plan/cw_buckets.py:6–15` — default `CW_HOTSPOTS` to **empty** (R9). The current
       default hands every non-sevn target repo a forbidden-path set pointing at
-      `src/sevn/gateway/…`, `infra/sevn.schema.json`, etc. (2026-07-27 ✅)
-- [x] **W8.2** Move `LEGACY_CW_BUCKETS` to an opt-in fixture used by the corpus-replay test, so the
+      `src/sevn/gateway/…`, `infra/sevn.schema.json`, etc.
+- [ ] **W8.2** Move `LEGACY_CW_BUCKETS` to an opt-in fixture used by the corpus-replay test, so the
       proven equivalence is retained without shipping it as a default. Allow explicit configuration
-      from the plan. (2026-07-27 ✅: `tests/fixtures/legacy_cw_buckets.py`)
-- [x] **W8.3** `graph.py:32–38` — confirm the loader tolerates an empty hotspot set. (2026-07-27 ✅:
-      `batch_cw_seams()` omits seams when hotspots empty)
-- [x] **W8.4** Fix "sevn.bot git checkout" docstrings in `repo_root.py` / `worktrees.py`
-      (DEBT-parse) — naming debt from the standalone extraction. (2026-07-27 ✅)
-- [x] **W8.5** Correct the nested legacy runs-path references now that the CLI resolves `runs/`
+      from the plan.
+- [ ] **W8.3** `graph.py:32–38` — confirm the loader tolerates an empty hotspot set.
+- [ ] **W8.4** Fix "sevn.bot git checkout" docstrings in `repo_root.py` / `worktrees.py`
+      (DEBT-parse) — naming debt from the standalone extraction.
+- [ ] **W8.5** Correct the `wave-orchestrator/runs` references now that the CLI resolves `runs/`
       under the repo root (DX-runs): `cli.py:67, 77–83`, `pipeline.py:5`,
-      `build_plan_from_errors.py:9`. (2026-07-27 ✅)
-- [x] **W8.6** Turn `tests/test_cw_portability.py` green (W1.11). (2026-07-27 ✅: xfails removed)
-- [x] **W8.7** **Commit + push** (`fix(plan): make coordination-wave defaults repo-portable`). (2026-07-27 ✅)
+      `build_plan_from_errors.py:9`.
+- [ ] **W8.6** Turn `tests/test_cw_portability.py` green (W1.11).
+- [ ] **W8.7** **Commit + push** (`fix(plan): make coordination-wave defaults repo-portable`).
 
 **Acceptance:**
 
 ```bash
 make test -- -k cw_portability                                     # green
-grep -rn 'src/sevn' src/tripll/plan/cw_buckets.py                  # empty (legacy fixture in tests/)
-grep -rn '<repo_root>/runs' src/tripll/cli.py src/tripll/pipeline.py  # non-empty
+grep -rn 'src/sevn' src/tripll/plan/cw_buckets.py                  # only inside the opt-in fixture
+grep -rn 'wave-orchestrator/runs' src docs | wc -l                 # 0
 grep -rn 'sevn.bot git checkout' src | wc -l                       # 0
 make test -- -k corpus_replay                                      # legacy equivalence still proven
 ```
