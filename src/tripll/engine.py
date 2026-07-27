@@ -22,7 +22,7 @@ Drives a :class:`~tripll.graph.RunGraph` to completion under policy (D2, D7):
 
 **W2 cost/retry additions:**
 
-* **Model defaults** — the default model is ``claude-3-5-sonnet`` (see
+* **Model defaults** — the default model is ``claude-sonnet-5`` (see
   :data:`~tripll.adapters.claude_code.DEFAULT_MODEL`).  No wave runs on opus
   silently; the wave's execution-graph row must declare it explicitly.
 * **Smarter retries** — ``_execute_node`` distinguishes:
@@ -67,14 +67,31 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from loguru import logger
 
+from tripll.adapters.pools import ProviderPoolRegistry, pools_from_plan
 from tripll.adapters.quota import quota_message
-from tripll.brief import extract_wave_summary, render_json_brief, write_brief
+from tripll.brief import (
+    enrich_brief_with_graph_pack,
+    extract_wave_summary,
+    render_json_brief,
+    write_brief,
+)
 from tripll.git_commit import commit_and_push_wave
-from tripll.graph import CW_HOTSPOTS, Batch, OrchestratorConfig, RunGraph, WaveNode, paths_overlap
+from tripll.graph import Batch, OrchestratorConfig, RunGraph, WaveNode, paths_overlap
+from tripll.harness.boundary import (
+    assert_verify_isolation,
+    build_verify_dispatch,
+    materialize_verify_worktree,
+    remove_verify_worktree,
+)
+from tripll.harness.fingerprint import (
+    capture_env_fingerprint,
+    fingerprint_hash,
+    fingerprint_to_json,
+)
 from tripll.hitl import GateKind, write_form_for_run
 from tripll.ledger import (
     ORCHESTRATOR_NODE_ID,
@@ -90,6 +107,7 @@ from tripll.ledger import (
     open_ledger,
     transition_run,
     transition_wave,
+    void_infra_attempt_count,
 )
 from tripll.orchestrator_status import (
     OrchestratorTurn,
@@ -122,8 +140,21 @@ if TYPE_CHECKING:
     from tripll.ledger import AttemptOutcome, RunState
     from tripll.pipeline import RunsRoot
 
-# Late-coordination hotspots that must serialise within a phase (CW-4/CW-5).
-_LATE_CW_PATHS: frozenset[str] = frozenset(CW_HOTSPOTS["CW-4"] + CW_HOTSPOTS["CW-5"])
+
+def _resolve_grep_brief(grep_brief: bool | None) -> bool:
+    """Default graph-packed briefs when the kg extra is installed (P2.3)."""
+    if grep_brief is not None:
+        return grep_brief
+    from tripll.plan.code_graph import kg_extra_available
+
+    return not kg_extra_available()
+
+
+def _late_cw_paths() -> frozenset[str]:
+    import tripll.graph as graph_mod
+
+    hotspots = graph_mod.CW_HOTSPOTS
+    return frozenset(hotspots.get("CW-4", []) + hotspots.get("CW-5", []))
 
 
 def human_gate_node_ids(graph: RunGraph) -> set[str]:
@@ -334,7 +365,7 @@ def _touches_late_cw(node: WaveNode) -> bool:
     """
     for owned in node.owned_paths:
         o = owned.rstrip("/")
-        for cw in _LATE_CW_PATHS:
+        for cw in _late_cw_paths():
             c = cw.rstrip("/")
             if o == c or o.startswith(c + "/") or c.startswith(o + "/"):
                 return True
@@ -857,6 +888,7 @@ def _orchestrator_agent_enabled() -> bool:
 #: worktree, misconfigured brief, etc.).  A second no-progress dispatch would
 #: almost certainly fail for the same reason; we escalate with a clear message.
 _MAX_NO_PROGRESS_DISPATCHES = 1
+_MAX_CONSECUTIVE_INFRA = 5
 
 _DEFAULT_MAX_PARALLEL = 3
 
@@ -920,6 +952,7 @@ class Engine:
         cost_budget_usd: float = 0.0,
         max_parallel: int | None = None,
         role_dispatch: bool | None = None,
+        grep_brief: bool | None = None,
     ) -> None:
         """Initialize engine state from constructor arguments."""
         self.adapter = adapter
@@ -934,12 +967,10 @@ class Engine:
         )
         self._role_dispatch_cli: bool | None = role_dispatch
         self._role_dispatch_effective: bool = False
-        # Single asyncio.Lock guarding all ledger-mutating sequences so that
-        # concurrent _execute_node coroutines cannot interleave transactions.
+        self._grep_brief = _resolve_grep_brief(grep_brief)
         self._ledger_lock: asyncio.Lock = asyncio.Lock()
-        # Semaphore bounding the number of concurrently-running _execute_node
-        # coroutines within a batch.
-        self._sem: asyncio.Semaphore = asyncio.Semaphore(self._max_parallel)
+        self._pools: ProviderPoolRegistry | None = None
+        self._default_provider: str = "claude_code"
         self._orchestrator_mode: bool = False
         self._orchestrator_single_branch: bool = False
         self._wave_commit_shas: dict[str, str] = {}
@@ -947,6 +978,10 @@ class Engine:
         self._orchestrator_turns: list[OrchestratorTurn] = []
         self._last_dispatch_result_text: str = ""
         self._last_worktree_path: Path | None = None
+        self._last_checkpoint_sha: str = ""
+        self._run_wall_clock_start: float | None = None
+        self._run_deadline_ts: float | None = None
+        self._last_fired_exit_id: int | None = None
 
     # -- public API ---------------------------------------------------------
 
@@ -979,12 +1014,33 @@ class Engine:
             role_dispatch=self._role_dispatch_cli,
         )
         graph = build_graph_from_dir(run_dir, run_id=run_id)
+        self._init_provider_fabric(graph)
         self.runs_root.briefs_dir(run_id).mkdir(parents=True, exist_ok=True)
         self.runs_root.logs_dir(run_id).mkdir(parents=True, exist_ok=True)
 
         import json
 
         self.runs_root.graph_path(run_id).write_text(json.dumps(graph.to_dict(), indent=2))
+
+        graph_db = self.runs_root.graph_db_path(run_id)
+        from tripll.plan.code_graph import refresh_code_graph
+
+        if refresh_code_graph(graph_db, self.repo_root):
+            logger.info("engine: refreshed code graph at {}", graph_db)
+
+        from tripll.graphstore.task_sync import TaskGraphWriter
+
+        task_writer = TaskGraphWriter(self.runs_root.graph_db_path(run_id))
+        try:
+            task_writer.sync_run_start(
+                run_id=run_id,
+                graph=graph,
+                backend=self.adapter.name,
+                model=adapter_model,
+                agent=adapter_agent,
+            )
+        finally:
+            task_writer.close()
 
         with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
             insert_run(
@@ -1052,6 +1108,7 @@ class Engine:
         """
         run_dir = self.runs_root.run_dir(run_id)
         graph = build_graph_from_dir(run_dir, run_id=run_id)
+        self._init_provider_fabric(graph)
         return await self._drive(run_id, graph)
 
     # -- internals ----------------------------------------------------------
@@ -1207,6 +1264,93 @@ class Engine:
             gate_label=gate_label,
         )
 
+    def _init_provider_fabric(self, graph: RunGraph) -> None:
+        """Load per-provider pools from the plan and run auth preflight."""
+        if getattr(self.adapter, "name", "") == "fake":
+            self._pools, self._default_provider = pools_from_plan(
+                None,
+                global_limit=self._max_parallel,
+            )
+            return
+        from tripll.adapters.auth_preflight import run_auth_preflight
+        from tripll.plan.providers import providers_used_by_graph
+
+        plan = self._plan_for_graph(graph)
+        self._pools, self._default_provider = pools_from_plan(
+            plan,
+            global_limit=self._max_parallel,
+        )
+        if not self._orchestrator_mode:
+            providers = providers_used_by_graph(graph, self._default_provider)
+            run_auth_preflight(providers)
+
+    def _plan_for_graph(self, graph: RunGraph) -> dict[str, object]:
+        """Return the first v3 plan dict referenced by *graph*."""
+        from tripll.plan.providers import plan_from_text
+
+        for node in graph.nodes.values():
+            plan_path = (self.repo_root / node.plan_file).resolve()
+            if plan_path.is_file():
+                return plan_from_text(plan_path.read_text(encoding="utf-8"))
+        return {}
+
+    def _init_run_tracing(self, run_id: str, graph: RunGraph) -> None:
+        """Bind local trace sinks for *run_id* using plan + env tracing config."""
+        from tripll.obs import configure_observability, get_tracing_config
+        from tripll.tracing.spans import init_run_tracing
+
+        plan = self._plan_for_graph(graph)
+        configure_observability(plan=plan)
+        run_dir = self.runs_root.run_dir(run_id)
+        init_run_tracing(run_dir, get_tracing_config(), run_id=run_id)
+
+    def _provider_chain(self, node: WaveNode) -> list[str]:
+        """Return primary provider followed by configured fallbacks."""
+        primary = node.provider or self._default_provider
+        chain = [primary]
+        for name in node.fallback:
+            if name not in chain:
+                chain.append(name)
+        return chain
+
+    def _pick_provider(self, node: WaveNode) -> tuple[str, bool]:
+        """Choose a provider, failing over when the primary is in cooldown."""
+        chain = self._provider_chain(node)
+        for index, provider in enumerate(chain):
+            if self._pools is not None and self._pools.in_cooldown(provider):
+                continue
+            return provider, index > 0
+        return chain[0], False
+
+    def _resolve_adapter(
+        self,
+        node: WaveNode,
+        graph: RunGraph,
+        *,
+        provider: str,
+    ) -> AgentAdapter:
+        """Build the adapter for *node* on *provider* (PROV-01)."""
+        if getattr(self.adapter, "name", "") == "fake":
+            return self.adapter
+        from tripll.adapters import build_adapter
+        from tripll.adapters.options import BackendOptions
+
+        cfg = self._pools.configs.get(provider) if self._pools else None
+        model = node.model
+        if not model and cfg and cfg.default_model:
+            model = cfg.default_model
+        agent = node.agent
+        if agent is None and hasattr(self.adapter, "agent"):
+            agent = getattr(self.adapter, "agent", None)
+        opts = BackendOptions(
+            model=model,
+            agent=agent,
+            reasoning_effort=node.reasoning_effort,
+            max_budget_usd=node.max_budget_usd,
+        )
+        orchestrator = graph.orchestrator if not self._orchestrator_mode else None
+        return build_adapter(provider, options=opts, orchestrator=orchestrator)
+
     def _configure_orchestrator(self, graph: RunGraph, *, run_id: str) -> None:
         """Apply orchestrator-mode adapter, worktree, and status settings."""
         cfg = graph.orchestrator
@@ -1231,7 +1375,7 @@ class Engine:
                 opts = BackendOptions(model=self.adapter.model, agent=self.adapter.agent)
             self.adapter = build_adapter(self.adapter.name, options=opts, orchestrator=cfg)
         self._max_parallel = 1
-        self._sem = asyncio.Semaphore(1)
+        self._pools, self._default_provider = pools_from_plan(None, global_limit=1)
         self._orchestrator_rows = _initial_orchestrator_rows(cfg)
         self._orchestrator_turns = []
         run_dir = self.runs_root.run_dir(run_id)
@@ -1393,6 +1537,169 @@ class Engine:
             return False
         return get_run_cost(lc, run_id) >= self.cost_budget_usd
 
+    def _init_run_wall_clock(self, graph: RunGraph) -> None:
+        """Record run-level wall-clock deadline for exit 4."""
+        import time
+
+        self._run_wall_clock_start = time.time()
+        env_limit = os.environ.get("TRIPLL_RUN_WALL_CLOCK_S", "").strip()
+        limit_s = 0.0
+        if env_limit:
+            try:
+                limit_s = max(0.0, float(env_limit))
+            except ValueError:
+                limit_s = 0.0
+        if limit_s <= 0:
+            limit_s = float(sum(n.wall_clock_limit_s for n in graph.nodes.values()))
+        self._run_deadline_ts = self._run_wall_clock_start + limit_s if limit_s > 0 else None
+
+    def _load_check_runs_for_run(self, run_id: str) -> list[dict[str, Any]]:
+        """Load cached GitHub check-runs for *run_id* when present."""
+        run_dir = self.runs_root.run_dir(run_id)
+        path = run_dir / "check-runs.json"
+        if not path.is_file():
+            return []
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return []
+        return data if isinstance(data, list) else []
+
+    def _external_event_state(self, run_id: str) -> tuple[str, str]:
+        """Return PR/issue state inputs for exit 8."""
+        pr_state = os.environ.get("TRIPLL_PR_STATE", "").strip()
+        issue_state = os.environ.get("TRIPLL_ISSUE_STATE", "").strip()
+        marker = self.runs_root.run_dir(run_id) / "external-event.json"
+        if marker.is_file():
+            try:
+                payload = json.loads(marker.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                payload = {}
+            if isinstance(payload, dict):
+                pr_state = str(payload.get("pr_state") or pr_state)
+                issue_state = str(payload.get("issue_state") or issue_state)
+        return pr_state, issue_state
+
+    def _build_exit_eval_context(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        *,
+        node: WaveNode | None = None,
+        turn_hashes: list[str] | None = None,
+        outcome_satisfied: bool = False,
+        ci_green: bool = False,
+        record: bool = True,
+    ) -> dict[str, Any]:
+        """Assemble the ``evaluate_exit`` context for Engine terminal checks."""
+        from tripll.github.reviews import pullfrog_success_from_check_runs
+
+        check_runs = self._load_check_runs_for_run(run_id)
+        pr_state, issue_state = self._external_event_state(run_id)
+        ctx: dict[str, Any] = {
+            "run_id": run_id,
+            "ledger": lc,
+            "record": record,
+            "cost_usd": get_run_cost(lc, run_id),
+            "budget_usd": self.cost_budget_usd,
+            "spent_usd": get_run_cost(lc, run_id),
+            "pullfrog_success": pullfrog_success_from_check_runs(check_runs),
+            "outcome_satisfied": outcome_satisfied,
+            "ci_green": ci_green,
+            "pr_state": pr_state,
+            "issue_state": issue_state,
+            "pause_requested": self._pause_requested(run_id),
+        }
+        if self._run_deadline_ts is not None:
+            ctx["deadline_ts"] = self._run_deadline_ts
+        if node is not None:
+            ctx["agent"] = node.agent or node.model or "wave"
+            ctx["problem_type"] = node.wave_id
+            ctx["attempt_count"] = get_wave(lc, run_id, node.node_id).attempt_count
+            ctx["max_attempts"] = self.max_attempts
+        if turn_hashes is not None:
+            ctx["turn_hashes"] = turn_hashes
+        return ctx
+
+    def _evaluate_engine_exit(
+        self,
+        exit_id: int,
+        lc: LedgerConnection,
+        run_id: str,
+        **extra: Any,
+    ) -> Any:
+        """Evaluate one exit from the Engine path; records ``exit_fired`` when it fires."""
+        from tripll.loops.exits import evaluate_exit
+
+        ctx_keys = {"node", "turn_hashes", "outcome_satisfied", "ci_green", "record"}
+        ctx = self._build_exit_eval_context(
+            lc,
+            run_id,
+            **{k: v for k, v in extra.items() if k in ctx_keys},
+        )
+        ctx.update(extra)
+        result = evaluate_exit(exit_id, ctx)
+        if result.fired:
+            self._last_fired_exit_id = result.exit_id
+        return result
+
+    def _scan_pre_dispatch_exits(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+    ) -> int | None:
+        """Evaluate human_interrupt, external_event, and wall_clock before dispatch."""
+        for exit_id in (6, 8, 4):
+            fired = self._evaluate_engine_exit(exit_id, lc, run_id)
+            if fired.fired:
+                return exit_id
+        return None
+
+    def _fire_goal_met_exit(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        *,
+        ci_green: bool,
+        outcome_satisfied: bool,
+    ) -> None:
+        """Record exit 1 when the run outcome contract is satisfied."""
+        self._evaluate_engine_exit(
+            1,
+            lc,
+            run_id,
+            ci_green=ci_green,
+            outcome_satisfied=outcome_satisfied,
+        )
+
+    def _fire_error_threshold_exit(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        *,
+        node: WaveNode,
+        failures: int,
+    ) -> None:
+        """Open the per-run circuit breaker and record exit 7 when tripped."""
+        from tripll.loops.exits import circuit_breaker_open
+
+        agent = str(node.agent or node.model or "wave")
+        problem_type = str(node.wave_id)
+        circuit_breaker_open(
+            agent=agent,
+            problem_type=problem_type,
+            failures=failures,
+            run_id=run_id,
+        )
+        self._evaluate_engine_exit(
+            7,
+            lc,
+            run_id,
+            node=node,
+            agent=agent,
+            problem_type=problem_type,
+        )
+
     def _verify_with_retries(self, worktree_path: Path, targets: list[str]) -> tuple[bool, str]:
         """Run verify targets with transient-flap retries (verify-only, no re-dispatch)."""
         evidence = ""
@@ -1408,6 +1715,42 @@ class Engine:
                     evidence[:120],
                 )
         return False, evidence
+
+    def _run_isolated_verify(
+        self,
+        *,
+        run_id: str,
+        node: WaveNode,
+        implementer_worktree: Path,
+        commit_sha: str,
+        targets: list[str],
+        transcript: str = "",
+    ) -> tuple[bool, str]:
+        """Dispatch isolated verify and always clean up the verify worktree."""
+        verify_path: Path | None = None
+        implementer = {
+            "process_id": os.getpid(),
+            "worktree": str(implementer_worktree),
+            "transcript": transcript or None,
+        }
+        verify_ctx = build_verify_dispatch(
+            implementer=implementer,
+            wave={"node_id": node.node_id, "commit_sha": commit_sha or "HEAD"},
+            runs_root=self.runs_root.run_dir(run_id) / "verify-wts",
+        )
+        assert_verify_isolation(implementer=implementer, verifier=verify_ctx)
+        run_path = implementer_worktree
+        if commit_sha and commit_sha not in {"", "unknown", "HEAD"}:
+            try:
+                run_path = materialize_verify_worktree(self.repo_root, verify_ctx)
+                verify_path = run_path
+            except RuntimeError as exc:
+                logger.warning("engine: isolated verify worktree failed — {}", exc)
+        try:
+            return self._verify_with_retries(run_path, targets)
+        finally:
+            if verify_path is not None:
+                remove_verify_worktree(self.repo_root, verify_path)
 
     def _end_attempt_with_usage(
         self,
@@ -1468,104 +1811,223 @@ class Engine:
 
     async def _drive(self, run_id: str, graph: RunGraph) -> RunResult:
         """Main run loop: batches, concurrent dispatch, gates, and terminal state."""
+        from tripll.loops import graph_available, require_graph
+        from tripll.loops.l1_outer import plan_requires_langgraph, record_loop_snapshot
+
+        if plan_requires_langgraph(graph):
+            require_graph(feature="cyclic run plan")
+
         self._scaffold_w0_worktrees(run_id, graph)
         # Pre-0 human gate (W5.4).
         if graph.pre0_gates and not self._is_approved(run_id):
-            self._write_pre0_sheet(run_id, graph)
+            from tripll.plan.human_gates import (
+                HumanGateOutcome,
+                evaluate_ci_billing_canary,
+                pipeline_config_for_graph,
+                resolve_human_gate_mode,
+                resolve_pre0_gate,
+            )
+
+            pipeline = pipeline_config_for_graph(graph, self.repo_root)
+            mode = resolve_human_gate_mode(pipeline)
+            canary = evaluate_ci_billing_canary()
+            outcome = resolve_pre0_gate(mode=mode, auto_acceptable=True, canary=canary)
             run_dir = self.runs_root.run_dir(run_id)
-            write_form_for_run(run_dir, graph, gate_kind=GateKind.PRE0)
-            with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
-                transition_run(lc, run_id, "paused")
-            write_report(
-                self.runs_root.run_dir(run_id), graph, run_id=run_id, state="paused", results={}
-            )
-            logger.info("engine: {} paused at Pre-0 ({} gates)", run_id, len(graph.pre0_gates))
-            return RunResult(
-                run_id=run_id,
-                state="paused",
-                pre0_pending=True,
-                hitl_pending=True,
-                hitl_gate_kind=GateKind.PRE0.value,
-            )
+
+            if outcome is HumanGateOutcome.FAIL:
+                logger.error("engine: {} Pre-0 gate rejected (human_gates=fail)", run_id)
+                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                    transition_run(lc, run_id, "failed")
+                write_report(
+                    self.runs_root.run_dir(run_id),
+                    graph,
+                    run_id=run_id,
+                    state="failed",
+                    results={},
+                )
+                return RunResult(run_id=run_id, state="failed")
+
+            if outcome is HumanGateOutcome.PARKED:
+                logger.warning(
+                    "engine: {} Pre-0 PARKED — canary red under auto_accept ({})",
+                    run_id,
+                    canary.detail,
+                )
+                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                    transition_run(lc, run_id, "paused")
+                write_report(
+                    self.runs_root.run_dir(run_id),
+                    graph,
+                    run_id=run_id,
+                    state="parked",
+                    results={},
+                )
+                return RunResult(run_id=run_id, state="parked")
+
+            if outcome is HumanGateOutcome.PROCEED:
+                (run_dir / _PRE0_MARKER).write_text("auto_accept\n")
+                logger.info(
+                    "engine: {} Pre-0 auto-accepted (canary ok: {})",
+                    run_id,
+                    canary.detail,
+                )
+            else:
+                self._write_pre0_sheet(run_id, graph)
+                write_form_for_run(run_dir, graph, gate_kind=GateKind.PRE0)
+                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                    transition_run(lc, run_id, "paused")
+                write_report(
+                    self.runs_root.run_dir(run_id),
+                    graph,
+                    run_id=run_id,
+                    state="paused",
+                    results={},
+                )
+                logger.info("engine: {} paused at Pre-0 ({} gates)", run_id, len(graph.pre0_gates))
+                return RunResult(
+                    run_id=run_id,
+                    state="paused",
+                    pre0_pending=True,
+                    hitl_pending=True,
+                    hitl_gate_kind=GateKind.PRE0.value,
+                )
 
         results: dict[str, NodeResult] = {}
         done: set[str] = set()
         blocked: list[str] = []
 
-        with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
-            # Crash recovery: re-queue waves interrupted mid-dispatch.
-            for w in list_waves(lc, run_id):
-                if w.state in ("running", "dispatched", "verifying"):
-                    transition_wave(lc, run_id, w.node_id, "queued")
+        from tripll.tracing.spans import close_run_tracing, trace_span
 
-            transition_run(lc, run_id, "active")
+        self._init_run_tracing(run_id, graph)
+        slug = run_id.rsplit("-", 2)[0]
+        run_attrs: dict[str, Any] = {
+            "slug": slug,
+            "base": getattr(graph, "base", ""),
+            "branch": getattr(graph, "branch", ""),
+            "target_repo": getattr(graph, "target_repo", ""),
+        }
 
-            # Resumability: skip waves already marked done or blocked in the ledger.
-            for w in list_waves(lc, run_id):
-                if w.state == "done":
-                    done.add(w.node_id)
-                    results[w.node_id] = NodeResult(w.node_id, "done", w.attempt_count)
-                elif w.state == "blocked":
-                    blocked.append(w.node_id)
-                    results[w.node_id] = NodeResult(
-                        w.node_id, "blocked", w.attempt_count, "already blocked on resume"
+        try:
+            with trace_span("tripll.run", run_id=run_id, **run_attrs) as run_bag:
+                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                    # W5.4: startup reconciliation — stale in-flight waves from a dead engine.
+                    for w in list_waves(lc, run_id):
+                        if w.state in ("running", "dispatched", "verifying"):
+                            transition_wave(lc, run_id, w.node_id, "queued")
+                            append_event(
+                                lc,
+                                run_id=run_id,
+                                node_id=w.node_id,
+                                phase="recovery",
+                                last_action=(
+                                    "startup reconciliation: no live dispatch for stale wave"
+                                ),
+                            )
+
+                    transition_run(lc, run_id, "active")
+                    self._init_run_wall_clock(graph)
+
+                    if graph_available():
+                        record_loop_snapshot(
+                            lc,
+                            run_id=run_id,
+                            step="validate",
+                            history=[],
+                            next_node="waves",
+                            extra={"thread_id": run_id},
+                        )
+
+                    # Resumability: skip waves already marked done or blocked in the ledger.
+                    for w in list_waves(lc, run_id):
+                        if w.state == "done":
+                            done.add(w.node_id)
+                            results[w.node_id] = NodeResult(w.node_id, "done", w.attempt_count)
+                        elif w.state == "blocked":
+                            blocked.append(w.node_id)
+                            results[w.node_id] = NodeResult(
+                                w.node_id, "blocked", w.attempt_count, "already blocked on resume"
+                            )
+                    if done:
+                        logger.info(
+                            "engine: {} resuming — {} waves already done", run_id, len(done)
+                        )
+                    if blocked:
+                        logger.info(
+                            "engine: {} resuming — {} waves already blocked", run_id, len(blocked)
+                        )
+                    if self._is_approved(run_id):
+                        complete_human_gate_waves(
+                            lc,
+                            run_id,
+                            graph,
+                            done=done,
+                            blocked=blocked,
+                            results=results,
+                        )
+                    self._sync_report(run_id, graph, partial_results=results)
+
+                    self._role_dispatch_effective = self._resolve_role_dispatch(graph)
+                    if self._pools is None:
+                        self._init_provider_fabric(graph)
+                    self._configure_orchestrator(graph, run_id=run_id)
+                    if self._orchestrator_mode:
+                        result = await self._drive_orchestrator_serial(
+                            lc, run_id, graph, done, blocked, results
+                        )
+                        run_bag["exit_id"] = result.state
+                        run_bag["waves_done"] = len(done)
+                        run_bag["waves_parked"] = sum(
+                            1 for r in results.values() if r.state in ("blocked", "paused")
+                        )
+                        return result
+
+                    logs_dir = self.runs_root.logs_dir(run_id)
+                    logger.info(
+                        "engine: {} dispatching waves — logs in {}",
+                        run_id,
+                        logs_dir,
                     )
-            if done:
-                logger.info("engine: {} resuming — {} waves already done", run_id, len(done))
-            if blocked:
-                logger.info("engine: {} resuming — {} waves already blocked", run_id, len(blocked))
-            if self._is_approved(run_id):
-                complete_human_gate_waves(
-                    lc,
-                    run_id,
-                    graph,
-                    done=done,
-                    blocked=blocked,
-                    results=results,
-                )
-            self._sync_report(run_id, graph, partial_results=results)
 
-            self._role_dispatch_effective = self._resolve_role_dispatch(graph)
-            self._configure_orchestrator(graph, run_id=run_id)
-            if self._orchestrator_mode:
-                return await self._drive_orchestrator_serial(
-                    lc, run_id, graph, done, blocked, results
-                )
+                    for batch in graph.batches:
+                        if batch.is_human_gate:
+                            continue
+                        logger.info(
+                            "engine: {} batch {} — lanes {}", run_id, batch.batch_id, batch.lanes
+                        )
+                        batch_nodes = nodes_for_batch(graph, batch)
 
-            logs_dir = self.runs_root.logs_dir(run_id)
-            logger.info(
-                "engine: {} dispatching waves — logs in {}",
-                run_id,
-                logs_dir,
-            )
+                        pause_result = await self._drain_batch(
+                            lc, run_id, graph, batch_nodes, done, blocked, results
+                        )
+                        if pause_result is not None:
+                            run_bag["exit_id"] = pause_result.state
+                            return pause_result
 
-            for batch in graph.batches:
-                if batch.is_human_gate:
-                    continue
-                logger.info("engine: {} batch {} — lanes {}", run_id, batch.batch_id, batch.lanes)
-                batch_nodes = nodes_for_batch(graph, batch)
+                    state: RunState = "failed" if blocked else "done"
+                    if blocked:
+                        self._write_escalation(run_id, blocked, results)
+                    else:
+                        self._fire_goal_met_exit(
+                            lc,
+                            run_id,
+                            ci_green=True,
+                            outcome_satisfied=True,
+                        )
+                    transition_run(lc, run_id, state)
 
-                # Drain the batch iteratively: each iteration selects the
-                # maximal pairwise-disjoint ready set, runs it concurrently,
-                # then repeats until the batch is empty.
-                pause_result = await self._drain_batch(
-                    lc, run_id, graph, batch_nodes, done, blocked, results
-                )
-                if pause_result is not None:
-                    return pause_result
+                self._sync_report(run_id, graph, partial_results=results)
 
-            state: RunState = "failed" if blocked else "done"
-            if blocked:
-                self._write_escalation(run_id, blocked, results)
-            transition_run(lc, run_id, state)
-
-        self._sync_report(run_id, graph, partial_results=results)
-
-        if blocked:
-            self.runs_root.fail_run(run_id)
-            return RunResult(run_id=run_id, state="failed", nodes=results)
-        self.runs_root.complete_run(run_id)
-        return RunResult(run_id=run_id, state="done", nodes=results)
+                if blocked:
+                    self.runs_root.fail_run(run_id)
+                    run_bag["exit_id"] = "failed"
+                    run_bag["waves_done"] = len(done)
+                    return RunResult(run_id=run_id, state="failed", nodes=results)
+                self.runs_root.complete_run(run_id)
+                run_bag["exit_id"] = "done"
+                run_bag["waves_done"] = len(done)
+                return RunResult(run_id=run_id, state="done", nodes=results)
+        finally:
+            close_run_tracing()
 
     async def _handle_review_gate(
         self,
@@ -1940,7 +2402,20 @@ class Engine:
 
             # Pause-marker check: honour API pause before dispatching new waves.
             # In-flight waves are NOT killed -- they run to completion.
-            if self._pause_requested(run_id):
+            pre_exit = self._scan_pre_dispatch_exits(lc, run_id)
+            if pre_exit == 8:
+                logger.warning("engine: {} external_event exit fired — abandoning run", run_id)
+                async with self._ledger_lock:
+                    transition_run(lc, run_id, "failed")
+                self._sync_report(run_id, graph, partial_results=results)
+                return RunResult(run_id=run_id, state="failed", nodes=results)
+            if pre_exit == 4:
+                logger.warning("engine: {} wall_clock exit fired — pausing run", run_id)
+                async with self._ledger_lock:
+                    transition_run(lc, run_id, "paused")
+                self._sync_report(run_id, graph, partial_results=results)
+                return RunResult(run_id=run_id, state="paused", nodes=results)
+            if pre_exit == 6 or self._pause_requested(run_id):
                 logger.info(
                     "engine: {} pause-requested marker found -- pausing before next dispatch",
                     run_id,
@@ -2004,6 +2479,7 @@ class Engine:
 
             if pause_cost is not None:
                 async with self._ledger_lock:
+                    self._evaluate_engine_exit(3, lc, run_id)
                     self._write_cost_pause(run_id, get_run_cost(lc, run_id))
                     transition_run(lc, run_id, "paused")
                 self._sync_report(run_id, graph, partial_results=results)
@@ -2050,16 +2526,102 @@ class Engine:
             list[NodeResult]: One result per node, in the same order as *nodes*.
         """
 
-        async def _guarded(node: WaveNode) -> NodeResult:
-            async with self._sem:
-                return await self._execute_node(lc, run_id, graph, node)
+        from tripll.tracing.spans import trace_span
 
-        return list(await asyncio.gather(*(_guarded(n) for n in nodes)))
+        async def _guarded(node: WaveNode) -> NodeResult:
+            return await self._execute_node(lc, run_id, graph, node)
+
+        with trace_span(  # batch_dispatch
+            "tripll.batch_dispatch",
+            run_id=run_id,
+            batch_size=len(nodes),
+            node_ids=[n.node_id for n in nodes],
+        ):
+            raw = await asyncio.gather(*(_guarded(n) for n in nodes), return_exceptions=True)
+        results: list[NodeResult] = []
+        for node, item in zip(nodes, raw, strict=True):
+            if isinstance(item, BaseException):
+                logger.error(
+                    "engine: {} node {} raised unexpectedly: {}",
+                    run_id,
+                    node.node_id,
+                    item,
+                )
+                results.append(
+                    NodeResult(
+                        node.node_id,
+                        "blocked",
+                        0,
+                        f"dispatch error: {item}",
+                    )
+                )
+            else:
+                results.append(item)
+        return results
+
+    async def _shielded_finalize_wave_ledger(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        node_id: str,
+    ) -> None:
+        """Re-queue a wave left in-flight after cancellation or crash (BUG-03).
+
+        Uses ``asyncio.shield`` so ledger finalization completes even when the
+        enclosing ``_execute_node`` coroutine is cancelled.
+
+        Args:
+            lc (LedgerConnection): Open ledger connection.
+            run_id (str): Run identifier.
+            node_id (str): Wave node identifier.
+        """
+
+        async def _do() -> None:
+            row = get_wave(lc, run_id, node_id)
+            if row.state not in ("running", "dispatched", "verifying"):
+                return
+            try:
+                await asyncio.wait_for(self._ledger_lock.acquire(), timeout=5.0)
+            except TimeoutError:
+                logger.warning(
+                    "engine: {} {} ledger lock timeout in cancellation finalizer",
+                    run_id,
+                    node_id,
+                )
+                return
+            try:
+                transition_wave(lc, run_id, node_id, "queued")
+                append_event(
+                    lc,
+                    run_id=run_id,
+                    node_id=node_id,
+                    phase="recovery",
+                    last_action="cancellation: wave re-queued for resume",
+                )
+            finally:
+                self._ledger_lock.release()
+
+        await asyncio.shield(_do())
 
     async def _execute_node(
         self, lc: LedgerConnection, run_id: str, graph: RunGraph, node: WaveNode
     ) -> NodeResult:
         """Dispatch, verify, and checkpoint one wave node (with retries and scope checks)."""
+        from tripll.tracing.spans import trace_span
+
+        with trace_span(  # execute_node
+            "tripll.execute_node",
+            run_id=run_id,
+            node_id=node.node_id,
+            wave_id=node.wave_id,
+            lane=node.lane,
+        ):
+            return await self._execute_node_body(lc, run_id, graph, node)
+
+    async def _execute_node_body(
+        self, lc: LedgerConnection, run_id: str, graph: RunGraph, node: WaveNode
+    ) -> NodeResult:
+        """Inner dispatch loop for :meth:`_execute_node` (ledger + verify + retries)."""
         worktree = self.wtm.allocate(run_id, node.plan_id, node.wave_id)
         self._last_worktree_path = worktree.path
         run_dir = self.runs_root.run_dir(run_id)
@@ -2068,6 +2630,7 @@ class Engine:
         wave = get_wave(lc, run_id, node.node_id)
         if self._cost_budget_exceeded(lc, run_id):
             spent = get_run_cost(lc, run_id)
+            self._evaluate_engine_exit(3, lc, run_id)
             self._write_cost_pause(run_id, spent)
             return NodeResult(
                 node.node_id,
@@ -2088,10 +2651,14 @@ class Engine:
         # in owned paths.  Once this counter reaches _MAX_NO_PROGRESS_DISPATCHES we
         # escalate immediately rather than burning all max_attempts slots.
         no_progress_dispatches: int = 0
+        consecutive_infra: int = 0
+        pools = self._pools
+        pool_provider: str | None = None
         try:
             while attempts_used < self.max_attempts:
                 if self._cost_budget_exceeded(lc, run_id):
                     spent = get_run_cost(lc, run_id)
+                    self._evaluate_engine_exit(3, lc, run_id)
                     self._write_cost_pause(run_id, spent)
                     return NodeResult(
                         node.node_id,
@@ -2103,6 +2670,14 @@ class Engine:
                 # No-progress early exit: if we already hit the cap, escalate now
                 # instead of dispatching another doomed full attempt.
                 if no_progress_dispatches >= _MAX_NO_PROGRESS_DISPATCHES:
+                    from tripll.loops.exits import NO_PROGRESS_STREAK
+
+                    self._evaluate_engine_exit(
+                        5,
+                        lc,
+                        run_id,
+                        turn_hashes=["no-progress"] * NO_PROGRESS_STREAK,
+                    )
                     evidence = (
                         f"no-progress escalation after {no_progress_dispatches} "
                         f"dispatch(es) produced no edits in owned paths "
@@ -2115,14 +2690,29 @@ class Engine:
                         node.node_id,
                         evidence,
                     )
+                    self._fire_error_threshold_exit(lc, run_id, node=node, failures=attempts_used)
                     async with self._ledger_lock:
                         transition_wave(lc, run_id, node.node_id, "blocked")
                     return NodeResult(node.node_id, "blocked", attempts_used, evidence)
 
                 attempt = attempts_used + 1
+                provider, fallback_used = self._pick_provider(node)
+                adapter = self._resolve_adapter(node, graph, provider=provider)
+                if pools is not None and pool_provider != provider:
+                    if pool_provider is not None:
+                        pools.release(pool_provider)
+                    await pools.acquire(provider)
+                    pool_provider = provider
                 brief = self._brief_for(
                     run_id, graph, node, worktree, prior_failures, attempt=attempt
                 )
+                if fallback_used:
+                    brief["fallback_used"] = True
+                    brief["provider"] = provider
+                if node.max_budget_usd is not None:
+                    brief["max_budget_usd"] = node.max_budget_usd
+                if node.reasoning_effort:
+                    brief["reasoning_effort"] = node.reasoning_effort
                 write_brief(brief, self.runs_root.briefs_dir(run_id))
                 log_path = self.runs_root.logs_dir(run_id) / (
                     f"{_safe(node.node_id)}-attempt{attempt}.log"
@@ -2147,15 +2737,27 @@ class Engine:
                 pre_dispatch_owned = self._owned_changed_paths(worktree, node.owned_paths)
 
                 # --- mutating sequence: insert_attempt + transition_wave x2 ---
+                task_id = f"{run_id}:{node.node_id}"
+                env_fp = capture_env_fingerprint(
+                    task_id=task_id,
+                    model_id=node.model or getattr(adapter, "model", None) or "",
+                    repo_root=self.repo_root,
+                )
+                fp_json = fingerprint_to_json(env_fp)
+                fp_hash = fingerprint_hash(env_fp)
                 async with self._ledger_lock:
                     attempt_id = insert_attempt(
                         lc,
                         run_id=run_id,
                         node_id=node.node_id,
                         attempt_n=attempt,
-                        backend=self.adapter.name,
+                        backend=adapter.name,
                         brief_path=str(self.runs_root.briefs_dir(run_id)),
                         log_path=str(log_path),
+                        model=node.model or getattr(adapter, "model", None),
+                        agent=getattr(adapter, "agent", None),
+                        env_fingerprint_json=fp_json,
+                        env_fingerprint_hash=fp_hash,
                     )
                     attempts_used += 1
                     transition_wave(lc, run_id, node.node_id, "dispatched")
@@ -2234,20 +2836,133 @@ class Engine:
                         sys.stderr.flush()
 
                 # --- long await: no lock held ---
-                result = await self.adapter.dispatch(
-                    brief,
-                    worktree_path=worktree.path,
-                    log_path=log_path,
-                    timeout_s=node.wall_clock_limit_s,
-                    log_header={
-                        "run_id": run_id,
-                        "node_id": node.node_id,
-                        "attempt": attempt,
-                        "backend": self.adapter.name,
-                    },
-                    on_event=_on_stream_event,
-                )
+                from tripll.tracing.spans import trace_span
+
+                wave_model = node.model or getattr(adapter, "model", None)
+                with trace_span(
+                    "tripll.wave",
+                    run_id=run_id,
+                    node_id=node.node_id,
+                    attempt_id=attempt_id,
+                    wave_id=node.wave_id,
+                    lane=node.lane,
+                    provider=provider,
+                    model=wave_model,
+                    reasoning_effort=node.reasoning_effort,
+                    attempt_n=attempt,
+                ) as wave_bag:
+                    try:
+                        result = await adapter.dispatch(
+                            brief,
+                            worktree_path=worktree.path,
+                            log_path=log_path,
+                            timeout_s=node.wall_clock_limit_s,
+                            log_header={
+                                "run_id": run_id,
+                                "node_id": node.node_id,
+                                "attempt": attempt,
+                                "attempt_id": attempt_id,
+                                "backend": adapter.name,
+                            },
+                            on_event=_on_stream_event,
+                        )
+                    except asyncio.CancelledError:
+                        wave_bag["state"] = "cancelled"
+                        raise
+                    except Exception as exc:
+                        wave_bag["state"] = "failed"
+                        wave_bag["failure_class"] = "unexpected"
+                        evidence = f"dispatch raised: {exc}"
+                        from tripll.adapters.base import DispatchResult
+
+                        err_result = DispatchResult(
+                            outcome="failed",
+                            result_text=evidence,
+                            returncode=1,
+                            argv=adapter.build_argv(brief, worktree.path),
+                        )
+                        async with self._ledger_lock:
+                            self._end_attempt_with_usage(
+                                lc,
+                                attempt_id,
+                                outcome="failed",
+                                evidence=evidence,
+                                result=err_result,
+                            )
+                            append_event(
+                                lc,
+                                run_id=run_id,
+                                node_id=node.node_id,
+                                phase="failed",
+                                last_action=evidence[:120],
+                                attempt_n=attempt,
+                            )
+                            transition_wave(lc, run_id, node.node_id, "blocked")
+                        return NodeResult(node.node_id, "blocked", attempts_used, evidence)
+                    wave_bag["fallback_used"] = fallback_used
                 self._last_dispatch_result_text = result.result_text or ""
+                from tripll.adapters.failure_class import classify_dispatch
+
+                failure_class = classify_dispatch(result)
+                wave_bag["failure_class"] = failure_class
+                wave_bag["state"] = result.outcome
+                if failure_class == "infra":
+                    consecutive_infra += 1
+                    if consecutive_infra >= _MAX_CONSECUTIVE_INFRA:
+                        failure_class = "failure"
+                        evidence = (
+                            f"infra streak cap ({_MAX_CONSECUTIVE_INFRA}) on {provider}: "
+                            f"{result.result_text or 'infra failure'}"
+                        )
+                        async with self._ledger_lock:
+                            self._end_attempt_with_usage(
+                                lc,
+                                attempt_id,
+                                outcome="failed",
+                                evidence=evidence,
+                                result=result,
+                            )
+                            append_event(
+                                lc,
+                                run_id=run_id,
+                                node_id=node.node_id,
+                                phase="failed",
+                                last_action=evidence[:120],
+                                attempt_n=attempt,
+                            )
+                        prior_failures.append(f"attempt {attempt}: {evidence}")
+                        if attempts_used < self.max_attempts:
+                            async with self._ledger_lock:
+                                transition_wave(lc, run_id, node.node_id, "queued")
+                        continue
+                    if pools is not None:
+                        pools.record_infra(provider)
+                    async with self._ledger_lock:
+                        void_infra_attempt_count(lc, run_id=run_id, node_id=node.node_id)
+                        attempts_used -= 1
+                        self._end_attempt_with_usage(
+                            lc,
+                            attempt_id,
+                            outcome="failed",
+                            evidence=result.result_text or "infra failure",
+                            result=result,
+                        )
+                        append_event(
+                            lc,
+                            run_id=run_id,
+                            node_id=node.node_id,
+                            phase="infra",
+                            last_action=f"infra on {provider}: {(result.result_text or '')[:120]}",
+                            attempt_n=attempt,
+                        )
+                        transition_wave(lc, run_id, node.node_id, "queued")
+                    cooldown = pools.configs[provider].cooldown_s if pools else 0
+                    if cooldown > 0:
+                        await asyncio.sleep(float(cooldown))
+                    continue
+                consecutive_infra = 0
+                if pools is not None:
+                    pools.record_success(provider)
                 if result.cost_usd:
                     logger.info(
                         "engine: {} {} attempt {} cost ${:.4f}",
@@ -2294,6 +3009,7 @@ class Engine:
                             last_action=f"cost budget ${self.cost_budget_usd:.2f} reached",
                             cost_usd=result.cost_usd,
                         )
+                    self._evaluate_engine_exit(3, lc, run_id)
                     self._write_cost_pause(run_id, spent)
                     return NodeResult(
                         node.node_id,
@@ -2331,7 +3047,14 @@ class Engine:
                         async with self._ledger_lock:
                             transition_wave(lc, run_id, node.node_id, "verifying")
                             append_event(lc, run_id=run_id, node_id=node.node_id, phase="verifying")
-                        ok, ev = self._verify_with_retries(worktree.path, node.verify_targets)
+                        ok, ev = self._run_isolated_verify(
+                            run_id=run_id,
+                            node=node,
+                            implementer_worktree=worktree.path,
+                            commit_sha=self._last_checkpoint_sha,
+                            targets=node.verify_targets,
+                            transcript=result.result_text,
+                        )
                         if ok:
                             if (
                                 self._orchestrator_mode
@@ -2453,6 +3176,7 @@ class Engine:
                     async with self._ledger_lock:
                         transition_wave(lc, run_id, node.node_id, "queued")
 
+            self._fire_error_threshold_exit(lc, run_id, node=node, failures=attempts_used)
             async with self._ledger_lock:
                 transition_wave(lc, run_id, node.node_id, "blocked")
                 append_event(
@@ -2464,11 +3188,18 @@ class Engine:
                 )
             return NodeResult(node.node_id, "blocked", attempts_used, evidence)
         finally:
+            if pools is not None and pool_provider is not None:
+                pools.release(pool_provider)
             self._recover_worktree(worktree, run_id, node.node_id)
-            row = get_wave(lc, run_id, node.node_id)
-            if row.state in ("running", "dispatched", "verifying"):
-                async with self._ledger_lock:
-                    transition_wave(lc, run_id, node.node_id, "queued")
+            try:
+                await self._shielded_finalize_wave_ledger(lc, run_id, node.node_id)
+            except Exception as exc:
+                logger.warning(
+                    "engine: {} {} ledger finalizer failed: {}",
+                    run_id,
+                    node.node_id,
+                    exc,
+                )
             if cleanup_worktree_on_exit and not self._orchestrator_single_branch:
                 self.wtm.cleanup(worktree)
 
@@ -2542,6 +3273,7 @@ class Engine:
             )
             return
         if sha:
+            self._last_checkpoint_sha = sha
             logger.info(
                 "engine: {} {} attempt {} checkpoint {}",
                 run_id,
@@ -2615,6 +3347,12 @@ class Engine:
             orchestrator=graph.orchestrator,
             role_dispatch=self._role_dispatch_effective,
         )
+        if node.reasoning_effort:
+            brief["reasoning_effort"] = node.reasoning_effort
+        if node.max_budget_usd is not None:
+            brief["max_budget_usd"] = node.max_budget_usd
+        if node.provider:
+            brief["provider"] = node.provider
         brief = self._append_external_upload_dirs(brief, worktree.path)
         orch_cfg = graph.orchestrator
         if orch_cfg and orch_cfg.enabled and self._wave_commit_shas:
@@ -2639,6 +3377,31 @@ class Engine:
                     "do not reset or delete unrelated files."
                 )
                 brief["agent_directives"] = directives
+        graph_db = self.runs_root.graph_db_path(run_id)
+        if not graph_db.is_file():
+            graph_db = self.repo_root / ".tripll" / "graph.db"
+        at_sha = self._last_checkpoint_sha or "HEAD"
+        targets = list(node.owned_paths)
+        brief = enrich_brief_with_graph_pack(
+            brief,
+            wave_targets=targets,
+            graph_store=str(graph_db),
+            at_sha=at_sha,
+            grep_brief=self._grep_brief,
+            run_dir=worktree.path.parent.parent / "brief-spill",
+        )
+        from tripll.plan.code_graph import kg_extra_available, routing_hints_for_wave
+
+        if kg_extra_available() and graph_db.is_file():
+            provider = node.provider or self._default_provider
+            provider_cfg = self._pools.configs.get(provider) if self._pools else None
+            brief["routing_hints"] = routing_hints_for_wave(
+                targets=targets,
+                graph_store=str(graph_db),
+                provider=provider,
+                provider_config=provider_cfg,
+                repo=self.repo_root.name,
+            )
         return brief
 
 

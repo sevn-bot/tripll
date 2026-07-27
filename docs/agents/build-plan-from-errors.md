@@ -1,5 +1,8 @@
 # build-plan-from-errors
 
+> **Dispatch status:** **Contract only** — W5 driver prompt that authors a remediation plan; produces files, not an Engine dispatch role.
+
+
 Turn gateway **error turn bundles** into **one** runnable **tripll v1** wave-plan per
 `make build-plan-from-errors` driver run.
 
@@ -8,7 +11,7 @@ Turn gateway **error turn bundles** into **one** runnable **tripll v1** wave-pla
 In-repo file references in wave plans must be **repo-root-relative** (worktree root = repo
 root):
 
-- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `.cursor/agents/…`.
+- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `src/tripll/skw/agents/…`.
 - **Never** use `../`, `./`, or a leading `/` for in-repo paths.
 - External files outside the repo may keep **absolute** paths; tripll exposes their parent
   via `--add-dir` / workspace scope.
@@ -40,7 +43,7 @@ root):
 
 **One** `*-wave-plan.md` file written to:
 
-`wave-orchestrator/runs/input/from-errors-{{RUN_ID}}/`
+`runs/input/from-errors-{{RUN_ID}}/`
 
 Only when the driver run found **≥1** error turn (**D6**). Runs with zero new errors emit
 no plan file.

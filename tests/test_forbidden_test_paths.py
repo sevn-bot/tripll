@@ -281,12 +281,12 @@ class TestDeriveForbiddenRegressionGuard:
         forbidden = derive_forbidden_paths("a", lanes)
         assert "src/b/" in forbidden
 
-    def test_cw_hotspots_still_forbidden(self) -> None:
+    def test_cw_hotspots_still_forbidden(self, legacy_cw_hotspots: None) -> None:
         lanes = {"a": Lane("a", owned_paths=["src/a/"])}
         forbidden = derive_forbidden_paths("a", lanes)
         assert "src/sevn/gateway/agent_turn.py" in forbidden
 
-    def test_cw_owner_exclusion_still_works(self) -> None:
+    def test_cw_owner_exclusion_still_works(self, legacy_cw_hotspots: None) -> None:
         lanes = {"a": Lane("a", owned_paths=["src/a/"])}
         forbidden = derive_forbidden_paths("a", lanes, cw_owners={"CW-1": "a"})
         assert "src/sevn/gateway/agent_turn.py" not in forbidden

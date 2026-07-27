@@ -1,5 +1,11 @@
 # wave-plan-author
 
+> **Dispatch status:** **Contract only** — superseded by `plan-author`; v1 conversion guidance only, not Engine-dispatched.
+
+
+> **Successor:** [`plan-author.md`](plan-author.md) — v3 wave plans with typed `depends_on` and
+> outcome contracts (design §11.5). This file remains for **v1 conversion** guidance.
+
 Convert or author **tripll v1** wave-plan files for `wave-orchestrator`.
 
 ## Path convention
@@ -7,7 +13,7 @@ Convert or author **tripll v1** wave-plan files for `wave-orchestrator`.
 In-repo file references in wave plans must be **repo-root-relative** (worktree root = repo
 root):
 
-- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `.cursor/agents/…`.
+- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `src/tripll/skw/agents/…`.
 - **Never** use `../`, `./`, or a leading `/` for in-repo paths.
 - External files outside the repo may keep **absolute** paths; tripll exposes their parent
   via `--add-dir` / workspace scope.

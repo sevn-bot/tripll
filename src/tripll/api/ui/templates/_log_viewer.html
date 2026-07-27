@@ -5,13 +5,13 @@
       {% if truncated %} · showing tail only{% endif %}
     </div>
     <div class="log-viewer-controls">
-      <button type="button" class="log-btn" data-log-zoom-out title="Smaller text">A−</button>
-      <button type="button" class="log-btn" data-log-zoom-in title="Larger text">A+</button>
+      <button type="button" class="log-btn" data-log-zoom-out title="Smaller text" aria-label="Decrease log text size">A−</button>
+      <button type="button" class="log-btn" data-log-zoom-in title="Larger text" aria-label="Increase log text size">A+</button>
       <input type="search" class="log-search" placeholder="Search log…" data-log-search aria-label="Search log">
-      <button type="button" class="log-btn" data-log-search-prev title="Previous match">↑</button>
-      <button type="button" class="log-btn" data-log-search-next title="Next match">↓</button>
+      <button type="button" class="log-btn" data-log-search-prev title="Previous match" aria-label="Previous log search match">↑</button>
+      <button type="button" class="log-btn" data-log-search-next title="Next match" aria-label="Next log search match">↓</button>
       {% if log_available and attempt_n and full_log_url %}
-      <a class="log-btn log-full-tab" href="{{ full_log_url }}" target="_blank" rel="noopener">Open full log ↗</a>
+      <a class="log-btn log-full-tab" href="{{ full_log_url }}" target="_blank" rel="noopener" aria-label="Open full log in new tab">Open full log ↗</a>
       {% endif %}
     </div>
   </div>

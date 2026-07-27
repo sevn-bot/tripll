@@ -14,11 +14,26 @@ jobs:
   verify:
     name: Lint + typecheck + test + build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Bootstrap (uv + sync)
         uses: ./.github/actions/bootstrap
 
       - name: Run full gate
         run: make ci
+
+  bench:
+    name: Brief-packing benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bootstrap (uv + sync)
+        uses: ./.github/actions/bootstrap
+
+      - name: Run brief-packing benchmark
+        run: make bench

@@ -29,9 +29,12 @@ Exports:
     end_attempt — set outcome + ended_at on an attempt row.
     append_event — append a per-node event row.
     list_events — fetch events for a run, ordered by event_id (optionally paged).
+    list_fired_exit_ids — distinct exit ids recorded via ``exit_fired`` events.
     latest_events_by_node — collapse events to one row per node_id (D2 hydration).
     ORCHESTRATOR_NODE_ID — synthetic node_id for orchestrator phase events.
     get_run — fetch one run row.
+    get_run_cost — cumulative attempt cost (USD) for a run.
+    get_run_cost_by_provider — per-backend cost rollup for a run.
     get_wave — fetch one wave row.
     list_waves — all wave rows for a run.
     list_attempts — all attempt rows for a (run_id, node_id) pair.
@@ -58,6 +61,7 @@ WaveState = Literal[
     "dispatched",
     "running",
     "verifying",
+    "unverified",
     "done",
     "failed",
     "blocked",
@@ -149,6 +153,8 @@ class AttemptRow:
         cost_usd (float | None): Provider-reported session cost when available.
         input_tokens (int | None): Input tokens when reported.
         output_tokens (int | None): Output tokens when reported.
+        env_fingerprint_json (str | None): Serialised 13-field ``EnvFingerprint``.
+        env_fingerprint_hash (str | None): Stable hash for graph ``RAN_IN`` edge.
     """
 
     attempt_id: str
@@ -165,6 +171,8 @@ class AttemptRow:
     cost_usd: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    env_fingerprint_json: str | None = None
+    env_fingerprint_hash: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,7 +244,7 @@ CREATE TABLE IF NOT EXISTS waves (
     state         TEXT NOT NULL DEFAULT 'queued'
                       CHECK (state IN (
                           'queued', 'gate_pending', 'dispatched',
-                          'running', 'verifying',
+                          'running', 'verifying', 'unverified',
                           'done', 'failed', 'blocked', 'deferred'
                       )),
     attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -299,8 +307,9 @@ class LedgerConnection:
         (0,)
     """
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, *, path: object | None = None) -> None:
         self.conn = conn
+        self.path = path
 
     def close(self) -> None:
         """Close the underlying connection."""
@@ -343,9 +352,11 @@ def open_ledger(path: object) -> LedgerConnection:
     _migrate_cost_columns(conn)
     _migrate_event_attempt_n(conn)
     _migrate_event_metadata(conn)
+    _migrate_unverified_wave_state(conn)
+    _migrate_attempt_env_fingerprint(conn)
     conn.commit()
     logger.debug("ledger: opened {}", path)
-    return LedgerConnection(conn)
+    return LedgerConnection(conn, path=None if path == ":memory:" else path)
 
 
 def _migrate_attempt_outcomes(conn: sqlite3.Connection) -> None:
@@ -408,6 +419,49 @@ def _migrate_event_metadata(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE events ADD COLUMN metadata TEXT")
 
 
+def _migrate_unverified_wave_state(conn: sqlite3.Connection) -> None:
+    """Rebuild ``waves`` when the state CHECK lacks ``unverified`` (W7)."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='waves'"
+    ).fetchone()
+    if not row or not row[0] or "unverified" in row[0]:
+        return
+    conn.executescript(
+        """
+        CREATE TABLE waves_new (
+            node_id       TEXT NOT NULL,
+            run_id        TEXT NOT NULL REFERENCES runs(run_id),
+            plan_id       TEXT NOT NULL,
+            wave_id       TEXT NOT NULL,
+            lane          TEXT NOT NULL,
+            state         TEXT NOT NULL DEFAULT 'queued'
+                              CHECK (state IN (
+                                  'queued', 'gate_pending', 'dispatched',
+                                  'running', 'verifying', 'unverified',
+                                  'done', 'failed', 'blocked', 'deferred'
+                              )),
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL,
+            PRIMARY KEY (run_id, node_id)
+        );
+        INSERT INTO waves_new SELECT * FROM waves;
+        DROP TABLE waves;
+        ALTER TABLE waves_new RENAME TO waves;
+        CREATE INDEX IF NOT EXISTS idx_waves_run_state ON waves (run_id, state);
+        """
+    )
+
+
+def _migrate_attempt_env_fingerprint(conn: sqlite3.Connection) -> None:
+    """Add ``EnvFingerprint`` columns to ``attempts`` (§7.9.2)."""
+    att_cols = {row[1] for row in conn.execute("PRAGMA table_info(attempts)")}
+    if "env_fingerprint_json" not in att_cols:
+        conn.execute("ALTER TABLE attempts ADD COLUMN env_fingerprint_json TEXT")
+    if "env_fingerprint_hash" not in att_cols:
+        conn.execute("ALTER TABLE attempts ADD COLUMN env_fingerprint_hash TEXT")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -415,6 +469,25 @@ def _migrate_event_metadata(conn: sqlite3.Connection) -> None:
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _sum_attempt_costs(lc: LedgerConnection, run_id: str) -> float:
+    """Return the sum of ``attempts.cost_usd`` for *run_id*."""
+    row = lc.conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0) FROM attempts WHERE run_id = ?",
+        (run_id,),
+    ).fetchone()
+    return float(row[0] or 0.0) if row is not None else 0.0
+
+
+def _sync_run_cost_from_attempts(lc: LedgerConnection, run_id: str) -> None:
+    """Refresh ``runs.cost_usd`` from the live attempt rows."""
+    total = _sum_attempt_costs(lc, run_id)
+    now = _now_iso()
+    lc.conn.execute(
+        "UPDATE runs SET cost_usd = ?, updated_at = ? WHERE run_id = ?",
+        (total, now, run_id),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -502,6 +575,25 @@ def insert_wave(
     logger.debug("ledger: inserted wave {}/{}", run_id, node_id)
 
 
+def _maybe_sync_wave_transition(
+    lc: LedgerConnection, run_id: str, node_id: str, new_state: WaveState
+) -> None:
+    if lc.path is None:
+        return
+    from pathlib import Path
+
+    from tripll.graphstore.task_sync import TaskGraphWriter
+
+    db_path = Path(str(lc.path)).parent / "graph.db"
+    if not db_path.is_file():
+        return
+    writer = TaskGraphWriter(db_path)
+    try:
+        writer.sync_wave_transition(run_id=run_id, node_id=node_id, new_state=new_state)
+    finally:
+        writer.close()
+
+
 def insert_attempt(
     lc: LedgerConnection,
     *,
@@ -511,6 +603,10 @@ def insert_attempt(
     backend: str,
     brief_path: str | None = None,
     log_path: str | None = None,
+    model: str | None = None,
+    agent: str | None = None,
+    env_fingerprint_json: str | None = None,
+    env_fingerprint_hash: str | None = None,
 ) -> str:
     """Record a new dispatch attempt; returns the generated ``attempt_id``.
 
@@ -524,6 +620,10 @@ def insert_attempt(
         backend (str): Backend name (e.g. ``'claude_code'``).
         brief_path (str | None): Path to the emitted dispatch brief JSON.
         log_path (str | None): Path to the attempt log file.
+        model (str | None): Provider model id for task-graph sync.
+        agent (str | None): Agent slug for task-graph sync.
+        env_fingerprint_json (str | None): Serialised ``EnvFingerprint`` for ``RAN_IN``.
+        env_fingerprint_hash (str | None): Stable fingerprint hash.
 
     Returns:
         str: The generated ``attempt_id`` UUID.
@@ -543,9 +643,21 @@ def insert_attempt(
         lc.conn.execute(
             """INSERT INTO attempts
                    (attempt_id, run_id, node_id, attempt_n, backend,
-                    brief_path, log_path, started_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (attempt_id, run_id, node_id, attempt_n, backend, brief_path, log_path, now),
+                    brief_path, log_path, started_at,
+                    env_fingerprint_json, env_fingerprint_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                attempt_id,
+                run_id,
+                node_id,
+                attempt_n,
+                backend,
+                brief_path,
+                log_path,
+                now,
+                env_fingerprint_json,
+                env_fingerprint_hash,
+            ),
         )
         lc.conn.execute(
             """UPDATE waves SET attempt_count = attempt_count + 1, updated_at = ?
@@ -553,7 +665,54 @@ def insert_attempt(
             (now, run_id, node_id),
         )
     logger.debug("ledger: inserted attempt {} for {}/{}", attempt_id, run_id, node_id)
+    if lc.path is not None:
+        from pathlib import Path
+
+        from tripll.graphstore.task_sync import TaskGraphWriter
+
+        db_path = Path(str(lc.path)).parent / "graph.db"
+        if db_path.is_file():
+            writer = TaskGraphWriter(db_path)
+            try:
+                writer.sync_attempt(
+                    run_id=run_id,
+                    node_id=node_id,
+                    attempt_id=attempt_id,
+                    attempt_n=attempt_n,
+                    backend=backend,
+                    model=model,
+                    agent=agent,
+                )
+            finally:
+                writer.close()
     return attempt_id
+
+
+def void_infra_attempt_count(
+    lc: LedgerConnection,
+    *,
+    run_id: str,
+    node_id: str,
+) -> None:
+    """Decrement ``waves.attempt_count`` after an infra-classified dispatch (PROV-03).
+
+    Infra failures must not consume a wave attempt slot. Call this after
+    :func:`insert_attempt` when :func:`~tripll.adapters.failure_class.classify_dispatch`
+    returns ``infra``.
+
+    Args:
+        lc (LedgerConnection): Open ledger connection.
+        run_id (str): Parent run.
+        node_id (str): Target wave node.
+    """
+    now = _now_iso()
+    with lc.conn:
+        lc.conn.execute(
+            """UPDATE waves SET attempt_count = CASE WHEN attempt_count > 0
+               THEN attempt_count - 1 ELSE 0 END, updated_at = ?
+               WHERE run_id = ? AND node_id = ?""",
+            (now, run_id, node_id),
+        )
 
 
 def transition_run(lc: LedgerConnection, run_id: str, new_state: RunState) -> None:
@@ -637,6 +796,7 @@ def transition_wave(lc: LedgerConnection, run_id: str, node_id: str, new_state: 
     )
     lc.conn.commit()
     logger.debug("ledger: wave {}/{} → {}", run_id, node_id, new_state)
+    _maybe_sync_wave_transition(lc, run_id, node_id, new_state)
 
 
 def delete_attempts_for_node(lc: LedgerConnection, run_id: str, node_id: str) -> int:
@@ -673,6 +833,7 @@ def reset_wave_attempts(lc: LedgerConnection, run_id: str, node_id: str) -> None
            WHERE run_id = ? AND node_id = ?""",
         (now, run_id, node_id),
     )
+    _sync_run_cost_from_attempts(lc, run_id)
     lc.conn.commit()
 
 
@@ -709,11 +870,8 @@ def end_attempt(
            WHERE attempt_id = ?""",
         (outcome, evidence, now, cost_usd, input_tokens, output_tokens, attempt_id),
     )
-    if row and cost_usd and cost_usd > 0:
-        lc.conn.execute(
-            "UPDATE runs SET cost_usd = cost_usd + ?, updated_at = ? WHERE run_id = ?",
-            (cost_usd, now, row[0]),
-        )
+    if row:
+        _sync_run_cost_from_attempts(lc, str(row[0]))
     lc.conn.commit()
     logger.debug("ledger: attempt {} → {}", attempt_id, outcome)
 
@@ -850,6 +1008,50 @@ def list_events(
     ]
 
 
+def list_fired_exit_ids(lc: LedgerConnection, run_id: str) -> list[int]:
+    """Return distinct exit ids recorded via ``exit_fired`` events.
+
+    Args:
+        lc (LedgerConnection): Open ledger connection.
+        run_id (str): Parent run.
+
+    Returns:
+        list[int]: Exit numbers in firing order (deduplicated).
+
+    Examples:
+        >>> import json
+        >>> lc = open_ledger(":memory:")
+        >>> insert_run(lc, run_id="r1", slug="t", source_mode="A", input_path="/tmp")
+        >>> _ = append_event(
+        ...     lc,
+        ...     run_id="r1",
+        ...     node_id="__loop__",
+        ...     phase="exit_fired",
+        ...     metadata=json.dumps({"exit_id": 3, "name": "budget_cap"}),
+        ... )
+        >>> list_fired_exit_ids(lc, "r1")
+        [3]
+        >>> lc.close()
+    """
+    import json
+
+    seen: set[int] = set()
+    fired: list[int] = []
+    for event in list_events(lc, run_id):
+        if event.phase != "exit_fired" or not event.metadata:
+            continue
+        try:
+            payload = json.loads(event.metadata)
+            exit_id = int(payload.get("exit_id") or 0)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if exit_id <= 0 or exit_id in seen:
+            continue
+        seen.add(exit_id)
+        fired.append(exit_id)
+    return fired
+
+
 def latest_events_by_node(lc: LedgerConnection, run_id: str) -> dict[str, EventRow]:
     """Collapse append-only events to one row per ``node_id`` (D2).
 
@@ -919,7 +1121,7 @@ def latest_events_by_node(lc: LedgerConnection, run_id: str) -> dict[str, EventR
 
 
 def get_run_cost(lc: LedgerConnection, run_id: str) -> float:
-    """Return cumulative provider cost (USD) recorded for *run_id*.
+    """Return cumulative provider cost (USD) derived from attempt rows.
 
     Args:
         lc (LedgerConnection): Open ledger connection.
@@ -927,11 +1129,50 @@ def get_run_cost(lc: LedgerConnection, run_id: str) -> float:
 
     Returns:
         float: Total ``cost_usd`` for the run (0 when unset).
+
+    Raises:
+        KeyError: When *run_id* does not exist.
     """
-    row = lc.conn.execute("SELECT cost_usd FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-    if row is None:
+    exists = lc.conn.execute(
+        "SELECT 1 FROM runs WHERE run_id = ?",
+        (run_id,),
+    ).fetchone()
+    if exists is None:
         raise KeyError(f"Run not found: {run_id!r}")
-    return float(row[0] or 0.0)
+    return _sum_attempt_costs(lc, run_id)
+
+
+def get_run_cost_by_provider(lc: LedgerConnection, run_id: str) -> dict[str, float]:
+    """Return per-backend cost rollup for *run_id*.
+
+    Args:
+        lc (LedgerConnection): Open ledger connection.
+        run_id (str): Run identifier.
+
+    Returns:
+        dict[str, float]: ``backend`` → summed ``cost_usd``.
+
+    Raises:
+        KeyError: When *run_id* does not exist.
+
+    Examples:
+        >>> lc = open_ledger(":memory:")
+        >>> insert_run(lc, run_id="r1", slug="s", source_mode="A", input_path="/x")
+        >>> get_run_cost_by_provider(lc, "r1")
+        {}
+    """
+    exists = lc.conn.execute(
+        "SELECT 1 FROM runs WHERE run_id = ?",
+        (run_id,),
+    ).fetchone()
+    if exists is None:
+        raise KeyError(f"Run not found: {run_id!r}")
+    rows = lc.conn.execute(
+        """SELECT backend, COALESCE(SUM(cost_usd), 0)
+           FROM attempts WHERE run_id = ? GROUP BY backend""",
+        (run_id,),
+    ).fetchall()
+    return {str(row[0]): float(row[1]) for row in rows if row[0]}
 
 
 # ---------------------------------------------------------------------------
@@ -1087,7 +1328,8 @@ def list_attempts(lc: LedgerConnection, run_id: str, node_id: str) -> list[Attem
     rows = lc.conn.execute(
         """SELECT attempt_id, run_id, node_id, attempt_n, backend,
                   brief_path, log_path, started_at, ended_at, outcome, evidence,
-                  cost_usd, input_tokens, output_tokens
+                  cost_usd, input_tokens, output_tokens,
+                  env_fingerprint_json, env_fingerprint_hash
            FROM attempts
            WHERE run_id = ? AND node_id = ?
            ORDER BY attempt_n""",
@@ -1109,6 +1351,8 @@ def list_attempts(lc: LedgerConnection, run_id: str, node_id: str) -> list[Attem
             cost_usd=float(r[11]) if r[11] is not None else None,
             input_tokens=int(r[12]) if r[12] is not None else None,
             output_tokens=int(r[13]) if r[13] is not None else None,
+            env_fingerprint_json=str(r[14]) if r[14] is not None else None,
+            env_fingerprint_hash=str(r[15]) if r[15] is not None else None,
         )
         for r in rows
     ]

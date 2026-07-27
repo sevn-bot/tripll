@@ -16,10 +16,11 @@ Exports:
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from loguru import logger
@@ -29,6 +30,7 @@ from tripll.ledger import list_waves, open_ledger
 from tripll.obs import configure_observability
 from tripll.pipeline import PlanPathValidationError, RunsRoot, make_run_id
 from tripll.repo_root import resolve_repo_root
+from tripll.skw.cli import app as skw_legacy_app
 
 if TYPE_CHECKING:
     from tripll.adapters.options import BackendOptions
@@ -62,7 +64,7 @@ RunsRootOpt = Annotated[
         "--runs-root",
         "-r",
         envvar="TRIPLL_RUNS",
-        help="Runs root directory (default: wave-orchestrator/runs/ or $TRIPLL_RUNS).",
+        help="Runs root directory (default: <repo_root>/runs/ or $TRIPLL_RUNS).",
         show_default=True,
     ),
 ]
@@ -72,13 +74,11 @@ def _resolve_runs_root(runs_root: Path | None) -> RunsRoot:
     """Resolve and return a :class:`~tripll.pipeline.RunsRoot`.
 
     Resolution order: an explicit ``runs_root`` wins; otherwise the
-    ``TRIPLL_RUNS`` env var; otherwise ``<repo_root>/wave-orchestrator/runs``
+    ``TRIPLL_RUNS`` env var; otherwise ``<repo_root>/runs``
     where *repo_root* comes from :func:`~tripll.repo_root.resolve_repo_root`
     (honours ``TRIPLL_REPO_ROOT``, then walks up for ``.git``). Anchoring the
-    default at the repo root — rather than resolving ``wave-orchestrator/runs``
-    against the process CWD — keeps the runs directory identical whether
-    tripll is invoked from the repo root or from inside ``wave-orchestrator/``
-    (which otherwise doubled the path to ``wave-orchestrator/wave-orchestrator``).
+    default at the repo root keeps the runs directory identical whether
+    tripll is invoked from the repo root or from a subdirectory.
 
     Args:
         runs_root (Path | None): Explicit path from CLI, or ``None`` to use default.
@@ -136,6 +136,7 @@ def _engine_for(
     model: str | None = None,
     agent: str | None = None,
     role_dispatch: bool | None = None,
+    grep_brief: bool | None = None,
 ) -> Engine:
     """Build an :class:`~tripll.engine.Engine` with resolved repo root."""
     from tripll.adapters import get_adapter
@@ -150,6 +151,7 @@ def _engine_for(
         repo_root=repo_root,
         cost_budget_usd=_cost_budget_usd(),
         role_dispatch=role_dispatch,
+        grep_brief=grep_brief,
     )
 
 
@@ -247,6 +249,10 @@ def _finalize_run_result(
         typer.echo("")
         typer.echo("PAUSED — cost budget reached. Raise TRIPLL_COST_BUDGET_USD and resume:")
         typer.echo(f"  TRIPLL_COST_BUDGET_USD=50 make resume-run RUN={result.run_id}")
+        raise typer.Exit(0)
+    if result.state == "parked":
+        typer.echo("")
+        typer.echo("PARKED — tier-4 canary red under auto_accept; resolve externally before retry.")
         raise typer.Exit(0)
     for node_id, nr in result.nodes.items():
         typer.echo(f"  {node_id:<40}  {nr.state:<8}  attempts={nr.attempts}")
@@ -362,6 +368,54 @@ def _root(
 
 
 # ---------------------------------------------------------------------------
+# setup / doctor (W13)
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def setup(
+    non_interactive: Annotated[
+        bool,
+        typer.Option(
+            "--non-interactive",
+            help="Write config without prompts (CI / automation).",
+        ),
+    ] = False,
+    provider: Annotated[
+        str | None,
+        typer.Option(
+            "--provider",
+            "-p",
+            help="Default provider for --non-interactive (e.g. cursor_local).",
+        ),
+    ] = None,
+) -> None:
+    """One-time machine setup — providers, models, tracing (writes user config)."""
+    from tripll.onboard.setup import run_setup
+
+    run_setup(non_interactive=non_interactive, provider=provider)
+
+
+@app.command()
+def doctor(
+    next_plan: Annotated[
+        Path | None,
+        typer.Option(
+            "--next",
+            help="Plan file path — include next-command hint from checkbox state.",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = None,
+) -> None:
+    """Preflight: Python, extras, providers, config layers, v3 template."""
+    from tripll.onboard.doctor import run_doctor
+
+    raise typer.Exit(run_doctor(plan_path=next_plan))
+
+
+# ---------------------------------------------------------------------------
 # init
 # ---------------------------------------------------------------------------
 
@@ -369,18 +423,82 @@ def _root(
 @app.command()
 def init(
     runs_root: RunsRootOpt = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing onboarding artefacts."),
+    ] = False,
 ) -> None:
-    """Initialise the runs root with input/, processing/, processed/, failed/ subdirs.
+    """Initialise a repository for tripll (brownfield onboarding + runs layout).
 
-    Safe to run on an existing root (idempotent).
+    Creates ``tripll.toml``, starter specs/PRDs/plans, a repo evaluation, the
+    code graph under ``.tripll/``, and the runs root (``input/``, ``processing/``,
+    ``processed/``, ``failed/``). Safe to re-run: existing operator-edited files
+    are preserved unless ``--force`` is set.
     """
+    from tripll.onboard.brownfield import run_brownfield_init
+
     rr = _resolve_runs_root(runs_root)
-    rr.init()
-    typer.echo(f"Initialised runs root: {rr.root}")
-    typer.echo(f"  input/      → {rr.input_dir}")
-    typer.echo(f"  processing/ → {rr.processing_dir}")
-    typer.echo(f"  processed/  → {rr.processed_dir}")
-    typer.echo(f"  failed/     → {rr.failed_dir}")
+    result = run_brownfield_init(runs_root=rr.root, force=force)
+    typer.echo("Brownfield init complete.")
+    for line in result.messages:
+        typer.echo(f"  {line}")
+    typer.echo(f"  input/      → {result.runs_root / 'input'}")
+    typer.echo(f"  processing/ → {result.runs_root / 'processing'}")
+    typer.echo(f"  processed/  → {result.runs_root / 'processed'}")
+    typer.echo(f"  failed/     → {result.runs_root / 'failed'}")
+    typer.echo("Next: tripll setup (once per machine), then tripll doctor")
+
+
+@app.command()
+def new(
+    name: Annotated[str, typer.Argument(help="New project directory name.")],
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-dir",
+            "-o",
+            help="Parent directory for the project (default: current directory).",
+            file_okay=False,
+            dir_okay=True,
+            writable=True,
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing onboarding artefacts."),
+    ] = False,
+    cookiecutter: Annotated[
+        bool,
+        typer.Option(
+            "--cookiecutter",
+            help="Use cookiecutter-pypackage (requires tripll scaffold extra).",
+        ),
+    ] = False,
+) -> None:
+    """Scaffold a new tripll-ready project (greenfield onboarding).
+
+    Writes a Python project skeleton from packaged templates (offline, no network),
+    then emits ``tripll.toml``, starter specs/PRDs/plans, evaluation, and ``runs/``.
+    Re-running reconciles gaps without clobbering operator edits unless ``--force``.
+    """
+    from tripll.onboard.greenfield import GreenfieldError, new_project
+
+    try:
+        result = new_project(
+            name,
+            output_dir=output_dir,
+            force=force,
+            cookiecutter=cookiecutter,
+        )
+    except GreenfieldError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo("Greenfield scaffold complete.")
+    for line in result.messages:
+        typer.echo(f"  {line}")
+    typer.echo(f"  cd {result.project_dir.name}")
+    typer.echo("Next: tripll setup (once per machine), tripll doctor, then make check")
 
 
 # ---------------------------------------------------------------------------
@@ -593,6 +711,36 @@ def list_runs_cmd(runs_root: RunsRootOpt = None) -> None:
     _status_all(rr)
 
 
+def _attempt_dispatch_labels(attempts: list[Any]) -> tuple[str, str, str]:
+    """Return ``(backend, model, reasoning_effort)`` from the latest attempt brief."""
+    backend = "—"
+    model = "—"
+    effort = "—"
+    for attempt in reversed(attempts):
+        if backend == "—":
+            b = str(getattr(attempt, "backend", "") or "").strip()
+            if b:
+                backend = b
+        brief_path = getattr(attempt, "brief_path", None)
+        if brief_path and (model == "—" or effort == "—"):
+            try:
+                data = json.loads(Path(str(brief_path)).read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, TypeError):
+                data = None
+            if isinstance(data, dict):
+                if model == "—":
+                    m = str(data.get("model") or "").strip()
+                    if m:
+                        model = m
+                if effort == "—":
+                    e = str(data.get("reasoning_effort") or "").strip()
+                    if e:
+                        effort = e
+        if backend != "—" and model != "—" and effort != "—":
+            break
+    return backend, model, effort
+
+
 def _status_run(rr: RunsRoot, run_id: str) -> None:
     """Print detailed wave status for a single run.
 
@@ -609,10 +757,22 @@ def _status_run(rr: RunsRoot, run_id: str) -> None:
         typer.echo(f"Run not found: {run_id}", err=True)
         raise typer.Exit(1)
 
-    from tripll.ledger import list_attempts
+    from tripll.ledger import (
+        get_run_cost,
+        get_run_cost_by_provider,
+        list_attempts,
+        list_fired_exit_ids,
+    )
 
     with open_ledger(ledger_path) as lc:
         waves = list_waves(lc, run_id)
+        run_cost = get_run_cost(lc, run_id)
+        cost_by_provider = get_run_cost_by_provider(lc, run_id)
+        fired_exits = list_fired_exit_ids(lc, run_id)
+        wave_dispatch: list[tuple[str, str, str, str]] = []
+        for w in waves:
+            backend, model, effort = _attempt_dispatch_labels(list_attempts(lc, run_id, w.node_id))
+            wave_dispatch.append((w.node_id, backend, model, effort))
         evidence = {
             w.node_id: next(
                 (a.evidence for a in reversed(list_attempts(lc, run_id, w.node_id)) if a.evidence),
@@ -631,6 +791,23 @@ def _status_run(rr: RunsRoot, run_id: str) -> None:
     typer.echo("-" * 65)
     for w in waves:
         typer.echo(f"{w.node_id:<40}  {w.state:<14}  {w.attempt_count}")
+
+    typer.echo(f"\n{'NODE-ID':<40}  {'PROVIDER':<14}  {'MODEL':<22}  {'EFFORT'}")
+    typer.echo("-" * 90)
+    for node_id, backend, model, effort in wave_dispatch:
+        typer.echo(f"{node_id:<40}  {backend:<14}  {model:<22}  {effort}")
+
+    budget = _cost_budget_usd()
+    typer.echo(f"\nCost: ${run_cost:.4f}")
+    if cost_by_provider:
+        typer.echo("  by provider:")
+        for backend, amount in sorted(cost_by_provider.items()):
+            typer.echo(f"    {backend}: ${amount:.4f}")
+    if budget > 0:
+        typer.echo(f"  budget: ${budget:.2f} (${run_cost:.4f} spent)")
+
+    if fired_exits:
+        typer.echo(f"\nExits fired: {', '.join(str(exit_id) for exit_id in fired_exits)}")
 
     run_dir = rr.find_run_dir(run_id)
     wt_root = (run_dir / "worktrees") if run_dir else None
@@ -693,6 +870,22 @@ def _run_dry_run(
     typer.echo(f"[dry-run] Available   : {caps.available} ({caps.detail})")
 
     graph = build_graph_from_dir(input_path, run_id=run_id)
+    if graph.pre0_gates:
+        from tripll.plan.human_gates import (
+            evaluate_ci_billing_canary,
+            pipeline_config_for_graph,
+            resolve_human_gate_mode,
+            resolve_pre0_gate,
+        )
+
+        pipeline = pipeline_config_for_graph(graph, resolve_repo_root())
+        mode = resolve_human_gate_mode(pipeline)
+        canary = evaluate_ci_billing_canary()
+        outcome = resolve_pre0_gate(mode=mode, auto_acceptable=True, canary=canary)
+        typer.echo(f"[dry-run] Pre-0 gates  : {len(graph.pre0_gates)}")
+        typer.echo(f"[dry-run] Human gates  : {mode} → {outcome.value}")
+        typer.echo(f"[dry-run] CI canary     : {canary.detail}")
+
     sample = next((n for n in graph.nodes.values() if not n.is_review_gate), None)
     if sample is None:
         typer.echo("[dry-run] No dispatchable (non-gate) node found.")
@@ -719,6 +912,30 @@ def _run_dry_run(
         plan = plan_integration(graph, run_id=run_id)
         for line in render_dry_run(plan):
             typer.echo(line)
+
+    trace_env = os.environ.get("TRIPLL_TRACE", "1").strip().lower()
+    if trace_env not in {"0", "false", "no", "off"}:
+        from tripll.obs import configure_observability, get_tracing_config
+        from tripll.plan.providers import plan_from_text
+        from tripll.tracing.spans import close_run_tracing, init_run_tracing, trace_span
+
+        plan_text = ""
+        if input_path.is_file() and input_path.suffix == ".md":
+            plan_text = input_path.read_text(encoding="utf-8")
+        elif input_path.is_dir():
+            for md in sorted(input_path.glob("*.md")):
+                plan_text = md.read_text(encoding="utf-8")
+                break
+        plan_dict = plan_from_text(plan_text) if plan_text else {}
+        configure_observability(plan=plan_dict)
+        rr = _resolve_runs_root(None)
+        run_dir = rr.run_dir(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        init_run_tracing(run_dir, get_tracing_config(), run_id=run_id)
+        with trace_span("tripll.run", run_id=run_id, dry_run=True):
+            pass
+        close_run_tracing()
+        typer.echo(f"[dry-run] Trace sinks : {run_dir / 'traces'}")
 
 
 # ---------------------------------------------------------------------------
@@ -788,6 +1005,13 @@ def run(
             help="Enable per-role agent dispatch (test-author→test-creator, impl→wave-runner).",
         ),
     ] = None,
+    grep_brief: Annotated[
+        bool | None,
+        typer.Option(
+            "--grep-brief/--graph-brief",
+            help="Force legacy grep brief (default: graph-packed when kg extra installed).",
+        ),
+    ] = None,
     runs_root: RunsRootOpt = None,
 ) -> None:
     """Start (or dry-run) the wave-orchestrator pipeline on an input directory.
@@ -836,7 +1060,14 @@ def run(
         typer.echo(f"Model: {model}")
     if agent:
         typer.echo(f"Agent: {agent}")
-    engine = _engine_for(rr, backend=backend, model=model, agent=agent, role_dispatch=role_dispatch)
+    engine = _engine_for(
+        rr,
+        backend=backend,
+        model=model,
+        agent=agent,
+        role_dispatch=role_dispatch,
+        grep_brief=grep_brief,
+    )
     try:
         result = asyncio.run(engine.start(input_path))
     except PlanPathValidationError as exc:
@@ -894,6 +1125,13 @@ def resume(
             help="Enable per-role agent dispatch (test-author→test-creator, impl→wave-runner).",
         ),
     ] = None,
+    grep_brief: Annotated[
+        bool | None,
+        typer.Option(
+            "--grep-brief/--graph-brief",
+            help="Force legacy grep brief (default: graph-packed when kg extra installed).",
+        ),
+    ] = None,
     runs_root: RunsRootOpt = None,
 ) -> None:
     """Resume a paused or in-progress run from its on-disk state.
@@ -941,7 +1179,14 @@ def resume(
     if agent:
         typer.echo(f"Agent: {agent}")
     typer.echo(f"Logs: {rr.run_dir(run_id) / 'logs'}")
-    engine = _engine_for(rr, backend=backend, model=model, agent=agent, role_dispatch=role_dispatch)
+    engine = _engine_for(
+        rr,
+        backend=backend,
+        model=model,
+        agent=agent,
+        role_dispatch=role_dispatch,
+        grep_brief=grep_brief,
+    )
     result = asyncio.run(engine.resume(run_id))
     _finalize_run_result(
         rr,
@@ -1243,6 +1488,310 @@ def plan(
 
 
 # ---------------------------------------------------------------------------
+# graph  (W3 extraction / fusion / quality gate)
+# ---------------------------------------------------------------------------
+
+graph_app = typer.Typer(
+    name="graph",
+    help="Code KG extraction, fusion, quality gate, and query.",
+    no_args_is_help=True,
+)
+app.add_typer(graph_app, name="graph")
+
+findings_app = typer.Typer(
+    name="findings",
+    help="GitHub check/review ingestion → Finding graph (§7.12).",
+    no_args_is_help=True,
+)
+app.add_typer(findings_app, name="findings")
+
+bench_app = typer.Typer(
+    name="bench",
+    help="Frozen L1 benchmark replay and metric deltas (§9.4).",
+    no_args_is_help=True,
+)
+app.add_typer(bench_app, name="bench")
+
+
+@bench_app.command("run")
+def bench_run_cmd(
+    bench_dir: Annotated[
+        Path | None,
+        typer.Option("--bench-dir", help="Path to bench/ (default: auto-detect)."),
+    ] = None,
+    graph_db: Annotated[
+        Path | None,
+        typer.Option("--db", help="GraphStore SQLite path for graph-brief replay."),
+    ] = None,
+) -> None:
+    """Replay sealed tasks and emit metric deltas vs baseline."""
+    from tripll.bench import run_benchmark
+
+    result = run_benchmark(
+        bench_dir=bench_dir,
+        graph_db=graph_db,
+    )
+    typer.echo(f"tasks: {result.task_count}")
+    typer.echo(f"d23_verdict: {result.d23_verdict}")
+    for key in sorted(result.metrics):
+        delta = result.deltas[key]
+        sign = "+" if delta >= 0 else ""
+        typer.echo(
+            f"{key}: {result.metrics[key]:.4f} (baseline {result.baseline[key]:.4f}, {sign}{delta:.4f})"
+        )
+
+
+@graph_app.command("extract")
+def graph_extract(
+    repo: Annotated[
+        str,
+        typer.Option("--repo", help="Target repo slug (default: tripll)."),
+    ] = "tripll",
+    sha: Annotated[
+        str | None,
+        typer.Option("--sha", help="Commit sha for incremental extraction."),
+    ] = None,
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    semantic: Annotated[
+        bool,
+        typer.Option("--semantic/--no-semantic", help="Run batched semantic pass."),
+    ] = False,
+    backend: Annotated[
+        str,
+        typer.Option("--backend", help="Agent backend for --semantic (default: claude_code)."),
+    ] = "claude_code",
+    repo_root: Annotated[
+        Path | None,
+        typer.Option("--repo-root", help="Target checkout root."),
+    ] = None,
+) -> None:
+    """Extract deterministic (and optional semantic) code KG into SQLite."""
+    from tripll.adapters import get_adapter
+    from tripll.extract.pipeline import extract_repo
+    from tripll.graphstore import SqliteGraphStore
+
+    root = repo_root or resolve_repo_root()
+    adapter = None
+    if semantic:
+        name, opts = _backend_options(backend=backend)
+        adapter = get_adapter(name, options=opts)
+        caps = adapter.capabilities()
+        if not caps.available:
+            typer.echo(
+                f"Semantic extraction requires an available backend; {name} unavailable: "
+                f"{caps.detail}",
+                err=True,
+            )
+            raise typer.Exit(1)
+
+    store = SqliteGraphStore(str(db))
+    try:
+        counts = extract_repo(
+            store,
+            root,
+            repo=repo,
+            sha=sha,
+            run_semantic=semantic,
+            adapter=adapter,
+        )
+    finally:
+        store.close()
+    typer.echo(
+        f"extracted {counts.get('nodes', 0)} nodes, "
+        f"{counts.get('edges', 0)} edges from {counts.get('files', 0)} files "
+        f"(sha={sha or 'HEAD'})"
+    )
+
+
+@graph_app.command("fuse")
+def graph_fuse(
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+) -> None:
+    """Run fusion blocking and auto-merge on live Symbol nodes."""
+    from tripll.extract.pipeline import fuse_store
+    from tripll.graphstore import SqliteGraphStore
+
+    store = SqliteGraphStore(str(db))
+    try:
+        result = fuse_store(store)
+    finally:
+        store.close()
+    typer.echo(f"fuse: {result['merged']} merges from {result['candidates']} candidate pairs")
+
+
+@graph_app.command("gate")
+def graph_gate(
+    predicate: Annotated[
+        str,
+        typer.Option("--predicate", help="Semantic predicate to gate."),
+    ] = "IMPLEMENTS",
+    precision: Annotated[
+        float,
+        typer.Option("--precision", help="Observed sample precision."),
+    ] = 0.95,
+    sample_size: Annotated[
+        int,
+        typer.Option("--sample-size", help="Sample size for the gate."),
+    ] = 50,
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+) -> None:
+    """Run the semantic extractor quality gate and record a Verdict node."""
+    from tripll.extract.quality_gate import run_quality_gate
+    from tripll.graphstore import SqliteGraphStore
+
+    store = SqliteGraphStore(str(db))
+    try:
+        verdict = run_quality_gate(
+            predicate=predicate,
+            sample_size=sample_size,
+            precision=precision,
+            store=store,
+        )
+    finally:
+        store.close()
+    status = "PASS" if verdict["passed"] else "FAIL"
+    typer.echo(f"gate {predicate}: {status} precision={precision} — {verdict.get('remedy', '')}")
+    if not verdict["passed"]:
+        raise typer.Exit(1)
+
+
+@findings_app.command("sync")
+def findings_sync(
+    pr: Annotated[int, typer.Option("--pr", help="Pull request number to sync.")],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    run_id: Annotated[
+        str,
+        typer.Option("--run-id", help="Run id for Finding natural keys."),
+    ] = "local",
+) -> None:
+    """Sync check-runs and review comments for a PR into the Finding graph."""
+    from tripll.github.sync import open_store, sync_pr_findings
+
+    store = open_store(db)
+    try:
+        count = sync_pr_findings(pr, store, run_id=run_id)
+    finally:
+        store.close()
+    typer.echo(f"synced {count} finding(s) from PR #{pr}")
+
+
+@findings_app.command("list")
+def findings_list(
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    state: Annotated[
+        str | None,
+        typer.Option("--state", help="Filter by finding state."),
+    ] = None,
+) -> None:
+    """List Finding nodes from the graph."""
+    from tripll.github.findings import list_findings_from_store
+    from tripll.github.sync import open_store
+
+    store = open_store(db)
+    try:
+        rows = list_findings_from_store(store, state=state)
+    finally:
+        store.close()
+    if not rows:
+        typer.echo("(no findings)")
+        return
+    for row in rows:
+        typer.echo(
+            f"{row.get('finding_id', '?'):<18}  {row.get('state', '?'):<10}  "
+            f"{row.get('kind', '?'):<16}  {row.get('rule_id', '')}"
+        )
+
+
+@findings_app.command("triage")
+def findings_triage(
+    finding_id: Annotated[str, typer.Argument(help="Finding id to triage.")],
+    state: Annotated[
+        str,
+        typer.Option("--state", help="New state: accepted|rejected|deferred|fixed."),
+    ],
+    rationale: Annotated[
+        str | None,
+        typer.Option("--rationale", help="Rationale (required for rejected)."),
+    ] = None,
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    learnings: Annotated[
+        Path,
+        typer.Option("--learnings", help="Rejected-findings export path."),
+    ] = Path(".pullfrog/learnings.md"),
+) -> None:
+    """Update finding state; export learnings when rejected."""
+    from tripll.github.findings import list_findings_from_store
+    from tripll.github.sync import open_store, triage_and_export
+
+    store = open_store(db)
+    try:
+        matches = [f for f in list_findings_from_store(store) if f.get("finding_id") == finding_id]
+        if not matches:
+            typer.echo(f"Finding not found: {finding_id}", err=True)
+            raise typer.Exit(1)
+        updated = triage_and_export(
+            matches[0],
+            store,
+            state=state,
+            rationale=rationale,
+            learnings_path=learnings,
+        )
+    finally:
+        store.close()
+    typer.echo(f"triage {finding_id} → {updated.get('state')}")
+
+
+@graph_app.command("query")
+def graph_query(
+    seed: Annotated[
+        str,
+        typer.Argument(help="Seed node_id for subgraph query."),
+    ],
+    hops: Annotated[
+        int,
+        typer.Option("--hops", help="Subgraph hop limit."),
+    ] = 2,
+    at_sha: Annotated[
+        str | None,
+        typer.Option("--at-sha", help="Evaluate graph at commit sha."),
+    ] = None,
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+) -> None:
+    """Query a subgraph from the Code KG."""
+    from tripll.extract.pipeline import query_store
+    from tripll.graphstore import SqliteGraphStore
+
+    store = SqliteGraphStore(str(db))
+    try:
+        result = query_store(store, seed=seed, hops=hops, at_sha=at_sha)
+    finally:
+        store.close()
+    typer.echo(f"nodes ({len(result['nodes'])}): {', '.join(result['nodes'][:10])}")
+    typer.echo(f"edges ({len(result['edges'])})")
+
+
+# ---------------------------------------------------------------------------
 # serve  (W4 FastAPI control plane)
 # ---------------------------------------------------------------------------
 
@@ -1307,6 +1856,210 @@ def serve(
     else:
         typer.echo("  Auth      : NONE (dev mode — set TRIPLL_API_TOKEN for production)")
     uvicorn.run(fastapi_app, host=host, port=port)
+
+
+# spec-kit-wave (absorbed skw) — doc gates and deprecated alias
+# ---------------------------------------------------------------------------
+
+app.add_typer(skw_legacy_app, name="skw")
+
+
+def _skw_kit_root() -> Path:
+    from tripll.skw.paths import kit_root
+
+    return kit_root()
+
+
+def _docs_repo_root(repo_root: Path | None) -> Path:
+    return (repo_root or resolve_repo_root()).resolve()
+
+
+def _run_docs(kind: str, directory: Path, *, repo_root: Path | None, mode: str) -> None:
+    from tripll.skw.doc_folder import run_docs_command
+
+    result = run_docs_command(
+        mode,
+        kind=kind,
+        directory=directory.resolve(),
+        repo_root=_docs_repo_root(repo_root),
+        kit_root=_skw_kit_root(),
+    )
+    for file_result in result.files:
+        for err in file_result.errors:
+            typer.echo(err, err=True)
+        for warn in file_result.warnings:
+            typer.echo(f"warning: {warn}", err=True)
+    if result.exit_code != 0:
+        raise typer.Exit(result.exit_code)
+
+
+spec_app = typer.Typer(name="spec", help="Spec folder validate and score.", no_args_is_help=True)
+prd_app = typer.Typer(name="prd", help="PRD folder validate and score.", no_args_is_help=True)
+changelog_app = typer.Typer(
+    name="changelog",
+    help="CHANGELOG.md structural and diff gates.",
+    no_args_is_help=True,
+)
+app.add_typer(spec_app, name="spec")
+app.add_typer(prd_app, name="prd")
+app.add_typer(changelog_app, name="changelog")
+
+# ---------------------------------------------------------------------------
+# pr  (W9 PR phase — shepherd, status, merge gate)
+# ---------------------------------------------------------------------------
+
+pr_app = typer.Typer(
+    name="pr",
+    help="PR phase: idempotent push/open, fix loop, human merge gate.",
+    no_args_is_help=True,
+)
+app.add_typer(pr_app, name="pr")
+
+
+@pr_app.command("shepherd")
+def pr_shepherd_cmd(
+    run_id: Annotated[str, typer.Option("--run", "-r", help="Run id to shepherd.")],
+    phase: Annotated[
+        str,
+        typer.Option(
+            "--phase",
+            help="Loop phase: deliver, investigate_and_fix, or merge.",
+        ),
+    ] = "investigate_and_fix",
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Run one PR shepherd step (push/open, investigate/fix, or merge gate)."""
+    from tripll.loops.l1_pr import shepherd_run
+
+    rr = _resolve_runs_root(runs_root)
+    run_dir = rr.find_run_dir(run_id)
+    if run_dir is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    result = shepherd_run(run_id=run_id, run_dir=run_dir, phase=phase)
+    typer.echo(json.dumps(result, indent=2, default=str))
+
+
+@pr_app.command("status")
+def pr_status_cmd(
+    run_id: Annotated[str, typer.Argument(help="Run id.")],
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Show PR phase state and merge-gate markers for a run."""
+    from tripll.loops.l1_pr import pr_status
+
+    rr = _resolve_runs_root(runs_root)
+    run_dir = rr.find_run_dir(run_id)
+    if run_dir is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    typer.echo(json.dumps(pr_status(run_dir=run_dir), indent=2))
+
+
+@pr_app.command("approve-merge")
+def pr_approve_merge_cmd(
+    run_id: Annotated[str, typer.Argument(help="Run id parked at merge gate.")],
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Approve the human merge gate — never auto-merges without this step."""
+    from tripll.loops.l1_pr import approve_merge_gate, pr_status
+
+    rr = _resolve_runs_root(runs_root)
+    run_dir = rr.find_run_dir(run_id)
+    if run_dir is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    try:
+        path = approve_merge_gate(run_dir=run_dir)
+    except FileNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Merge gate approved: {path}")
+    typer.echo(json.dumps(pr_status(run_dir=run_dir), indent=2))
+
+
+@spec_app.command("validate")
+def spec_validate_cmd(
+    directory: Annotated[Path, typer.Argument(help="Specs directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Validate every spec in a directory."""
+    _run_docs("spec", directory, repo_root=repo_root, mode="validate")
+
+
+@spec_app.command("score")
+def spec_score_cmd(
+    directory: Annotated[Path, typer.Argument(help="Specs directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Score every spec in a directory."""
+    _run_docs("spec", directory, repo_root=repo_root, mode="score")
+
+
+@prd_app.command("validate")
+def prd_validate_cmd(
+    directory: Annotated[Path, typer.Argument(help="PRD directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Validate every PRD in a directory."""
+    _run_docs("prd", directory, repo_root=repo_root, mode="validate")
+
+
+@prd_app.command("score")
+def prd_score_cmd(
+    directory: Annotated[Path, typer.Argument(help="PRD directory.")],
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+) -> None:
+    """Score every PRD in a directory."""
+    _run_docs("prd", directory, repo_root=repo_root, mode="score")
+
+
+@app.command("doc-score")
+def doc_score_cmd(
+    kind: Annotated[str, typer.Option("--kind", help="Doc kind: spec or prd.")] = "spec",
+    directory: Annotated[Path, typer.Option("--dir", help="Folder of markdown docs.")] = Path(
+        "docs"
+    ),
+    repo_root: Annotated[
+        Path | None,
+        typer.Option("--repo-root", help="Target repository root."),
+    ] = None,
+) -> None:
+    """Score every doc in a folder for the given kind."""
+    _run_docs(kind, directory, repo_root=repo_root, mode="score")
+
+
+@changelog_app.command("check")
+def changelog_check_cmd(
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+    base: Annotated[str, typer.Option("--base", help="Diff base ref.")] = "origin/main",
+    changelog: Annotated[Path | None, typer.Option("--changelog")] = None,
+) -> None:
+    """Run deterministic CHANGELOG.md structural + diff gate."""
+    from tripll.skw.changelog_validate import validate_changelog
+
+    root = _docs_repo_root(repo_root)
+    changelog_path = (changelog or root / "CHANGELOG.md").resolve()
+    errors, warnings = validate_changelog(root, base, changelog_path=changelog_path)
+    for warn in warnings:
+        typer.echo(f"warning: {warn}", err=True)
+    if errors:
+        for err in errors:
+            typer.echo(err, err=True)
+        raise typer.Exit(1)
+    typer.echo(f"OK — {changelog_path}")
+
+
+@changelog_app.command("eval")
+def changelog_eval_cmd(
+    repo_root: Annotated[Path | None, typer.Option("--repo-root")] = None,
+    base: Annotated[str, typer.Option("--base")] = "origin/main",
+) -> None:
+    """Advisory LLM double-score for Unreleased entries (not used in CI)."""
+    from tripll.skw.changelog_eval import main as changelog_eval_main
+
+    root = _docs_repo_root(repo_root)
+    raise typer.Exit(changelog_eval_main(["--repo", str(root), "--base", base, "--json"]))
 
 
 def main() -> None:

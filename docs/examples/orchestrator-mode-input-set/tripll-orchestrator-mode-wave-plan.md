@@ -11,7 +11,7 @@ orchestrator_mode: serial
 | Subsystem | Paths |
 |-----------|-------|
 | Docs | `wave-orchestrator/docs/` |
-| Agents | `.cursor/agents/wave-orchestrator.md` |
+| Agents | `src/tripll/skw/agents/wave-orchestrator.md` |
 
 ## tripll execution graph
 

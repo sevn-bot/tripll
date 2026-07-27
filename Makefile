@@ -9,6 +9,10 @@ UV_RUN ?= env -u VIRTUAL_ENV $(UV)
 RUFF ?= $(UV_RUN) run ruff
 MYPY ?= $(UV_RUN) run mypy
 
+# pullfrog-py ref for local `make review` — pinned to the same SHA as
+# .github/workflows/pullfrog.yml (override: TRIPLL_PULLFROG_PY_REF=main).
+PULLFROG_PY_REF ?= $(if $(TRIPLL_PULLFROG_PY_REF),$(TRIPLL_PULLFROG_PY_REF),0d40626097fd92976425f7eacd2e213ee1f6d5d5)
+
 # Default runs/ relative to this directory (override: TRIPLL_RUNS=… make …)
 export TRIPLL_RUNS := $(abspath runs)
 # Target git checkout that tripll orchestrates (the repo whose worktrees are managed).
@@ -68,11 +72,11 @@ _TRIPLL_RESUME_FLAGS := \
 PLANS_COMPOSE := docker-compose.agent-native-plans.yml
 PLANS_ENV := .env.agent-native
 
-.PHONY: help sync sync-api init tripll lint typecheck test check log-redact-check serve status-watch orchestrator-watch \
+.PHONY: help sync sync-api init tripll lint typecheck test check log-redact-check pullfrog-ref-check review serve status-watch orchestrator-watch \
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
-	plans-up plans-down plans-logs
+	plans-up plans-down plans-logs spec-check prd-check changelog-check changelog-eval docs-score bench
 
 help: ## Show targets (default goal — use `make` or `make help`, not GNU `make --help`)
 	@printf '\033[1mtripll\033[0m — operator targets (run from this directory)\n'
@@ -99,7 +103,7 @@ dry-run-build-plan-from-errors: sync ## Preview argv only — FOLDER=<dir> [PROV
 ##@ Setup
 
 sync: ## Install deps (tripll CLI in uv project env)
-	$(UV_RUN) sync --extra dev
+	$(UV_RUN) sync --extra dev --extra graph
 
 sync-api: ## Install dev + api extras (required for make serve / API tests)
 	$(UV_RUN) sync --extra dev --extra api
@@ -272,21 +276,46 @@ tripll: sync ## CLI passthrough — ARGS='plan runs/input/<set> --dry-run' | 'ru
 
 ##@ Quality gate
 
-lint: ## Ruff check + format check
+lint: sync ## Ruff check + format check
 	$(RUFF) check --config pyproject.toml src tests
 	$(RUFF) format --check --config pyproject.toml src tests
 
-typecheck: ## mypy strict for tripll
+typecheck: sync ## mypy strict for tripll
 	$(MYPY) --config-file pyproject.toml src/tripll
 
+# Tier gating (W1.16): tier2 needs RUN_LIVE=1; tier4 never blocks make test.
+PYTEST_TIER_EXPR = not tier4
+ifndef RUN_LIVE
+PYTEST_TIER_EXPR := $(PYTEST_TIER_EXPR) and not tier2
+endif
+
 test: ## pytest
-	$(UV_RUN) run --extra dev --extra api pytest tests -v --tb=short
+	$(UV_RUN) run --extra dev --extra api --extra obs pytest tests -v --tb=short -m "$(PYTEST_TIER_EXPR)"
+
+bench: sync ## Replay sealed brief-packing benchmark (tier 2 — minutes, not seconds)
+	$(TRIPLL_CLI) bench run
 
 log-redact-check: sync ## Validate log-hide-keys.toml + redaction unit tests
 	@test -f config/log-hide-keys.toml || (echo "Missing config/log-hide-keys.toml" >&2; exit 1)
 	$(UV_RUN) run --extra dev pytest tests/test_log_redact.py -v --tb=short
 
-check: lint typecheck log-redact-check about-site-check test ## Lint + typecheck + log redact + about-site drift + test (required gate)
+check: lint typecheck log-redact-check pullfrog-ref-check about-site-check test ## Lint + typecheck + log redact + pullfrog pin + about-site drift + test (required gate)
+
+pullfrog-ref-check: sync ## Fail when pullfrog-py pin drifts between pullfrog.yml and PULLFROG_PY_REF
+	$(UV_RUN) run --extra dev python scripts/check_pullfrog_ref_parity.py
+
+review: ## Advisory offline review vs origin/main via pullfrog-py (needs CLAUDE_CODE_OAUTH_TOKEN in `.env`)
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	if [ -z "$${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "$${ANTHROPIC_API_KEY:-}" ]; then \
+		printf 'Neither CLAUDE_CODE_OAUTH_TOKEN nor ANTHROPIC_API_KEY set — add one to `.env`. Advisory review skipped.\n' >&2; \
+		exit 0; \
+	fi; \
+	base="$${TRIPLL_CI_BASE:-origin/main}"; \
+	echo "Running pullfrog-py diff-review (base=$$base, ref=$(PULLFROG_PY_REF))…"; \
+	$(UV) tool run --python 3.14 --from git+https://github.com/alexhawat/pullfrog-py@$(PULLFROG_PY_REF) \
+		pfpy diff-review --base "$$base"
 
 setup: ## Fresh checkout: sync deps + install git hooks (CI bootstrap entry point)
 	$(UV_RUN) sync --extra dev --extra api --extra obs
@@ -308,3 +337,30 @@ OUT ?= scaffold-out
 scaffold-package: ## Scaffold + normalize a new package (NAME=<project> [OUT=<dir>]) via cookiecutter
 	@test -n "$(NAME)" || { echo "usage: make scaffold-package NAME=<project-name> [OUT=<dir>]"; exit 1; }
 	$(UV_RUN) run --extra scaffold python -c "from tripll.scaffold import scaffold_package; print('scaffolded:', scaffold_package(project_name='$(NAME)', output_dir='$(OUT)'))"
+
+##@ Doc gates (absorbed spec-kit-wave / skw)
+
+SPEC_DIR ?= docs
+PRD_DIR ?= docs/prd
+KIND ?= spec
+DOCS_DIR ?= $(if $(filter prd,$(KIND)),$(PRD_DIR),$(SPEC_DIR))
+REPO_ROOT ?= $(CURDIR)
+
+spec-check: sync ## Validate+score specs in SPEC_DIR (default docs/)
+	$(TRIPLL_CLI) spec validate "$(SPEC_DIR)" --repo-root "$(REPO_ROOT)"
+
+prd-check: sync ## Validate+score PRDs in PRD_DIR (SCORE=1 for score-only gate)
+	@if [ "$(SCORE)" = "1" ]; then \
+		$(TRIPLL_CLI) prd score "$(PRD_DIR)" --repo-root "$(REPO_ROOT)"; \
+	else \
+		$(TRIPLL_CLI) prd validate "$(PRD_DIR)" --repo-root "$(REPO_ROOT)"; \
+	fi
+
+docs-score: sync ## Score docs in DOCS_DIR for KIND=spec|prd
+	$(TRIPLL_CLI) doc-score --kind $(KIND) --dir "$(DOCS_DIR)" --repo-root "$(REPO_ROOT)"
+
+changelog-check: sync ## Deterministic CHANGELOG.md gate (BASE=origin/main)
+	$(TRIPLL_CLI) changelog check --repo-root "$(REPO_ROOT)" --base "$(or $(BASE),origin/main)"
+
+changelog-eval: sync ## Advisory LLM double-score for Unreleased entries (not in CI)
+	$(TRIPLL_CLI) changelog eval --repo-root "$(REPO_ROOT)" --base "$(or $(BASE),origin/main)"

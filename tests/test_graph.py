@@ -109,7 +109,7 @@ def test_validate_unknown_cw_seam() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_derive_forbidden_includes_other_lanes_and_cw() -> None:
+def test_derive_forbidden_includes_other_lanes_and_cw(legacy_cw_hotspots: None) -> None:
     lanes = {
         "a": Lane("a", owned_paths=["src/sevn/a/"]),
         "b": Lane("b", owned_paths=["src/sevn/b/"]),
@@ -120,7 +120,7 @@ def test_derive_forbidden_includes_other_lanes_and_cw() -> None:
     assert "src/sevn/a/" not in forbidden
 
 
-def test_derive_forbidden_cw_owner_excluded() -> None:
+def test_derive_forbidden_cw_owner_excluded(legacy_cw_hotspots: None) -> None:
     lanes = {"a": Lane("a", owned_paths=["src/sevn/a/"])}
     forbidden = derive_forbidden_paths("a", lanes, cw_owners={"CW-1": "a"})
     assert "src/sevn/gateway/agent_turn.py" not in forbidden
@@ -128,7 +128,7 @@ def test_derive_forbidden_cw_owner_excluded() -> None:
     assert "infra/sevn.schema.json" in forbidden
 
 
-def test_derive_forbidden_single_lane_owns_cw_hotspots() -> None:
+def test_derive_forbidden_single_lane_owns_cw_hotspots(legacy_cw_hotspots: None) -> None:
     lanes = {
         "tg": Lane(
             "tg",
@@ -144,8 +144,8 @@ def test_derive_forbidden_single_lane_owns_cw_hotspots() -> None:
     assert "src/sevn/gateway/agent_turn.py" in forbidden
 
 
-def test_cw_hotspots_cover_five_seams() -> None:
-    assert set(CW_HOTSPOTS) == {"CW-1", "CW-2", "CW-3", "CW-4", "CW-5"}
+def test_cw_hotspots_default_empty() -> None:
+    assert CW_HOTSPOTS == {}
 
 
 # ---------------------------------------------------------------------------

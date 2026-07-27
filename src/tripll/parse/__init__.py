@@ -85,6 +85,11 @@ def build_graph_from_dir(input_dir: Path, *, run_id: str) -> RunGraph:
     from tripll.parse.wave_plan_v1 import build_graph_from_v1_dir, parse_wave_plan_v1
 
     wave_files = sorted(input_dir.glob("*-wave-plan.md"))
+    from tripll.parse.plan_v3_graph import build_graph_from_v3_plan, is_v3_plan_file
+
+    v3_files = [f for f in wave_files if is_v3_plan_file(f)]
+    if v3_files and not any(parse_wave_plan_v1(f).has_execution_graph for f in wave_files):
+        return build_graph_from_v3_plan(v3_files[0], run_id=run_id)
     if wave_files and any(parse_wave_plan_v1(f).has_execution_graph for f in wave_files):
         return build_graph_from_v1_dir(input_dir, run_id=run_id)
     if detect_mode(input_dir) == "A":

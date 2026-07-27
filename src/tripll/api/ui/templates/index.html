@@ -5,9 +5,10 @@
 <div class="launch-form">
   <h2>Launch run</h2>
   <form class="ui-form" method="post" action="/launch">
+    {% include "_csrf_field.html" %}
     <label for="input_path">Input set</label>
     {% if input_sets %}
-    <select id="input_path" name="input_path">
+    <select id="input_path" name="input_path" aria-label="Input set">
       <option value="">— select input set —</option>
       {% for p in input_sets %}
       <option value="{{ p }}">{{ p.name }}</option>
@@ -15,22 +16,22 @@
     </select>
     <p class="muted">Or enter a custom path below.</p>
     {% endif %}
-    <input type="text" name="input_path_custom" placeholder="/absolute/path/to/input-set" />
+    <input type="text" name="input_path_custom" placeholder="/absolute/path/to/input-set" aria-label="Custom input set path" />
 
     <label for="profile_id">Agent profile</label>
     {% if profiles %}
-    <select id="profile_id" name="profile_id" required>
+    <select id="profile_id" name="profile_id" required aria-label="Agent profile">
       <option value="">— select profile —</option>
       {% for p in profiles %}
       <option value="{{ p.profile_id }}">{{ p.name }} ({{ p.profile_id }})</option>
       {% endfor %}
     </select>
     {% else %}
-    <p class="no-items">No profiles — <a href="/agents/new">create one</a> first.</p>
+    <p class="no-items">No profiles — <a href="/agents/new" aria-label="Create agent profile">create one</a> first.</p>
     {% endif %}
 
     <div class="form-actions">
-      <button type="submit"{% if not profiles %} disabled{% endif %}>Launch</button>
+      <button type="submit"{% if not profiles %} disabled{% endif %} aria-label="Launch run">Launch</button>
     </div>
   </form>
 </div>
@@ -51,7 +52,7 @@
   <tbody>
     {% for run in runs %}
     <tr>
-      <td><a href="/runs/{{ run.run_id }}">{{ run.run_id }}</a></td>
+      <td><a href="/runs/{{ run.run_id }}" aria-label="Open run {{ run.run_id }}">{{ run.run_id }}</a></td>
       <td>{{ run.slug }}</td>
       <td><span class="badge badge-{{ run.state }}">{{ run.state }}</span></td>
       <td class="cost">${{ "%.4f"|format(run.cost_usd) }}</td>

@@ -1,0 +1,13 @@
+{
+  "task_id": "plan-v3-targets",
+  "description": "Plan v3 TARGETS edges feed compile — real W4 failure",
+  "base_sha": "8c2e1f0",
+  "wave_id": "W4",
+  "targets": ["src/tripll/plan/compile.py", "src/tripll/plan/format_v3.py"],
+  "owned_paths": ["src/tripll/plan/"],
+  "outcome_contract": {
+    "required": ["compile emits TARGETS edges for wave targets"],
+    "forbidden": ["breaking v1/v2 compat readers"]
+  },
+  "verify": ["make lint", "make typecheck", "make test"]
+}

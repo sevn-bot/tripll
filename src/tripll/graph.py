@@ -10,6 +10,7 @@ The data model mirrors ``wave-orchestrator/docs/design-note.md`` §1.
 Exports:
     CW_HOTSPOTS — coordination-wave hotspot path map (CW-1 … CW-5).
     ALL_CW_PATHS — flattened list of every CW hotspot path.
+    batch_cw_seams — CW seam ids for a batch that exist in ``CW_HOTSPOTS``.
     paths_overlap — True when two owned-path sets share or nest a path.
     OrchestratorConfig — optional orchestrator-mode settings (design-note §8.6).
     WaveNode — atomic unit of work (one wave of one plan).
@@ -28,18 +29,40 @@ from typing import Literal
 # Coordination-wave hotspot paths (design-note.md §2.1)
 # ---------------------------------------------------------------------------
 
-CW_HOTSPOTS: dict[str, list[str]] = {
-    "CW-1": ["src/sevn/gateway/agent_turn.py"],
-    "CW-2": ["src/sevn/gateway/http_server.py"],
-    "CW-3": ["Makefile (ci: line)"],
-    "CW-4": [
-        "src/sevn/ui/dashboard/app.js",
-        "src/sevn/ui/dashboard/api/tab_registry.py",
-    ],
-    "CW-5": ["infra/sevn.schema.json"],
-}
+
+def _load_cw_hotspots() -> dict[str, list[str]]:
+    from tripll.plan.cw_buckets import default_cw_hotspots
+
+    return default_cw_hotspots()
+
+
+CW_HOTSPOTS: dict[str, list[str]] = _load_cw_hotspots()
 
 ALL_CW_PATHS: list[str] = [p for paths in CW_HOTSPOTS.values() for p in paths]
+
+
+def batch_cw_seams(batch_id: str) -> list[str]:
+    """Return configured CW seam ids for *batch_id*.
+
+    Seam ids are omitted when :data:`CW_HOTSPOTS` is empty so foreign repos
+    do not inherit sevn-shaped serialisation buckets by default (R9).
+
+    Args:
+        batch_id (str): Batch identifier (``A``, ``Final``, etc.).
+
+    Returns:
+        list[str]: CW ids present in both the batch template and ``CW_HOTSPOTS``.
+
+    Examples:
+        >>> batch_cw_seams("A")
+        []
+    """
+    candidates: list[str] = []
+    if batch_id == "A":
+        candidates = ["CW-1", "CW-2"]
+    elif batch_id == "Final":
+        candidates = ["CW-3", "CW-4", "CW-5"]
+    return [cw for cw in candidates if cw in CW_HOTSPOTS]
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +140,11 @@ class WaveNode:
     docs_menu_sync: list[str] = field(default_factory=list)
     model: str | None = None
     role: str = "impl"
+    provider: str | None = None
+    agent: str | None = None
+    fallback: list[str] = field(default_factory=list)
+    reasoning_effort: str | None = None
+    max_budget_usd: float | None = None
 
 
 @dataclass

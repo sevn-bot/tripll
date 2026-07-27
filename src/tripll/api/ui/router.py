@@ -62,6 +62,8 @@ from tripll.api._artefacts import (
     tail_log_file,
 )
 from tripll.api._auth import require_auth
+from tripll.api._csrf import ensure_csrf_token, require_csrf
+from tripll.api._l1_panels import build_l1_panels
 from tripll.api._orchestrator_ui import build_orchestrator_view
 from tripll.api._runs import RunSummary, _find_ledger, _is_run_live, _list_all_runs
 from tripll.api._worktree_status import (
@@ -78,9 +80,11 @@ from tripll.ledger import (
     WaveRow,
     get_run,
     get_run_cost,
+    get_run_cost_by_provider,
     latest_events_by_node,
     list_attempts,
     list_events,
+    list_fired_exit_ids,
     list_waves,
     open_ledger,
 )
@@ -102,11 +106,9 @@ _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
 def fragment_url(run_id: str, node_id: str, suffix: str, *, api_token: str = "") -> str:
-    """Build an htmx-safe fragment URL for *node_id* (D12 ``?token=``)."""
-    path = f"/runs/{run_id}/waves/{quote(node_id, safe='')}/{suffix}"
-    if api_token:
-        return f"{path}?token={quote(api_token, safe='')}"
-    return path
+    """Build an htmx-safe fragment URL for *node_id* (auth via ``hx-headers``)."""
+    _ = api_token  # callers pass token for template symmetry; auth is header-based (R6)
+    return f"/runs/{run_id}/waves/{quote(node_id, safe='')}/{suffix}"
 
 
 def log_full_page_url(
@@ -117,10 +119,8 @@ def log_full_page_url(
     api_token: str = "",
 ) -> str:
     """Build URL for the full-page attempt log viewer."""
-    path = f"/runs/{run_id}/waves/{quote(node_id, safe='')}/log/full?attempt={attempt_n}"
-    if api_token:
-        return f"{path}&token={quote(api_token, safe='')}"
-    return path
+    _ = api_token
+    return f"/runs/{run_id}/waves/{quote(node_id, safe='')}/log/full?attempt={attempt_n}"
 
 
 def log_append_url(run_id: str, node_id: str, *, api_token: str = "") -> str:
@@ -157,7 +157,10 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/", response_class=HTMLResponse)
-    async def dashboard_home(request: Request) -> HTMLResponse:
+    async def dashboard_home(
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the dashboard home page.
 
         Displays all runs (active, processed, failed), agent profiles, and
@@ -202,6 +205,7 @@ def make_ui_router() -> APIRouter:
                 )
 
         ctx: dict[str, Any] = _ui_context(
+            request,
             nav_section="runs",
             runs=runs,
             profiles=profiles,
@@ -215,7 +219,11 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.post("/launch")
-    async def launch_run_form(request: Request) -> RedirectResponse:
+    async def launch_run_form(
+        request: Request,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
         """Accept launch-run form POST; spawn engine and redirect to run detail."""
         rr: RunsRoot = request.app.state.runs_root
         form = await request.form()
@@ -273,14 +281,17 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/agents", response_class=HTMLResponse)
-    async def agents_list(request: Request) -> HTMLResponse:
+    async def agents_list(
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the agent profiles list page."""
         rr: RunsRoot = request.app.state.runs_root
         db_path = control_plane_db_path(rr.root)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         with open_profile_store(db_path) as store:
             profiles = list_profiles(store)
-        ctx = _ui_context(nav_section="agents", profiles=profiles)
+        ctx = _ui_context(request, nav_section="agents", profiles=profiles)
         return templates.TemplateResponse(request, "agents.html", ctx)
 
     # ------------------------------------------------------------------
@@ -288,9 +299,13 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/agents/new", response_class=HTMLResponse)
-    async def agents_new_form(request: Request) -> HTMLResponse:
+    async def agents_new_form(
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the new-agent profile form."""
         ctx = _ui_context(
+            request,
             nav_section="agents",
             form_title="New agent profile",
             form_action="/agents/new",
@@ -302,7 +317,11 @@ def make_ui_router() -> APIRouter:
         return templates.TemplateResponse(request, "agent_form.html", ctx)
 
     @router.post("/agents/new")
-    async def agents_new_submit(request: Request) -> RedirectResponse:
+    async def agents_new_submit(
+        request: Request,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
         """Create an agent profile from form POST."""
         rr: RunsRoot = request.app.state.runs_root
         form = await request.form()
@@ -339,7 +358,11 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/agents/{profile_id}/edit", response_class=HTMLResponse)
-    async def agents_edit_form(request: Request, profile_id: str) -> HTMLResponse:
+    async def agents_edit_form(
+        request: Request,
+        profile_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the edit-agent profile form."""
         rr: RunsRoot = request.app.state.runs_root
         db_path = control_plane_db_path(rr.root)
@@ -352,6 +375,7 @@ def make_ui_router() -> APIRouter:
                 ) from exc
 
         ctx = _ui_context(
+            request,
             nav_section="agents",
             form_title=f"Edit {row.name}",
             form_action=f"/agents/{profile_id}/edit",
@@ -363,7 +387,12 @@ def make_ui_router() -> APIRouter:
         return templates.TemplateResponse(request, "agent_form.html", ctx)
 
     @router.post("/agents/{profile_id}/edit")
-    async def agents_edit_submit(request: Request, profile_id: str) -> RedirectResponse:
+    async def agents_edit_submit(
+        request: Request,
+        profile_id: str,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
         """Update an agent profile from form POST."""
         rr: RunsRoot = request.app.state.runs_root
         form = await request.form()
@@ -386,14 +415,21 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/settings", response_class=HTMLResponse)
-    async def settings_page(request: Request) -> HTMLResponse:
+    async def settings_page(
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the settings form bound to runtime config env vars."""
         saved = request.query_params.get("saved") == "1"
-        ctx = _ui_context(nav_section="settings", config=_read_config(), saved=saved)
+        ctx = _ui_context(request, nav_section="settings", config=_read_config(), saved=saved)
         return templates.TemplateResponse(request, "settings.html", ctx)
 
     @router.post("/settings")
-    async def settings_submit(request: Request) -> RedirectResponse:
+    async def settings_submit(
+        request: Request,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
         """Update runtime config from form POST."""
         form = await request.form()
         model_default = str(form.get("model_default", "")).strip()
@@ -412,7 +448,11 @@ def make_ui_router() -> APIRouter:
     # ------------------------------------------------------------------
 
     @router.get("/runs/{run_id}", response_class=HTMLResponse)
-    async def run_detail(request: Request, run_id: str) -> HTMLResponse:
+    async def run_detail(
+        request: Request,
+        run_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> HTMLResponse:
         """Render the hydrated run-detail page for *run_id* (W1.1).
 
         Shows a per-wave table merged with ``latest_events_by_node`` (D2),
@@ -432,7 +472,7 @@ def make_ui_router() -> APIRouter:
         ctx = _build_run_detail_context(rr, run_id)
         if ctx is None:
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
-        ctx.update(_ui_context(nav_section="runs"))
+        ctx.update(_ui_context(request, nav_section="runs"))
         ctx["sse_url"] = f"/api/runs/{run_id}/events/stream"
         return templates.TemplateResponse(request, "run_detail.html", ctx)
 
@@ -622,7 +662,7 @@ def make_ui_router() -> APIRouter:
                 "truncated": truncated,
                 "full_log_url": None,
                 "log_available": True,
-                **_ui_context(nav_section="runs"),
+                **_ui_context(request, nav_section="runs"),
             },
         )
 
@@ -734,17 +774,21 @@ def _get_token() -> str:
     return os.environ.get("TRIPLL_API_TOKEN", "").strip()
 
 
-def _ui_context(*, nav_section: str, **extra: Any) -> dict[str, Any]:
-    """Build common template context with nav chrome (W2.1).
+def _ui_context(request: Request, *, nav_section: str, **extra: Any) -> dict[str, Any]:
+    """Build common template context with nav chrome (W2.1 + W3 CSRF).
 
     Args:
+        request (Request): Active request (CSRF token + cookie pairing).
         nav_section (str): Active nav item (``runs``, ``agents``, ``settings``).
         **extra: Additional template variables.
 
     Returns:
-        dict[str, Any]: Context dict including ``api_token`` and ``nav_section``.
+        dict[str, Any]: Context dict including ``api_token``, ``csrf_token``, and
+        ``nav_section``.
     """
     ctx: dict[str, Any] = {"api_token": _get_token(), "nav_section": nav_section}
+    if _get_token():
+        ctx["csrf_token"] = ensure_csrf_token(request)
     ctx.update(extra)
     return ctx
 
@@ -770,7 +814,7 @@ def _empty_profile_form() -> dict[str, str]:
         "profile_id": "",
         "name": "",
         "backend": "claude_code",
-        "model": "claude-3-5-sonnet",
+        "model": "claude-sonnet-5",
         "agent": "wave-plan-executor",
         "skills_text": "[]",
     }
@@ -857,8 +901,8 @@ def _timeline_events(lc: LedgerConnection, run_id: str) -> list[EventRow]:
     return events
 
 
-def _model_from_brief_path(brief_path: str | None) -> str | None:
-    """Read ``model`` from a dispatch brief JSON file when present."""
+def _brief_field_from_path(brief_path: str | None, field: str) -> str | None:
+    """Read one string field from a dispatch brief JSON file when present."""
     if not brief_path:
         return None
     try:
@@ -867,8 +911,13 @@ def _model_from_brief_path(brief_path: str | None) -> str | None:
         return None
     if not isinstance(data, dict):
         return None
-    model = str(data.get("model") or "").strip()
-    return model or None
+    value = str(data.get(field) or "").strip()
+    return value or None
+
+
+def _model_from_brief_path(brief_path: str | None) -> str | None:
+    """Read ``model`` from a dispatch brief JSON file when present."""
+    return _brief_field_from_path(brief_path, "model")
 
 
 def _format_attempt_started(started_at: str | None) -> str:
@@ -912,6 +961,22 @@ def _wave_model_label(attempts: list[Any]) -> str:
         model = _model_from_brief_path(getattr(attempt, "brief_path", None))
         if model:
             return model
+    return "—"
+
+
+def _wave_backend_label(attempts: list[Any]) -> str:
+    for attempt in reversed(attempts):
+        backend = str(getattr(attempt, "backend", "") or "").strip()
+        if backend:
+            return backend
+    return "—"
+
+
+def _wave_effort_label(attempts: list[Any]) -> str:
+    for attempt in reversed(attempts):
+        effort = _brief_field_from_path(getattr(attempt, "brief_path", None), "reasoning_effort")
+        if effort:
+            return effort
     return "—"
 
 
@@ -1021,6 +1086,9 @@ def _build_wave_rows(
                 "display_action": last_action or status_detail or "—",
                 "status_detail": status_detail,
                 "model": _wave_model_label(attempt_ctx["attempts"]),
+                "backend": _wave_backend_label(attempt_ctx["attempts"]),
+                "provider": _wave_backend_label(attempt_ctx["attempts"]),
+                "reasoning_effort": _wave_effort_label(attempt_ctx["attempts"]),
                 "input_tokens": ev.input_tokens if ev else None,
                 "output_tokens": ev.output_tokens if ev else None,
                 "cost_usd": ev.cost_usd if ev else None,
@@ -1068,6 +1136,8 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         latest = latest_events_by_node(lc, run_id)
         timeline_events = _timeline_events(lc, run_id)
         run_cost = get_run_cost(lc, run_id)
+        cost_by_provider = get_run_cost_by_provider(lc, run_id)
+        fired_exit_ids = list_fired_exit_ids(lc, run_id)
         wave_rows = _build_wave_rows(waves, latest, rr=rr, run_id=run_id, lc=lc)
         ledger_node_ids = [w.node_id for w in waves]
         batch_timeline = build_batch_timeline(
@@ -1085,13 +1155,22 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         )
 
     from tripll import hitl
+    from tripll.repo_root import resolve_repo_root
 
     hitl_info = hitl.hitl_status(run_dir) if run_dir is not None else {"pending": False}
+    l1 = build_l1_panels(
+        run_dir=run_dir,
+        waves=waves,
+        run_cost=run_cost,
+        repo_root=resolve_repo_root(),
+        fired_exit_ids=fired_exit_ids,
+    )
 
     return {
         "run_id": run_id,
         "run_state": run_row.state,
         "run_cost": run_cost,
+        "cost_by_provider": cost_by_provider,
         "is_live": is_live,
         "log_file_count": log_file_count,
         "report_exists": report_exists,
@@ -1102,6 +1181,7 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         "orch": orch,
         "wave_summary": orch.wave_summary,
         "hitl": hitl_info,
+        "l1": l1,
     }
 
 

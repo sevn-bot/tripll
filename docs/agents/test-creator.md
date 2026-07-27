@@ -1,5 +1,8 @@
 # test-creator
 
+> **Dispatch status:** **Engine-dispatched** — waves with `role: test-author` (typically W1); the only role allowed to edit `tests/`.
+
+
 Single **test owner** for tests-first tripll runs. Authors the entire suite in **Wave 1**
 (`role: test-author`), right after the W0 contract gate. Counterpart to **wave-runner**
 (implementation, which may not touch tests).
@@ -21,7 +24,7 @@ convention). Validate the plan's refs with `tripll validate-plan <plan.md>` befo
 In-repo file references in wave plans and test-plan docs must be **repo-root-relative**
 (worktree root = repo root):
 
-- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `.cursor/agents/…`.
+- Use `specs/…`, `prd/…`, `src/…`, `plan/…`, `wave-orchestrator/…`, `src/tripll/skw/agents/…`.
 - **Never** use `../`, `./`, or a leading `/` for in-repo paths.
 - External files outside the repo may keep **absolute** paths; tripll exposes their parent
   via `--add-dir` / workspace scope.
@@ -82,16 +85,15 @@ clean while RED). Pytest is red until impl waves land — do not green it by edi
 
 | Surface | Path |
 |---------|------|
-| Cursor subagent | [`.cursor/agents/test-creator.md`](.cursor/agents/test-creator.md) |
-| Operator docs (this file) | `wave-orchestrator/docs/agents/test-creator.md` |
-| Wave template W1 row | [`wave-orchestrator/docs/wave-plan-template.md`](wave-orchestrator/docs/wave-plan-template.md) |
+| skw brief (machine contract) | [`src/tripll/skw/agents/test-creator.md`](../../src/tripll/skw/agents/test-creator.md) |
+| Operator docs (this file) | `docs/agents/test-creator.md` |
+| Wave template W1 row | [`docs/wave-plan-template.md`](../wave-plan-template.md) |
 
-> **Duplication note:** Cursor subagent defs (`.cursor/agents/`) and operator docs
-> (`wave-orchestrator/docs/agents/`) are intentionally mirrored — keep both in sync until a
-> single-source consolidation lands.
+> **Two-tree split:** `src/tripll/skw/agents/` is hashed into the task graph; `docs/agents/` is the
+> human narrative (R3).
 
 ## Related docs
 
-- [`.cursor/agents/wave-runner.md`](.cursor/agents/wave-runner.md) — implementation counterpart
-- [`wave-orchestrator/docs/agents/wave-orchestrator.md`](wave-orchestrator/docs/agents/wave-orchestrator.md) — coordinator
+- [`implementer.md`](implementer.md) — implementation counterpart
+- [`wave-orchestrator.md`](wave-orchestrator.md) — coordinator
 - Design: [`wave-orchestrator/docs/design-note.md`](wave-orchestrator/docs/design-note.md) §9 (tests-first model)

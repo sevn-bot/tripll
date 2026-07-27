@@ -6,6 +6,7 @@ Rewrites in-repo markdown and backtick path refs to repo-root-relative form
 Exports:
     normalize_plan_refs — rewrite in-repo refs; return external parent dirs.
     find_unresolved_refs — list in-repo refs that do not resolve under *repo_root*.
+    extract_planned_creates — paths listed in ``[pipeline] creates`` (planned-new exempt).
     validate_plan — read a plan file and return dead in-repo refs.
     suggest_plan_ref_fix — repo-root-relative rewrite for a dead ref string.
     format_plan_ref_errors — UX lines ``plan → ref (try: fix)`` for dead refs.
@@ -15,6 +16,8 @@ from __future__ import annotations
 
 import re
 from pathlib import Path, PurePosixPath
+
+from tripll.skw.validate import extract_toml_block
 
 _MD_LINK_RE = re.compile(r"\]\(([^)]+)\)")
 _BACKTICK_RE = re.compile(r"`([^`\n]+)`")
@@ -62,10 +65,38 @@ def _collapse_dotdot(path_part: str) -> str:
 _OPTIONAL_GATE_PREFIXES = ("docs/", "reports/")
 
 
-def _skip_gate_ref(path_part: str) -> bool:
-    """Return True when *path_part* targets optional gitignored trees (not gated)."""
+def extract_planned_creates(text: str) -> frozenset[str]:
+    """Return repo-root-relative paths listed in ``[pipeline] creates``.
+
+    Args:
+        text (str): Full plan markdown body.
+
+    Returns:
+        frozenset[str]: Planned-new paths exempt from validate-plan gating.
+
+    Examples:
+        >>> extract_planned_creates('[pipeline]\\ncreates = ["src/a.py"]\\n')
+        frozenset({'src/a.py'})
+    """
+    data, _err = extract_toml_block(text)
+    if not data:
+        return frozenset()
+    pipeline = data.get("pipeline")
+    if not isinstance(pipeline, dict):
+        return frozenset()
+    creates = pipeline.get("creates") or []
+    if not isinstance(creates, list):
+        return frozenset()
+    return frozenset(str(item) for item in creates)
+
+
+def _skip_gate_ref(path_part: str, *, planned_creates: frozenset[str] | None = None) -> bool:
+    """Return True when *path_part* is exempt from validate-plan dead-ref gating."""
     collapsed = _collapse_dotdot(path_part.split("#", 1)[0])
-    return any(collapsed.startswith(prefix) for prefix in _OPTIONAL_GATE_PREFIXES)
+    return bool(
+        any(collapsed.startswith(prefix) for prefix in _OPTIONAL_GATE_PREFIXES)
+        or (planned_creates and collapsed in planned_creates)
+    )
 
 
 def _plan_link_base_dirs(plan_path: Path, repo_root: Path) -> list[Path]:
@@ -234,6 +265,7 @@ def find_unresolved_refs(
     repo_root: Path,
     *,
     plan_path: Path | None = None,
+    planned_creates: frozenset[str] | None = None,
 ) -> list[str]:
     """Return in-repo markdown link refs in *text* that do not resolve.
 
@@ -272,7 +304,7 @@ def find_unresolved_refs(
             continue
         if _is_external_absolute(path_part, root):
             continue
-        if _skip_gate_ref(path_part):
+        if _skip_gate_ref(path_part, planned_creates=planned_creates):
             continue
         if base_dirs:
             resolved = _resolve_in_repo_from_bases(path_part, root, base_dirs)
@@ -378,4 +410,10 @@ def validate_plan(plan_path: Path, repo_root: Path) -> list[str]:
         True
     """
     text = plan_path.read_text(encoding="utf-8")
-    return find_unresolved_refs(text, repo_root, plan_path=plan_path.resolve())
+    planned = extract_planned_creates(text)
+    return find_unresolved_refs(
+        text,
+        repo_root,
+        plan_path=plan_path.resolve(),
+        planned_creates=planned,
+    )

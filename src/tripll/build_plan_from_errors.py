@@ -6,7 +6,7 @@ selects unprocessed turns across all day partitions, evaluates each bundle's
 and when the run finds at least one error dispatches the W4 agent+prompt to emit
 a single tripll v1 ``*-wave-plan.md`` into:
 
-``wave-orchestrator/runs/input/from-errors-<run_id>/``
+``runs/input/from-errors-<run_id>/``
 
 Exports:
     DEFAULT_TURN_BUNDLES_FOLDER — default ``<content_root>/.sevn/turns`` relative hint.

@@ -21,6 +21,13 @@
       <span class="badge badge-offline">offline</span>
     {% endif %}
     <span class="cost">Run cost: ${{ "%.4f"|format(run_cost) }}</span>
+    {% if cost_by_provider %}
+    <span class="cost-by-provider muted">
+      {% for backend, amount in cost_by_provider|dictsort %}
+      {{ backend }}: ${{ "%.4f"|format(amount) }}{% if not loop.last %} · {% endif %}
+      {% endfor %}
+    </span>
+    {% endif %}
   </div>
   <div class="run-header-links">
     {% if wave_summary %}
@@ -32,7 +39,7 @@
       <span class="muted">No log files yet</span>
     {% endif %}
     {% if report_exists %}
-      <a href="/runs/{{ run_id }}/report">View report</a>
+      <a href="/runs/{{ run_id }}/report" aria-label="View run report">View report</a>
     {% else %}
       <span class="muted">report.md not available</span>
     {% endif %}

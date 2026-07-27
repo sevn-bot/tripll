@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -43,30 +44,12 @@ def load_hide_keys(path: Path | None = None) -> frozenset[str]:
         True
     """
     cfg_path = path or LOG_HIDE_KEYS_PATH
-    text = cfg_path.read_text(encoding="utf-8")
-    inline = re.search(r"hide_keys\s*=\s*\[(.*?)\]", text, re.DOTALL)
-    if inline:
-        hide_keys = re.findall(r'"([^"]+)"', inline.group(1))
-        if hide_keys:
-            return frozenset(hide_keys)
-    hide_keys_list: list[str] = []
-    in_section = False
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#") or not stripped:
-            continue
-        if stripped == "hide_keys = [":
-            in_section = True
-            continue
-        if in_section:
-            if stripped == "]":
-                break
-            match = re.match(r'"([^"]+)"', stripped.rstrip(","))
-            if match:
-                hide_keys_list.append(match.group(1))
-    if not hide_keys_list:
+    with cfg_path.open("rb") as handle:
+        data = tomllib.load(handle)
+    hide_keys_raw = data.get("hide_keys")
+    if not isinstance(hide_keys_raw, list) or not hide_keys_raw:
         raise ValueError(f"hide_keys missing or empty in {cfg_path}")
-    return frozenset(hide_keys_list)
+    return frozenset(str(key) for key in hide_keys_raw)
 
 
 def validate_hide_keys_config(path: Path | None = None) -> frozenset[str]:
@@ -119,8 +102,23 @@ def redact_json_value(value: Any, hide_keys: frozenset[str]) -> Any:
     return value
 
 
+def _redact_env_shaped_line(line: str, hide_keys: frozenset[str]) -> str | None:
+    """Redact ``KEY=value`` / ``KEY: value`` lines when *KEY* matches a hide key."""
+    match = re.match(r"^(\s*)([A-Za-z0-9_.-]+)(\s*[=:]\s*)(.*)$", line)
+    if not match:
+        return None
+    prefix_ws, key, sep, _value = match.groups()
+    key_lower = key.lower()
+    if not any(hk.lower() in key_lower for hk in hide_keys):
+        return None
+    return f"{prefix_ws}{key}{sep}{_REDACTED}"
+
+
 def redact_log_line(line: str, hide_keys: frozenset[str] | None = None) -> str:
     """Redact configured keys from one log line when it is JSON.
+
+    Also redacts env-shaped ``KEY=value`` / ``KEY: value`` lines when the key
+    name contains a configured hide key (case-insensitive).
 
     Args:
         line (str): Raw log line (may include a timestamp prefix).
@@ -137,6 +135,9 @@ def redact_log_line(line: str, hide_keys: frozenset[str] | None = None) -> str:
         '{"type": "thinking", "signature": "[redacted]"}'
     """
     keys = hide_keys if hide_keys is not None else load_hide_keys()
+    env_redacted = _redact_env_shaped_line(line, keys)
+    if env_redacted is not None:
+        return env_redacted
     prefix = ""
     payload = line
     match = re.match(r"^(\[[^\]]+\]\s*)(\{.*\})\s*$", line)

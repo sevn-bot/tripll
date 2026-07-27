@@ -30,6 +30,7 @@ Exports:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import sys
@@ -246,100 +247,104 @@ async def run_streaming(
     _cum_input_tokens: int = 0
     _cum_output_tokens_emit: int = 0  # separate from runaway guard accumulator
     _cost_usd_running: float = 0.0
-    with log_path.open("a", encoding="utf-8") as fh:
-        assert proc.stdout is not None
-        try:
-            while True:
-                line = await asyncio.wait_for(proc.stdout.readline(), timeout=timeout_s)
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace")
-                fh.write(stamp_log_line(text))
-                chunks.append(text)
-                pause = stream_quota_pause(text)
-                if pause:
-                    stop_reason = pause
-                    proc.kill()
-                    break
-                # Runaway guard: accumulate assistant-event counters.
-                delta_tok, delta_tool = _count_assistant_event(text)
-                cum_output_tokens += delta_tok
-                cum_tool_uses += delta_tool
-                if max_output_tokens > 0 and cum_output_tokens > max_output_tokens:
-                    stop_reason = (
-                        f"runaway guard: output tokens {cum_output_tokens} "
-                        f"exceeded ceiling {max_output_tokens}"
-                    )
-                    proc.kill()
-                    break
-                if max_tool_uses > 0 and cum_tool_uses > max_tool_uses:
-                    stop_reason = (
-                        f"runaway guard: tool-use count {cum_tool_uses} "
-                        f"exceeded ceiling {max_tool_uses}"
-                    )
-                    proc.kill()
-                    break
-                if os.environ.get("TRIPLL_DEBUG"):
-                    sys.stderr.write(stamp_log_line(text))
-                    sys.stderr.flush()
-                elif os.environ.get("TRIPLL_VERBOSE"):
-                    from tripll.adapters.stream_summary import summarize_stream_line
-
-                    summary = summarize_stream_line(text)
-                    if summary:
-                        sys.stderr.write(format_terminal_summary(summary) + "\n")
-                        sys.stderr.flush()
-                # Live-event callback — throttled.
-                if on_event is not None:
-                    from tripll.adapters.stream_summary import summarize_stream_line
-                    from tripll.adapters.usage import parse_stream_usage
-
-                    action_summary = summarize_stream_line(text)
-                    # Parse per-line usage delta for running cost accumulation.
-                    # The result event carries final totals; assistant events carry
-                    # partial output token counts.
-                    _cum_output_tokens_emit += delta_tok
-                    # Check for a result event carrying final cost/token totals.
-                    stripped = text.strip()
-                    if stripped.startswith("{"):
-                        try:
-                            import json as _json
-
-                            ev = _json.loads(stripped)
-                            if ev.get("type") == "result":
-                                usage = parse_stream_usage(text)
-                                if usage.cost_usd is not None:
-                                    _cost_usd_running = usage.cost_usd
-                                if usage.input_tokens is not None:
-                                    _cum_input_tokens = usage.input_tokens
-                                if usage.output_tokens is not None:
-                                    _cum_output_tokens_emit = usage.output_tokens
-                        except Exception:
-                            pass
-                    # Throttle: emit only when action changes or token delta >= threshold.
-                    action_changed = (
-                        action_summary is not None and action_summary != _last_action_emitted
-                    )
-                    token_delta = _cum_output_tokens_emit >= _TOKEN_DELTA_EMIT
-                    if action_changed or (token_delta and _last_action_emitted is not None):
-                        if action_changed:
-                            _last_action_emitted = action_summary
-                        await on_event(
-                            last_action=_last_action_emitted,
-                            input_tokens=_cum_input_tokens if _cum_input_tokens else None,
-                            output_tokens=_cum_output_tokens_emit
-                            if _cum_output_tokens_emit
-                            else None,
-                            cost_usd=_cost_usd_running if _cost_usd_running else None,
+    try:
+        with log_path.open("a", encoding="utf-8") as fh:
+            assert proc.stdout is not None
+            try:
+                while True:
+                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=timeout_s)
+                    if not line:
+                        break
+                    text = line.decode("utf-8", errors="replace")
+                    fh.write(stamp_log_line(text))
+                    chunks.append(text)
+                    pause = stream_quota_pause(text)
+                    if pause:
+                        stop_reason = pause
+                        proc.kill()
+                        break
+                    # Runaway guard: accumulate assistant-event counters.
+                    delta_tok, delta_tool = _count_assistant_event(text)
+                    cum_output_tokens += delta_tok
+                    cum_tool_uses += delta_tool
+                    if max_output_tokens > 0 and cum_output_tokens > max_output_tokens:
+                        stop_reason = (
+                            f"runaway guard: output tokens {cum_output_tokens} "
+                            f"exceeded ceiling {max_output_tokens}"
                         )
-                        if token_delta:
-                            _cum_output_tokens_emit = 0
-        except TimeoutError:
-            proc.kill()
+                        proc.kill()
+                        break
+                    if max_tool_uses > 0 and cum_tool_uses > max_tool_uses:
+                        stop_reason = (
+                            f"runaway guard: tool-use count {cum_tool_uses} "
+                            f"exceeded ceiling {max_tool_uses}"
+                        )
+                        proc.kill()
+                        break
+                    if os.environ.get("TRIPLL_DEBUG"):
+                        sys.stderr.write(stamp_log_line(text))
+                        sys.stderr.flush()
+                    elif os.environ.get("TRIPLL_VERBOSE"):
+                        from tripll.adapters.stream_summary import summarize_stream_line
+
+                        summary = summarize_stream_line(text)
+                        if summary:
+                            sys.stderr.write(format_terminal_summary(summary) + "\n")
+                            sys.stderr.flush()
+                    # Live-event callback — throttled.
+                    if on_event is not None:
+                        from tripll.adapters.stream_summary import summarize_stream_line
+                        from tripll.adapters.usage import parse_stream_usage
+
+                        action_summary = summarize_stream_line(text)
+                        # Parse per-line usage delta for running cost accumulation.
+                        # The result event carries final totals; assistant events carry
+                        # partial output token counts.
+                        _cum_output_tokens_emit += delta_tok
+                        # Check for a result event carrying final cost/token totals.
+                        stripped = text.strip()
+                        if stripped.startswith("{"):
+                            try:
+                                import json as _json
+
+                                ev = _json.loads(stripped)
+                                if ev.get("type") == "result":
+                                    usage = parse_stream_usage(text)
+                                    if usage.cost_usd is not None:
+                                        _cost_usd_running = usage.cost_usd
+                                    if usage.input_tokens is not None:
+                                        _cum_input_tokens = usage.input_tokens
+                                    if usage.output_tokens is not None:
+                                        _cum_output_tokens_emit = usage.output_tokens
+                            except Exception:
+                                pass
+                        # Throttle: emit only when action changes or token delta >= threshold.
+                        action_changed = (
+                            action_summary is not None and action_summary != _last_action_emitted
+                        )
+                        token_delta = _cum_output_tokens_emit >= _TOKEN_DELTA_EMIT
+                        if action_changed or (token_delta and _last_action_emitted is not None):
+                            if action_changed:
+                                _last_action_emitted = action_summary
+                            await on_event(
+                                last_action=_last_action_emitted,
+                                input_tokens=_cum_input_tokens if _cum_input_tokens else None,
+                                output_tokens=_cum_output_tokens_emit
+                                if _cum_output_tokens_emit
+                                else None,
+                                cost_usd=_cost_usd_running if _cost_usd_running else None,
+                            )
+                            if token_delta:
+                                _cum_output_tokens_emit = 0
+            except TimeoutError:
+                return None, "".join(chunks), None
+        rc = await proc.wait()
+        return rc, "".join(chunks), stop_reason
+    finally:
+        if proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
             await proc.wait()
-            return None, "".join(chunks), None
-    rc = await proc.wait()
-    return rc, "".join(chunks), stop_reason
 
 
 class AgentAdapter(ABC):
@@ -437,52 +442,107 @@ class AgentAdapter(ABC):
             >>> inspect.iscoroutinefunction(AgentAdapter.dispatch)
             True
         """
-        caps = self.capabilities()
-        argv = self.build_argv(brief, worktree_path)
-        if not caps.available:
-            return DispatchResult(
-                outcome="failed",
-                result_text=f"backend {self.name!r} unavailable: {caps.detail}",
-                argv=argv,
-            )
-        max_output_tokens, max_tool_uses = runaway_limits_from_env()
-        rc, output, stop_reason = await run_streaming(
-            argv,
-            cwd=worktree_path,
-            log_path=log_path,
+        import time
+
+        from tripll.tracing.spans import trace_span
+
+        header = log_header or {}
+        run_id = str(header.get("run_id") or brief.get("run_id") or "")
+        node_id = str(header.get("node_id") or brief.get("node_id") or "")
+        attempt_raw = header.get("attempt")
+        attempt_id = str(header.get("attempt_id") or "")
+        model = str(brief.get("model") or getattr(self, "model", "") or "")
+        open_attrs = {
+            "backend": self.name,
+            "model": model,
+            "worktree": str(worktree_path),
+            "timeout_s": timeout_s,
+            "argv": self.build_argv(brief, worktree_path),
+        }
+        if attempt_raw is not None:
+            open_attrs["attempt_n"] = attempt_raw
+
+        started = time.perf_counter()
+        with trace_span(
+            "tripll.agent.dispatch",
+            run_id=run_id or None,
+            node_id=node_id or None,
+            attempt_id=attempt_id or None,
+            backend=self.name,
+            model=model,
+            worktree=str(worktree_path),
             timeout_s=timeout_s,
-            log_header=log_header,
-            max_output_tokens=max_output_tokens,
-            max_tool_uses=max_tool_uses,
-            on_event=on_event,
-        )
-        if stop_reason:
-            if stop_reason.startswith("runaway guard:"):
-                # Runaway guard triggered — treat as a failed (not quota) attempt
-                # so the engine's smarter-retry logic can decide whether to re-dispatch.
-                return DispatchResult(
+            argv=open_attrs["argv"],
+            attempt_n=open_attrs.get("attempt_n"),
+        ) as span_bag:
+            caps = self.capabilities()
+            argv = self.build_argv(brief, worktree_path)
+            if not caps.available:
+                result = DispatchResult(
                     outcome="failed",
-                    result_text=stop_reason,
-                    returncode=rc,
-                    log_path=str(log_path),
+                    result_text=f"backend {self.name!r} unavailable: {caps.detail}",
                     argv=argv,
                 )
-            # Quota/session cap detected in stream.
-            return DispatchResult(
-                outcome="quota_exhausted",
-                result_text=stop_reason,
-                returncode=rc,
+                span_bag.update(
+                    outcome=result.outcome,
+                    returncode=result.returncode,
+                    duration_s=time.perf_counter() - started,
+                    stop_reason="backend_unavailable",
+                )
+                return result
+            max_output_tokens, max_tool_uses = runaway_limits_from_env()
+            rc, output, stop_reason = await run_streaming(
+                argv,
+                cwd=worktree_path,
+                log_path=log_path,
+                timeout_s=timeout_s,
+                log_header=log_header,
+                max_output_tokens=max_output_tokens,
+                max_tool_uses=max_tool_uses,
+                on_event=on_event,
+            )
+            if stop_reason:
+                if stop_reason.startswith("runaway guard:"):
+                    result = DispatchResult(
+                        outcome="failed",
+                        result_text=stop_reason,
+                        returncode=rc,
+                        log_path=str(log_path),
+                        argv=argv,
+                    )
+                else:
+                    result = DispatchResult(
+                        outcome="quota_exhausted",
+                        result_text=stop_reason,
+                        returncode=rc,
+                        log_path=str(log_path),
+                        argv=argv,
+                    )
+                span_bag.update(
+                    outcome=result.outcome,
+                    returncode=result.returncode,
+                    duration_s=time.perf_counter() - started,
+                    stop_reason=stop_reason,
+                )
+                return result
+            parsed = self.parse_result(rc, output)
+            result = DispatchResult(
+                outcome=parsed.outcome,
+                result_text=parsed.result_text,
+                returncode=parsed.returncode,
                 log_path=str(log_path),
                 argv=argv,
+                cost_usd=parsed.cost_usd,
+                input_tokens=parsed.input_tokens,
+                output_tokens=parsed.output_tokens,
             )
-        result = self.parse_result(rc, output)
-        return DispatchResult(
-            outcome=result.outcome,
-            result_text=result.result_text,
-            returncode=result.returncode,
-            log_path=str(log_path),
-            argv=argv,
-            cost_usd=result.cost_usd,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-        )
+            span_bag.update(
+                outcome=result.outcome,
+                returncode=result.returncode,
+                cost_usd=result.cost_usd,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                duration_s=time.perf_counter() - started,
+                stop_reason=stop_reason,
+            )
+            return result

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>tripll — sign in required</title>
+  <style>
+    body {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      background: #0d1117;
+      color: #e6edf3;
+      padding: 2rem;
+      line-height: 1.6;
+      max-width: 42rem;
+    }
+    h1 { font-size: 1.2rem; color: #f85149; margin-bottom: 0.75rem; }
+    p { margin: 0.5rem 0; color: #c9d1d9; }
+    code { background: #161b22; padding: 0.1rem 0.35rem; border-radius: 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>Authentication required</h1>
+  <p>This control plane requires a Bearer token when <code>TRIPLL_API_TOKEN</code> is set.</p>
+  <p>Reload with a <code>token</code> query parameter in the URL, or send an
+     <code>Authorization: Bearer …</code> header (API clients and htmx).</p>
+  {% if detail %}
+  <p>{{ detail }}</p>
+  {% endif %}
+</body>
+</html>

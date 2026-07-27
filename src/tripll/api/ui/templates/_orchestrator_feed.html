@@ -8,7 +8,7 @@
     <span class="badge badge-orch-turn badge-orch-{{ entry.turn_type }}">{{ entry.turn_type }}</span>
     <span class="orch-feed-summary">{{ entry.summary }}</span>
     {% if entry.log_url %}
-    <a class="orch-feed-log-link" href="{{ entry.log_url }}">wave log</a>
+    <a class="orch-feed-log-link" href="{{ entry.log_url }}" aria-label="Open wave log for orchestrator turn">wave log</a>
     {% endif %}
   </div>
   {% endfor %}

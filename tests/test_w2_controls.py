@@ -30,8 +30,8 @@ from ._fakes import (
 
 
 def test_default_model_constant() -> None:
-    """DEFAULT_MODEL is claude-sonnet-4-6 (D5)."""
-    assert DEFAULT_MODEL == "claude-sonnet-4-6"
+    """DEFAULT_MODEL is claude-sonnet-5 (P1 / MODEL-01)."""
+    assert DEFAULT_MODEL == "claude-sonnet-5"
 
 
 def test_claude_adapter_uses_default_model_when_no_brief_model() -> None:
@@ -271,7 +271,9 @@ async def test_no_progress_escalates_after_one_dispatch_on_git_worktree(
             # Deliberately write nothing.
             return DispatchResult(
                 outcome="failed",
-                result_text="scripted failure — no edits",
+                result_text=(
+                    '{"type":"result","result":"scripted failure — no edits","is_error":true}'
+                ),
                 returncode=1,
                 log_path=str(log_path),
                 argv=self.build_argv(brief, worktree_path),
@@ -336,7 +338,9 @@ async def test_progress_resets_no_progress_counter(tmp_path: Path) -> None:
             if self.calls < 2:
                 return DispatchResult(
                     outcome="failed",
-                    result_text="first attempt fails",
+                    result_text=(
+                        '{"type":"result","result":"first attempt fails","is_error":true}'
+                    ),
                     returncode=1,
                     log_path=str(log_path),
                     argv=self.build_argv(brief, worktree_path),
@@ -574,7 +578,10 @@ async def test_runaway_guard_result_is_failed_not_quota(tmp_path: Path) -> None:
             # Simulate the stop_reason being a runaway guard message.
             return DispatchResult(
                 outcome="failed",
-                result_text="runaway guard: output tokens 1001 exceeded ceiling 1000",
+                result_text=(
+                    '{"type":"result","result":"runaway guard: output tokens 1001 '
+                    'exceeded ceiling 1000","is_error":true}'
+                ),
                 returncode=None,
                 log_path=str(log_path),
                 argv=self.build_argv(brief, worktree_path),

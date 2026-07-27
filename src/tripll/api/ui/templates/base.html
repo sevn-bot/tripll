@@ -13,7 +13,7 @@
     document.addEventListener("DOMContentLoaded", function () {
       document.body.setAttribute(
         "hx-headers",
-        JSON.stringify({ "Authorization": "Bearer {{ api_token }}" })
+        JSON.stringify({ "Authorization": "Bearer " + {{ api_token | tojson }} })
       );
     });
   </script>
@@ -137,16 +137,18 @@
     .timeline-cost { grid-column: 1 / -1; }
     .wave-log-expander summary { cursor: pointer; color: #79c0ff; }
     #waves-table { width: 100%; table-layout: fixed; }
-    #waves-table thead th:nth-child(1) { width: 28%; }
-    #waves-table thead th:nth-child(2) { width: 10%; }
-    #waves-table thead th:nth-child(3) { width: 28%; }
-    #waves-table thead th:nth-child(4) { width: 12%; }
+    #waves-table thead th:nth-child(1) { width: 22%; }
+    #waves-table thead th:nth-child(2) { width: 8%; }
+    #waves-table thead th:nth-child(3) { width: 18%; }
+    #waves-table thead th:nth-child(4) { width: 10%; }
     #waves-table thead th:nth-child(5) { width: 12%; }
-    #waves-table thead th:nth-child(6) { width: 10%; }
+    #waves-table thead th:nth-child(6) { width: 8%; }
+    #waves-table thead th:nth-child(7) { width: 12%; }
+    #waves-table thead th:nth-child(8) { width: 10%; }
     #waves-table .wave-row-cell { padding: 0.35rem 0.5rem; vertical-align: top; }
     .wave-summary-grid {
       display: grid;
-      grid-template-columns: 28% 10% 28% 12% 12% 10%;
+      grid-template-columns: 22% 8% 18% 10% 12% 8% 12% 10%;
       gap: 0.5rem;
       align-items: center;
       list-style: none;
@@ -158,6 +160,7 @@
     .wave-col-node { color: #79c0ff; word-break: break-word; }
     .wave-col-action { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c9d1d9; font-size: 0.9em; }
     .wave-col-model code { font-size: 0.85em; }
+    .wave-col-provider code, .wave-col-effort code { font-size: 0.85em; }
     .wave-log-panel { margin-top: 0.5rem; width: 100%; max-width: none; }
     .wave-log-panel-wide { width: 100%; max-width: none; }
     .wave-detail-panel-wide { max-width: none; width: 100%; }
@@ -274,6 +277,16 @@
     .orch-feed-ts { color: #8b949e; font-size: 0.8em; white-space: nowrap; grid-column: 1 / -1; }
     .orch-feed-summary { color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .orch-feed-log-link { font-size: 0.85em; white-space: nowrap; }
+    .l1-panels { margin: 1rem 0 1.25rem; }
+    .l1-panels-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.75rem; }
+    .l1-panel { padding: 0.75rem; background: #161b22; border: 1px solid #30363d; border-radius: 0.5rem; }
+    .l1-panel h3 { margin: 0 0 0.5rem; font-size: 0.85em; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
+    .compact-table { font-size: 0.85em; margin-top: 0.35rem; }
+    .findings-group { margin: 0.35rem 0; }
+    .findings-list { margin: 0.35rem 0 0.35rem 1rem; font-size: 0.85em; }
+    .exit-near td { color: #f0c674; }
+    .exit-bar { display: inline-block; width: 4rem; height: 0.35rem; background: #21262d; border-radius: 0.2rem; position: relative; }
+    .exit-bar::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--ratio, 0) * 100%); background: #f0c674; border-radius: 0.2rem; }
   </style>
 </head>
 <body>

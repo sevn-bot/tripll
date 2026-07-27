@@ -25,6 +25,8 @@ class BackendOptions:
     model: str | None = None
     agent: str | None = None
     verbose: bool = False
+    reasoning_effort: str | None = None
+    max_budget_usd: float | None = None
 
 
 def role_dispatch_from_env() -> bool | None:

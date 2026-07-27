@@ -106,7 +106,7 @@ def test_read_review_hints_absent(tmp_path: Path) -> None:
     assert read_review_hints(tmp_path) == {}
 
 
-def test_review_hints_cw_owner_excludes_hotspot(tmp_path: Path) -> None:
+def test_review_hints_cw_owner_excludes_hotspot(tmp_path: Path, legacy_cw_hotspots: None) -> None:
     _seed(tmp_path)
     # First pass to discover a lane id.
     graph = build_graph_mode_b(tmp_path, run_id="r1")

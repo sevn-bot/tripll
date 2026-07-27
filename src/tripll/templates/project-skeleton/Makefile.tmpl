@@ -1,0 +1,26 @@
+.DEFAULT_GOAL := help
+
+UV ?= uv
+UV_RUN ?= env -u VIRTUAL_ENV $(UV)
+RUFF ?= $(UV_RUN) run ruff
+MYPY ?= $(UV_RUN) run mypy
+
+.PHONY: help sync lint typecheck test check
+
+help: ## Show targets
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ { printf "  %-16s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
+sync: ## Install dev dependencies
+	$(UV_RUN) sync --extra dev
+
+lint: sync ## Ruff check + format check
+	$(RUFF) check src tests
+	$(RUFF) format --check src tests
+
+typecheck: sync ## mypy strict
+	$(MYPY) src
+
+test: sync ## pytest
+	$(UV_RUN) run pytest tests
+
+check: lint typecheck test ## Required gate

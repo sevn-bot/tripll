@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}tripll — log {{ run_id }} {{ node_id }} attempt {{ attempt_n }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/runs/{{ run_id }}{% if api_token %}?token={{ api_token }}{% endif %}">← run {{ run_id }}</a>
+<a class="back-link" href="/runs/{{ run_id }}" aria-label="Back to run {{ run_id }}">← run {{ run_id }}</a>
 <h1>Log <code>{{ node_id }}</code> · attempt {{ attempt_n }}</h1>
 {% if truncated %}
 <p class="muted">File exceeded viewer cap — tail portion shown. Raw file on disk may be larger.</p>

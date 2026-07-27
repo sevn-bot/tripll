@@ -96,31 +96,42 @@ class CursorCloudAdapter(AgentAdapter):
         log_header: dict[str, object] | None = None,
         on_event: Callable[..., Awaitable[None]] | None = None,
     ) -> DispatchResult:
-        """Map a wave to a Cursor Cloud issue via ``sevn.evolution.router``.
+        """Map a wave to a Cursor Cloud issue via ``sevn.evolution.router``."""
+        import time
 
-        Args:
-            brief (dict[str, object]): Dispatch brief.
-            worktree_path (Path): Worktree (unused for cloud dispatch).
-            log_path (Path): Per-attempt log file (unused for cloud dispatch).
-            timeout_s (int): Wall-clock timeout (poll budget).
-            log_header (dict[str, object] | None): Unused for cloud dispatch.
-            on_event (Callable[..., Awaitable[None]] | None): Unused for cloud dispatch.
+        from tripll.tracing.spans import trace_span
 
-        Returns:
-            DispatchResult: ``failed`` when the extra is absent; otherwise the
-            dispatch result. Live cloud dispatch is deferred to manual smoke.
-
-        Examples:
-            >>> import inspect
-            >>> inspect.iscoroutinefunction(CursorCloudAdapter.dispatch)
-            True
-        """
-        caps = self.capabilities()
-        if not caps.available:
-            return DispatchResult(outcome="failed", result_text=caps.detail)
-        # Live dispatch/poll via sevn.evolution.router is deferred to manual
-        # smoke (design-note §7.3); the import gate above proves wiring.
-        return DispatchResult(
-            outcome="failed",
-            result_text="cloud dispatch deferred to manual smoke (design-note §7.3)",
-        )
+        header = log_header or {}
+        run_id = str(header.get("run_id") or brief.get("run_id") or "")
+        node_id = str(header.get("node_id") or brief.get("node_id") or "")
+        attempt_id = str(header.get("attempt_id") or "")
+        started = time.perf_counter()
+        with trace_span(
+            "tripll.agent.dispatch",
+            run_id=run_id or None,
+            node_id=node_id or None,
+            attempt_id=attempt_id or None,
+            backend=self.name,
+            model=str(brief.get("model") or getattr(self, "model", "") or ""),
+            worktree=str(worktree_path),
+            timeout_s=timeout_s,
+        ) as span_bag:
+            caps = self.capabilities()
+            if not caps.available:
+                result = DispatchResult(outcome="failed", result_text=caps.detail)
+                span_bag.update(
+                    outcome=result.outcome,
+                    duration_s=time.perf_counter() - started,
+                    stop_reason="backend_unavailable",
+                )
+                return result
+            result = DispatchResult(
+                outcome="failed",
+                result_text="cloud dispatch deferred to manual smoke (design-note §7.3)",
+            )
+            span_bag.update(
+                outcome=result.outcome,
+                duration_s=time.perf_counter() - started,
+                stop_reason=result.result_text,
+            )
+            return result

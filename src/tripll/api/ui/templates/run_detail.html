@@ -2,7 +2,7 @@
 {% block title %}tripll — run {{ run_id }}{% endblock %}
 {% block content %}
 
-<a class="back-link" href="/">← dashboard</a>
+<a class="back-link" href="/" aria-label="Back to dashboard">← dashboard</a>
 <h1>Run <code>{{ run_id }}</code></h1>
 
 {% include "_run_header.html" %}
@@ -11,7 +11,7 @@
 
 {% if orch.enabled %}
 <div id="orchestrator-host"
-     hx-get="/runs/{{ run_id }}/orchestrator{% if api_token %}?token={{ api_token }}{% endif %}"
+     hx-get="/runs/{{ run_id }}/orchestrator"
      {% if orch.poll_orchestrator %}
      hx-trigger="load, every {{ orch.orchestrator_poll_s }}s"
      {% else %}
@@ -24,11 +24,13 @@
 
 {% include "_batch_timeline.html" %}
 
+{% include "_l1_panels.html" %}
+
 {% if report_exists %}
 <details class="report-panel">
   <summary>Run report (report.md)</summary>
   <div class="report-panel-body"
-       hx-get="/runs/{{ run_id }}/report{% if api_token %}?token={{ api_token }}{% endif %}"
+       hx-get="/runs/{{ run_id }}/report"
        hx-trigger="revealed once"
        hx-swap="innerHTML">
     <span class="muted">Expand to load report…</span>
@@ -38,12 +40,11 @@
 
 <div class="actions">
   {% if hitl.pending %}
-  <button type="button" class="btn btn-hitl" id="hitl-open-btn-actions"
+  <button type="button" class="btn btn-hitl" id="hitl-open-btn-actions" aria-label="Open human-in-the-loop gate form"
           onclick="document.getElementById('hitl-open-btn') && document.getElementById('hitl-open-btn').click()">
     Open HITL
   </button>
-  <button class="btn btn-approve"
-          id="hitl-approve-btn"
+  <button class="btn btn-approve" id="hitl-approve-btn" aria-label="Approve Pre-0 gate"
           {% if not hitl.complete %}disabled title="Complete HITL form first"{% endif %}
           hx-post="/api/runs/{{ run_id }}/approve"
           {% if api_token %}hx-headers='{"Authorization": "Bearer {{ api_token }}"}'{% endif %}
@@ -52,7 +53,7 @@
     Approve gate
   </button>
   {% else %}
-  <button class="btn btn-approve"
+  <button class="btn btn-approve" aria-label="Approve run gate"
           hx-post="/api/runs/{{ run_id }}/approve"
           {% if api_token %}hx-headers='{"Authorization": "Bearer {{ api_token }}"}'{% endif %}
           hx-swap="none"
@@ -60,14 +61,14 @@
     Approve
   </button>
   {% endif %}
-  <button class="btn btn-resume"
+  <button class="btn btn-resume" aria-label="Resume paused run"
           hx-post="/api/runs/{{ run_id }}/resume"
           {% if api_token %}hx-headers='{"Authorization": "Bearer {{ api_token }}"}'{% endif %}
           hx-swap="none"
           onclick="showFlash(this, 'Resuming…')">
     Resume
   </button>
-  <button class="btn btn-pause"
+  <button class="btn btn-pause" aria-label="Request run pause"
           hx-post="/api/runs/{{ run_id }}/pause"
           {% if api_token %}hx-headers='{"Authorization": "Bearer {{ api_token }}"}'{% endif %}
           hx-swap="none"
@@ -88,7 +89,9 @@
           <th>NODE ID</th>
           <th>PHASE</th>
           <th>CURRENT ACTION</th>
+          <th>PROVIDER</th>
           <th>MODEL</th>
+          <th>EFFORT</th>
           <th>TOKENS (in→out)</th>
           <th>COST (USD)</th>
         </tr>
@@ -110,8 +113,9 @@
   var token = {{ api_token | tojson }};
   var sseUrl = {{ sse_url | tojson }};
   var runId = {{ run_id | tojson }};
+  // EventSource cannot set Authorization headers — ?token= is required (R6).
   if (token) {
-    sseUrl += "?token=" + encodeURIComponent(token);
+    sseUrl += "?token=" + encodeURIComponent(token); // EventSource (R6)
   }
 
   var runState = {{ run_state | tojson }};
@@ -208,7 +212,6 @@
     if (typeof htmx === "undefined" || !tbody) return;
     captureOpenWaves();
     var url = "/runs/" + encodeURIComponent(runId) + "/waves-table";
-    if (token) url += "?token=" + encodeURIComponent(token);
     htmx.ajax("GET", url, { target: tbody, swap: "innerHTML" });
   }
 
@@ -216,7 +219,6 @@
     var host = document.getElementById("orchestrator-host");
     if (!host || typeof htmx === "undefined") return;
     var url = "/runs/" + encodeURIComponent(runId) + "/orchestrator";
-    if (token) url += "?token=" + encodeURIComponent(token);
     htmx.ajax("GET", url, { target: host, swap: "innerHTML" });
   }
 
@@ -229,6 +231,9 @@
         input: null,
         output: null,
         cost: null,
+        provider: null,
+        model: null,
+        effort: null,
         attempt_n: null,
         task_id: null,
       };
@@ -241,6 +246,10 @@
     if (data.input_tokens  != null) ns.input  = data.input_tokens;
     if (data.output_tokens != null) ns.output = data.output_tokens;
     if (data.cost_usd      != null) ns.cost   = data.cost_usd;
+    if (data.backend       != null) ns.provider = data.backend;
+    if (data.provider      != null) ns.provider = data.provider;
+    if (data.model         != null) ns.model = data.model;
+    if (data.reasoning_effort != null) ns.effort = data.reasoning_effort;
     if (data.attempt_n     != null) ns.attempt_n = data.attempt_n;
     if (data.task_id       != null) ns.task_id = data.task_id;
 
@@ -261,6 +270,25 @@
     }
     var actionEl = row.querySelector(".wave-col-action, .wave-action");
     if (actionEl) actionEl.textContent = ns.last_action || "—";
+
+    var providerEl = row.querySelector(".wave-col-provider, .wave-provider");
+    if (providerEl) {
+      providerEl.innerHTML = ns.provider
+        ? "<code>" + escHtml(ns.provider) + "</code>"
+        : "—";
+    }
+    var modelEl = row.querySelector(".wave-col-model, .wave-model");
+    if (modelEl) {
+      modelEl.innerHTML = ns.model
+        ? "<code>" + escHtml(ns.model) + "</code>"
+        : "—";
+    }
+    var effortEl = row.querySelector(".wave-col-effort, .wave-effort");
+    if (effortEl) {
+      effortEl.innerHTML = ns.effort
+        ? "<code>" + escHtml(ns.effort) + "</code>"
+        : "—";
+    }
 
     var tokensEl = row.querySelector(".wave-col-tokens, .wave-tokens");
     if (tokensEl) {
@@ -289,7 +317,6 @@
     if (shouldPoll) {
       var url = "/runs/" + encodeURIComponent(runId) + "/waves/" +
         encodeURIComponent(row.getAttribute("data-node-id")) + "/worktree";
-      if (token) url += "?token=" + encodeURIComponent(token);
       host.setAttribute("hx-get", url);
       host.setAttribute("hx-trigger", "load, every 5s");
       host.setAttribute("hx-swap", "innerHTML");

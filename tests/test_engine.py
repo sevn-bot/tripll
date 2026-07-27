@@ -56,7 +56,7 @@ def test_can_run_concurrently_overlap_false() -> None:
     assert can_run_concurrently(a, b) is False
 
 
-def test_can_run_concurrently_both_late_cw_false() -> None:
+def test_can_run_concurrently_both_late_cw_false(legacy_cw_hotspots: None) -> None:
     a = WaveNode("a", "a", "p", "W0", "a", owned_paths=["src/sevn/ui/dashboard/app.js"])
     b = WaveNode("b", "b", "p", "W0", "b", owned_paths=["infra/sevn.schema.json"])
     assert can_run_concurrently(a, b) is False
@@ -134,7 +134,9 @@ class MarkingAdapter(FakeAdapter):
         if self.calls <= self.fail_times:
             return DispatchResult(
                 outcome="failed",
-                result_text=f"scripted failure {self.calls}",
+                result_text=(
+                    f'{{"type":"result","result":"scripted failure {self.calls}","is_error":true}}'
+                ),
                 returncode=1,
                 log_path=str(log_path),
                 argv=argv,

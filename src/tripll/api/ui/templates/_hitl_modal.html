@@ -2,7 +2,7 @@
 <div class="hitl-banner banner-hitl" id="hitl-banner">
   <strong>Human input required</strong>
   <span class="muted">— complete the gate questionnaire before the run continues.</span>
-  <button type="button" class="btn btn-hitl" id="hitl-open-btn">Open HITL</button>
+  <button type="button" class="btn btn-hitl" id="hitl-open-btn" aria-label="Open human-in-the-loop gate form">Open HITL</button>
   {% if hitl.complete %}
   <span class="badge badge-live">responses complete</span>
   {% endif %}
@@ -20,11 +20,11 @@
       <p class="muted">Loading…</p>
     </div>
     <footer class="hitl-modal-footer">
-      <button type="button" class="btn" id="hitl-prev-btn">Previous</button>
-      <button type="button" class="btn" id="hitl-next-btn">Next</button>
-      <button type="button" class="btn" id="hitl-save-btn">Save draft</button>
-      <button type="button" class="btn btn-approve" id="hitl-submit-btn">Submit &amp; approve</button>
-      <button type="button" class="btn" id="hitl-exit-btn">Exit</button>
+      <button type="button" class="btn" id="hitl-prev-btn" aria-label="Previous gate question">Previous</button>
+      <button type="button" class="btn" id="hitl-next-btn" aria-label="Next gate question">Next</button>
+      <button type="button" class="btn" id="hitl-save-btn" aria-label="Save gate draft">Save draft</button>
+      <button type="button" class="btn btn-approve" id="hitl-submit-btn" aria-label="Submit gate responses and approve">Submit &amp; approve</button>
+      <button type="button" class="btn" id="hitl-exit-btn" aria-label="Close gate form">Exit</button>
     </footer>
     <div id="hitl-flash" class="flash"></div>
   </div>
@@ -93,13 +93,13 @@
     stepLabel.textContent = "Question " + (state.step + 1) + " / " + state.form.questions.length;
     var html = "<div class='hitl-prompt'>" + esc(q.prompt) + "</div>";
     if (q.type === "confirm") {
-      html += "<label class='hitl-confirm'><input type='checkbox' id='hitl-checked' " +
+      html += "<label class='hitl-confirm'><input type='checkbox' id='hitl-checked' aria-label='Confirm gate decision' " +
         (ans.checked ? "checked" : "") + "> " + esc(q.checkbox_label || "I confirm") + "</label>";
     } else {
       html += "<div class='hitl-options'>";
       (q.options || []).forEach(function (opt) {
         var checked = ans.option_id === opt.id ? " checked" : "";
-        html += "<label class='hitl-option'><input type='radio' name='hitl-opt' value='" +
+        html += "<label class='hitl-option'><input type='radio' name='hitl-opt' aria-label='" + escAttr(opt.label) + "' value='" +
           escAttr(opt.id) + "'" + checked + "> <strong>" + esc(opt.label) + "</strong>";
         if (opt.recommended) html += " <span class='badge badge-live'>Recommended</span>";
         if (opt.explanation) html += "<div class='hitl-explanation muted'>" + esc(opt.explanation) + "</div>";
@@ -107,7 +107,7 @@
       });
       html += "</div>";
     }
-    html += "<label class='hitl-notes-label'>Notes (optional)<textarea id='hitl-notes' rows='3'>" +
+    html += "<label class='hitl-notes-label'>Notes (optional)<textarea id='hitl-notes' rows='3' aria-label='Optional gate notes'>" +
       esc(ans.notes || "") + "</textarea></label>";
     bodyEl.innerHTML = html;
   }

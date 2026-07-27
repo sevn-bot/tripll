@@ -17,7 +17,7 @@ then dispatches this prompt with agent
 | Plan output directory | `{{OUTPUT_DIR}}` |
 
 **D6 — one plan per run:** write exactly **one** `*-wave-plan.md` under
-`{{OUTPUT_DIR}}` (`wave-orchestrator/runs/input/from-errors-{{RUN_ID}}/`). If you
+`{{OUTPUT_DIR}}` (`runs/input/from-errors-{{RUN_ID}}/`). If you
 would otherwise split work, merge into shared waves instead (**D11**).
 
 **D11 — problem grouping:** cluster turns that share a root cause or a single fix into

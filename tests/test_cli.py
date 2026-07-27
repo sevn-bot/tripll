@@ -5,12 +5,20 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import pytest  # noqa: TC002 — runtime fixture decorators
 from typer.testing import CliRunner
 
 from tripll import __version__
 from tripll.cli import app
 
 runner = CliRunner()
+
+
+def _init_runs_layout(runs: Path) -> None:
+    """Create runs input/processing/processed/failed dirs without brownfield init."""
+    from tripll.pipeline import RunsRoot
+
+    RunsRoot(runs).init()
 
 
 # ---------------------------------------------------------------------------
@@ -29,24 +37,39 @@ def test_version_flag() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_init_creates_structure() -> None:
-    with tempfile.TemporaryDirectory() as d:
-        runs = Path(d) / "runs"
-        result = runner.invoke(app, ["init", "--runs-root", str(runs)])
-        assert result.exit_code == 0
-        assert "Initialised runs root" in result.output
-        assert (runs / "input").exists()
-        assert (runs / "processing").exists()
-        assert (runs / "processed").exists()
-        assert (runs / "failed").exists()
+def test_init_creates_structure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = tmp_path / "proj"
+    repo.mkdir()
+    (repo / "src").mkdir()
+    (repo / "src" / "a.py").write_text("def f():\n    pass\n", encoding="utf-8")
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    monkeypatch.setenv("TRIPLL_REPO_ROOT", str(repo))
+    runs = tmp_path / "runs"
+    result = runner.invoke(app, ["init", "--runs-root", str(runs)])
+    assert result.exit_code == 0
+    assert "Brownfield init complete" in result.output
+    assert (runs / "input").exists()
+    assert (repo / "tripll.toml").is_file()
+    assert (runs / "processing").exists()
+    assert (runs / "processed").exists()
+    assert (runs / "failed").exists()
 
 
-def test_init_idempotent() -> None:
-    with tempfile.TemporaryDirectory() as d:
-        runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
-        result = runner.invoke(app, ["init", "--runs-root", str(runs)])
-        assert result.exit_code == 0
+def test_init_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = tmp_path / "proj"
+    repo.mkdir()
+    (repo / "src").mkdir()
+    (repo / "src" / "a.py").write_text("def f():\n    pass\n", encoding="utf-8")
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    monkeypatch.setenv("TRIPLL_REPO_ROOT", str(repo))
+    runs = tmp_path / "runs"
+    runner.invoke(app, ["init", "--runs-root", str(runs)])
+    result = runner.invoke(app, ["init", "--runs-root", str(runs)])
+    assert result.exit_code == 0
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +80,7 @@ def test_init_idempotent() -> None:
 def test_status_all_empty() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         result = runner.invoke(app, ["status", "--runs-root", str(runs)])
         assert result.exit_code == 0
         assert "Runs root" in result.output
@@ -68,7 +91,7 @@ def test_status_all_empty() -> None:
 def test_status_watch_requires_run_id() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         result = runner.invoke(app, ["status", "--watch", "--runs-root", str(runs)])
         assert result.exit_code == 2
         assert "requires a RUN_ID" in result.output
@@ -84,7 +107,7 @@ def test_status_watch_renders_orchestrator_awaiting_review() -> None:
 
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         run_dir = runs / "processing" / "r1"
         run_dir.mkdir(parents=True)
         graph = RunGraph(
@@ -119,7 +142,7 @@ def test_status_watch_renders_event_table() -> None:
 
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         run_dir = runs / "processing" / "r1"
         run_dir.mkdir(parents=True)
         with open_ledger(run_dir / "ledger.db") as lc:
@@ -152,7 +175,7 @@ def test_status_watch_renders_event_table() -> None:
 def test_status_watch_unknown_run() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         result = runner.invoke(app, ["status", "nope", "--watch", "--runs-root", str(runs)])
         assert result.exit_code == 1
         assert "Run not found" in result.output
@@ -161,7 +184,7 @@ def test_status_watch_unknown_run() -> None:
 def test_list_runs_empty() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         result = runner.invoke(app, ["list-runs", "--runs-root", str(runs)])
         assert result.exit_code == 0
         assert "Pending input sets" in result.output
@@ -216,7 +239,7 @@ def test_reset_run_restores_input_and_deletes_run() -> None:
 def test_status_run_id_not_found() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         result = runner.invoke(app, ["status", "no-such-run", "--runs-root", str(runs)])
         assert result.exit_code == 1
 
@@ -250,7 +273,7 @@ def test_status_seeded_run() -> None:
 def test_run_dry_run() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         wave_set = Path(runs) / "input" / "my-set"
         wave_set.mkdir()
         (wave_set / "demo-wave-plan.md").write_text(
@@ -270,7 +293,7 @@ def test_run_dry_run() -> None:
 def test_run_integrate_dry_run() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         wave_set = Path(runs) / "input" / "my-set"
         wave_set.mkdir()
         (wave_set / "demo-wave-plan.md").write_text(
@@ -290,7 +313,7 @@ def test_run_integrate_dry_run() -> None:
 def test_run_no_input_error() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         result = runner.invoke(app, ["run", "--runs-root", str(runs)])
         assert result.exit_code == 1
 
@@ -328,7 +351,7 @@ def test_plan_missing_path_error() -> None:
 def test_resume_missing_ledger_error() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         result = runner.invoke(app, ["resume", "no-such-run", "--runs-root", str(runs)])
         assert result.exit_code == 1
 
@@ -355,6 +378,6 @@ def test_approve_writes_marker() -> None:
 def test_approve_missing_run_error() -> None:
     with tempfile.TemporaryDirectory() as d:
         runs = Path(d) / "runs"
-        runner.invoke(app, ["init", "--runs-root", str(runs)])
+        _init_runs_layout(runs)
         result = runner.invoke(app, ["approve", "no-such-run", "--runs-root", str(runs)])
         assert result.exit_code == 1

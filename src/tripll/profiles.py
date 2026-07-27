@@ -26,28 +26,27 @@ from pathlib import Path  # noqa: TC003
 
 from loguru import logger
 
+from tripll.adapters.claude_code import DEFAULT_MODEL
+
 # ---------------------------------------------------------------------------
 # DDL
 # ---------------------------------------------------------------------------
 
-_DDL = """
+_DDL = f"""
 PRAGMA journal_mode = WAL;
 
 CREATE TABLE IF NOT EXISTS profiles (
     profile_id  TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
     backend     TEXT NOT NULL,
-    model       TEXT NOT NULL DEFAULT 'claude-3-5-sonnet',
+    model       TEXT NOT NULL DEFAULT '{DEFAULT_MODEL}',
     agent       TEXT NOT NULL DEFAULT 'wave-plan-executor',
     skills      TEXT NOT NULL DEFAULT '[]',
-    scope       TEXT NOT NULL DEFAULT '{}',
+    scope       TEXT NOT NULL DEFAULT '{{}}',
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
 );
 """
-
-#: Default model for all profiles unless overridden.
-DEFAULT_MODEL = "claude-3-5-sonnet"
 #: Default sub-agent definition name.
 DEFAULT_AGENT = "wave-plan-executor"
 #: Orchestrator-mode wave dispatch agent (D9).
@@ -68,7 +67,7 @@ class ProfileRow:
         name (str): Human-readable display name.
         backend (str): Backend identifier — ``claude_code`` | ``cursor_local`` |
             ``cursor_cloud``.
-        model (str): Default model string (e.g. ``claude-3-5-sonnet``).
+        model (str): Default model string (e.g. ``claude-sonnet-5``).
         agent (str): Local agent definition name (default ``wave-plan-executor``).
         skills (list[str]): Optional skill/tool allowlist (JSON-decoded from store).
         scope (dict[str, object]): Default workspace-scope hints (JSON-decoded).
@@ -219,7 +218,7 @@ def upsert_profile(
         >>> p.profile_id
         'x'
         >>> p.model
-        'claude-3-5-sonnet'
+        'claude-sonnet-5'
         >>> store.close()
     """
     now = _now_iso()

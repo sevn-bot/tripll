@@ -51,6 +51,7 @@ from pydantic import BaseModel, Field
 
 from tripll.api._artefacts import LogPathError, resolve_attempt_log_path, tail_log_file
 from tripll.api._auth import require_auth
+from tripll.api._csrf import apply_csrf_cookie
 from tripll.api._runs import (
     RunDetail,
     RunSummary,
@@ -130,7 +131,7 @@ class ProfileIn(BaseModel):
             "from name. Creating with an id that already exists returns 409."
         ),
     )
-    model: str = "claude-3-5-sonnet"
+    model: str = "claude-sonnet-5"
     agent: str = "wave-plan-executor"
     skills: list[str] = Field(default_factory=list)
     scope: dict[str, Any] = Field(default_factory=dict)
@@ -285,7 +286,7 @@ def create_app(
 
     Args:
         runs_root (Path | None): Override the runs root directory.  Defaults to
-            the ``TRIPLL_RUNS`` env var or ``wave-orchestrator/runs/``.
+            the ``TRIPLL_RUNS`` env var or ``<repo_root>/runs/``.
 
     Returns:
         FastAPI: Configured application instance.
@@ -319,6 +320,17 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
     app.include_router(make_ui_router())
+
+    from tripll.api.ui.errors import register_html_exception_handlers
+
+    register_html_exception_handlers(app)
+
+    @app.middleware("http")
+    async def csrf_cookie_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
+        """Mirror ``request.state.csrf_token`` into the ``tripll_csrf`` cookie (W3, R5)."""
+        response = await call_next(request)
+        apply_csrf_cookie(request, response)
+        return response
 
     # ---------------------------------------------------------------------------
     # Health
@@ -834,6 +846,55 @@ def create_app(
         _spawn_tripll(["resume", run_id, *extra, "--runs-root", str(rr.root)])
         return {"message": f"Resuming run {run_id}"}
 
+    @app.get("/api/runs/{run_id}/pr/status", tags=["pr"])
+    async def get_pr_status(
+        run_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, Any]:
+        """Return PR phase state and merge-gate markers for a run."""
+        from tripll.loops.l1_pr import pr_status
+
+        rr: RunsRoot = app.state.runs_root
+        run_dir = rr.find_run_dir(run_id)
+        if run_dir is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+        return pr_status(run_dir=run_dir)
+
+    @app.post("/api/runs/{run_id}/pr/shepherd", status_code=202, tags=["pr"])
+    async def pr_shepherd(
+        run_id: str,
+        phase: str = "investigate_and_fix",
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, str]:
+        """Spawn ``tripll pr shepherd --run <id>`` for one PR loop step."""
+        rr: RunsRoot = app.state.runs_root
+        _assert_run_exists(rr, run_id)
+        _spawn_tripll(
+            ["pr", "shepherd", "--run", run_id, "--phase", phase, "--runs-root", str(rr.root)]
+        )
+        return {"message": f"PR shepherd started for {run_id}"}
+
+    @app.post("/api/runs/{run_id}/pr/approve-merge", status_code=202, tags=["pr"])
+    async def pr_approve_merge(
+        run_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, Any]:
+        """Approve the human merge gate — never auto-merges without this call."""
+        from tripll.loops.l1_pr import approve_merge_gate, pr_status
+
+        rr: RunsRoot = app.state.runs_root
+        run_dir = rr.find_run_dir(run_id)
+        if run_dir is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+        try:
+            approve_merge_gate(run_dir=run_dir)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {
+            "message": f"Merge gate approved for {run_id}",
+            "status": pr_status(run_dir=run_dir),
+        }
+
     @app.post("/api/runs/{run_id}/pause", status_code=202, tags=["runs"])
     async def pause_run(
         run_id: str,
@@ -1259,7 +1320,7 @@ def _resolve_runs_root(runs_root: Path | None) -> RunsRoot:
     is identical whether tripll is invoked via ``tripll serve`` from the
     repo root, from inside ``wave-orchestrator/``, or from any other CWD.
 
-    The default path is ``<repo_root>/wave-orchestrator/runs/`` where
+    The default path is ``<repo_root>/runs/`` where
     *repo_root* is resolved by :func:`~tripll.repo_root.resolve_repo_root`
     (honours ``TRIPLL_REPO_ROOT`` env, then walks up for ``.git``).
 
@@ -1409,7 +1470,7 @@ def _read_config() -> ConfigOut:
     Returns:
         ConfigOut: Current model default, budget, and parallelism.
     """
-    model_default = os.environ.get("TRIPLL_DEFAULT_MODEL", "claude-3-5-sonnet")
+    model_default = os.environ.get("TRIPLL_DEFAULT_MODEL", "claude-sonnet-5")
     try:
         cost_budget = float(os.environ.get("TRIPLL_COST_BUDGET_USD", "0") or "0")
     except ValueError:
