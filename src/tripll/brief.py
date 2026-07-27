@@ -40,6 +40,13 @@ GRAPH_PACKED_DIRECTIVE = (
     "graphify, or architecture tours unless the packed context is insufficient."
 )
 
+PACK_INSUFFICIENCY_MARKER = "graph_pack_insufficient"
+
+PACKED_INSUFFICIENCY_DIRECTIVE = (
+    "Packed context insufficient — limited exploration within workspace_scope paths "
+    "is allowed; do not run repo-wide grep, graphify, or architecture tours."
+)
+
 AGENT_DIRECTIVES: list[str] = [
     "Leave changes staged; do not commit.",
     "Do not run full make ci mid-wave — use make ci-affected (make ci-changed for Python-only).",
@@ -145,9 +152,9 @@ def enrich_brief_with_graph_pack(
             ]
         return brief
 
-    from tripll.serve.brief_packer import pack_brief
-
     wave_id = str(brief.get("wave_id") or "")
+    from tripll.serve.brief_packer import is_pack_insufficient, pack_brief
+
     packed = pack_brief(
         wave={"id": wave_id, "targets": wave_targets},
         graph_store=graph_store,
@@ -157,6 +164,10 @@ def enrich_brief_with_graph_pack(
     )
     brief["graph_pack"] = packed
     brief["grep_brief"] = False
+    if is_pack_insufficient(packed):
+        brief[PACK_INSUFFICIENCY_MARKER] = True
+        if directives and PACKED_INSUFFICIENCY_DIRECTIVE not in directives:
+            brief["agent_directives"] = [*directives, PACKED_INSUFFICIENCY_DIRECTIVE]
     return brief
 
 
@@ -390,6 +401,12 @@ def render_dispatch_prompt(brief: dict[str, object]) -> str:
     if directives:
         lines += ["", "Agent directives:"]
         lines += [f"- {d}" for d in directives]
+    if brief.get(PACK_INSUFFICIENCY_MARKER):
+        lines += [
+            "",
+            "Note: packed subgraph is insufficient for this wave — use workspace_scope "
+            "paths for limited exploration.",
+        ]
     graph_pack = brief.get("graph_pack")
     if isinstance(graph_pack, dict) and graph_pack and not brief.get("grep_brief"):
         lines += ["", "## Packed subgraph"]

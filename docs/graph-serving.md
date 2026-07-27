@@ -18,6 +18,16 @@ The graph-packed brief replaces the legacy no-exploration directive in
 Pass `--grep-brief` to `tripll run` / `tripll resume` to emit the legacy brief
 without the packed subgraph (for D23 comparison).
 
+## Cold or empty graph store
+
+When the `[kg]` extra is installed but `.tripll/graph.db` is missing, empty, or
+stale for the wave base sha, the packer may return a thin subgraph
+(`subgraph_nodes` below threshold). Dispatch briefs then include
+`graph_pack_insufficient: true` and append a scoped exploration directive:
+exploration is allowed **only** within `workspace_scope` paths — not repo-wide
+grep, graphify, or architecture tours. Run `tripll init` / graph build on
+brownfield repos to improve pack quality; use `--grep-brief` for legacy A/B mode.
+
 ## D23 verdict (W10)
 
 **Date:** 2026-07-25
