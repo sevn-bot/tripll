@@ -78,6 +78,8 @@ class RunDetail(BaseModel):
 def _find_ledger(rr: RunsRoot, run_id: str) -> Path | None:
     """Locate the ledger.db for *run_id* across all run folders.
 
+    Uses :meth:`RunsRoot.find_run_dir` so traversal guards apply (SEC-02).
+
     Args:
         rr (RunsRoot): Configured runs root.
         run_id (str): Run identifier.
@@ -85,10 +87,12 @@ def _find_ledger(rr: RunsRoot, run_id: str) -> Path | None:
     Returns:
         Path | None: Path to ``ledger.db`` when found, else ``None``.
     """
-    for folder in (rr.processing_dir, rr.processed_dir, rr.failed_dir):
-        path = folder / run_id / "ledger.db"
-        if path.exists():
-            return path
+    run_dir = rr.find_run_dir(run_id)
+    if run_dir is None:
+        return None
+    ledger_path = run_dir / "ledger.db"
+    if ledger_path.is_file():
+        return ledger_path
     return None
 
 

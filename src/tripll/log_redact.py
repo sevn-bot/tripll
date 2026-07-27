@@ -119,8 +119,23 @@ def redact_json_value(value: Any, hide_keys: frozenset[str]) -> Any:
     return value
 
 
+def _redact_env_shaped_line(line: str, hide_keys: frozenset[str]) -> str | None:
+    """Redact ``KEY=value`` / ``KEY: value`` lines when *KEY* matches a hide key."""
+    match = re.match(r"^(\s*)([A-Za-z0-9_.-]+)(\s*[=:]\s*)(.*)$", line)
+    if not match:
+        return None
+    prefix_ws, key, sep, _value = match.groups()
+    key_lower = key.lower()
+    if not any(hk.lower() in key_lower for hk in hide_keys):
+        return None
+    return f"{prefix_ws}{key}{sep}{_REDACTED}"
+
+
 def redact_log_line(line: str, hide_keys: frozenset[str] | None = None) -> str:
     """Redact configured keys from one log line when it is JSON.
+
+    Also redacts env-shaped ``KEY=value`` / ``KEY: value`` lines when the key
+    name contains a configured hide key (case-insensitive).
 
     Args:
         line (str): Raw log line (may include a timestamp prefix).
@@ -137,6 +152,9 @@ def redact_log_line(line: str, hide_keys: frozenset[str] | None = None) -> str:
         '{"type": "thinking", "signature": "[redacted]"}'
     """
     keys = hide_keys if hide_keys is not None else load_hide_keys()
+    env_redacted = _redact_env_shaped_line(line, keys)
+    if env_redacted is not None:
+        return env_redacted
     prefix = ""
     payload = line
     match = re.match(r"^(\[[^\]]+\]\s*)(\{.*\})\s*$", line)

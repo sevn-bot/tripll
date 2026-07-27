@@ -13,7 +13,7 @@
     document.addEventListener("DOMContentLoaded", function () {
       document.body.setAttribute(
         "hx-headers",
-        JSON.stringify({ "Authorization": "Bearer {{ api_token }}" })
+        JSON.stringify({ "Authorization": "Bearer " + {{ api_token | tojson }} })
       );
     });
   </script>

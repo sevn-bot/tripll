@@ -56,7 +56,7 @@
           <h3 class="wave-panel-title">Wave tasks</h3>
           <div id="wave-tasks-{{ w.node_id|replace(':', '-')|replace('/', '-') }}"
                class="wave-tasks-host"
-               data-tasks-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/tasks{% if api_token %}?token={{ api_token }}{% endif %}">
+               data-tasks-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/tasks">
             {% with task_result=w.task_result, status_detail=w.status_detail %}
             {% include "_wave_tasks.html" %}
             {% endwith %}
@@ -66,7 +66,7 @@
           <h3 class="wave-panel-title">Worktree</h3>
           <div id="wave-worktree-{{ w.node_id|replace(':', '-')|replace('/', '-') }}"
                class="worktree-host"
-               hx-get="/runs/{{ run_id }}/waves/{{ w.node_id }}/worktree{% if api_token %}?token={{ api_token }}{% endif %}"
+               hx-get="/runs/{{ run_id }}/waves/{{ w.node_id }}/worktree"
                {% if w.poll_worktree %}
                hx-trigger="load, every {{ w.worktree_poll_s }}s"
                {% else %}
@@ -81,8 +81,8 @@
           <h3 class="wave-panel-title">Log</h3>
           <div class="wave-log-panel wave-log-panel-wide"
                id="wave-log-{{ w.node_id|replace(':', '-')|replace('/', '-') }}"
-               data-log-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/log{% if api_token %}?token={{ api_token }}{% endif %}"
-               data-log-append-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/log/append{% if api_token %}?token={{ api_token }}{% endif %}"
+               data-log-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/log"
+               data-log-append-url="/runs/{{ run_id }}/waves/{{ w.node_id }}/log/append"
                data-log-poll="{{ 'true' if w.poll_log else 'false' }}"
                data-log-poll-s="{{ w.log_poll_s }}">
             <span class="muted">Expand wave row to load log…</span>

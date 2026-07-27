@@ -31,14 +31,12 @@ def runs_root(tmp_path: Path) -> RunsRoot:
 
 @pytest.mark.tier1
 @pytest.mark.parametrize("run_id", TRAVERSAL_IDS)
-@pytest.mark.xfail(reason="green after W4: find_run_dir traversal guard", strict=False)
 def test_find_run_dir_rejects_traversal(runs_root: RunsRoot, run_id: str) -> None:
     result = runs_root.find_run_dir(run_id)
     assert result is None
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4: resolved path stays under runs root", strict=False)
 def test_find_run_dir_resolved_path_contained(runs_root: RunsRoot) -> None:
     run_id = "safe-run"
     found = runs_root.find_run_dir(run_id)
@@ -58,7 +56,6 @@ def test_find_run_dir_resolved_path_contained(runs_root: RunsRoot) -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4: symlink escape rejected", strict=False)
 def test_find_run_dir_rejects_symlink_escape(runs_root: RunsRoot, tmp_path: Path) -> None:
     outside = tmp_path / "outside-secret"
     outside.mkdir()
@@ -81,7 +78,6 @@ def test_find_run_dir_rejects_symlink_escape(runs_root: RunsRoot, tmp_path: Path
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4: API ledger lookup shares guard", strict=False)
 def test_api_run_lookup_rejects_traversal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TRIPLL_API_TOKEN", raising=False)
     rr = RunsRoot(tmp_path / "runs")

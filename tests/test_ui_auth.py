@@ -132,7 +132,6 @@ def test_open_mode_without_token(open_client: TestClient) -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4: token transport in templates", strict=False)
 def test_token_transport_no_query_except_eventsource() -> None:
     """R6: ``?token=`` only on EventSource URLs, not htmx GET links."""
     offenders: list[str] = []
@@ -155,7 +154,6 @@ def test_token_transport_no_query_except_eventsource() -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4: base.html tojson token injection", strict=False)
 def test_base_html_emits_token_via_tojson(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -169,5 +167,6 @@ def test_base_html_emits_token_via_tojson(
     with TestClient(app) as client:
         response = client.get("/", headers={"Authorization": f"Bearer {tricky}"})
     assert response.status_code == 200
-    assert tricky in response.text or "tojson" in response.text
     assert "Bearer {{ api_token }}" not in response.text
+    assert "tojson" in (TEMPLATE_ROOT / "base.html").read_text(encoding="utf-8")
+    assert "\\u003cscript\\u003e" in response.text

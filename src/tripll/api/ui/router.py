@@ -104,11 +104,9 @@ _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
 def fragment_url(run_id: str, node_id: str, suffix: str, *, api_token: str = "") -> str:
-    """Build an htmx-safe fragment URL for *node_id* (D12 ``?token=``)."""
-    path = f"/runs/{run_id}/waves/{quote(node_id, safe='')}/{suffix}"
-    if api_token:
-        return f"{path}?token={quote(api_token, safe='')}"
-    return path
+    """Build an htmx-safe fragment URL for *node_id* (auth via ``hx-headers``)."""
+    _ = api_token  # callers pass token for template symmetry; auth is header-based (R6)
+    return f"/runs/{run_id}/waves/{quote(node_id, safe='')}/{suffix}"
 
 
 def log_full_page_url(
@@ -119,10 +117,8 @@ def log_full_page_url(
     api_token: str = "",
 ) -> str:
     """Build URL for the full-page attempt log viewer."""
-    path = f"/runs/{run_id}/waves/{quote(node_id, safe='')}/log/full?attempt={attempt_n}"
-    if api_token:
-        return f"{path}&token={quote(api_token, safe='')}"
-    return path
+    _ = api_token
+    return f"/runs/{run_id}/waves/{quote(node_id, safe='')}/log/full?attempt={attempt_n}"
 
 
 def log_append_url(run_id: str, node_id: str, *, api_token: str = "") -> str:

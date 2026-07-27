@@ -90,7 +90,6 @@ SECRET_KEYS = frozenset(
         ("bearer", "eyJhbGciOiJIUzI1NiJ9"),
     ],
 )
-@pytest.mark.xfail(reason="green after W4: expanded hide-key redaction", strict=False)
 def test_redact_json_secret_keys(key: str, value: str) -> None:
     keys = load_hide_keys(LOG_HIDE_KEYS_PATH) | SECRET_KEYS
     out = redact_json_value({key: value, "type": "log"}, keys)
@@ -99,7 +98,6 @@ def test_redact_json_secret_keys(key: str, value: str) -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4: nested dotted key redaction", strict=False)
 def test_redact_nested_dotted_keys() -> None:
     keys = load_hide_keys(LOG_HIDE_KEYS_PATH) | frozenset({"auth.token"})
     payload = {"auth": {"token": "nested-secret", "user": "alice"}}
@@ -109,7 +107,6 @@ def test_redact_nested_dotted_keys() -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4: env-shaped KEY=value redaction", strict=False)
 def test_redact_env_shaped_line() -> None:
     line = "LOGFIRE_TOKEN=lf_deadbeef_secret_value_here"
     keys = load_hide_keys(LOG_HIDE_KEYS_PATH) | frozenset({"token"})

@@ -39,7 +39,6 @@ def test_configure_observability_never_raises_on_logfire_import_failure(
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4/W10: httpx capture_all=False guard", strict=False)
 def test_httpx_instrumentation_does_not_capture_all() -> None:
     """OBS-01: enabled httpx instrumentation must not capture headers/bodies."""
     import inspect
@@ -51,7 +50,6 @@ def test_httpx_instrumentation_does_not_capture_all() -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W4/W10: no exporter without LOGFIRE_TOKEN", strict=False)
 def test_no_exporter_without_logfire_token(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -11,7 +11,7 @@
 
 {% if orch.enabled %}
 <div id="orchestrator-host"
-     hx-get="/runs/{{ run_id }}/orchestrator{% if api_token %}?token={{ api_token }}{% endif %}"
+     hx-get="/runs/{{ run_id }}/orchestrator"
      {% if orch.poll_orchestrator %}
      hx-trigger="load, every {{ orch.orchestrator_poll_s }}s"
      {% else %}
@@ -30,7 +30,7 @@
 <details class="report-panel">
   <summary>Run report (report.md)</summary>
   <div class="report-panel-body"
-       hx-get="/runs/{{ run_id }}/report{% if api_token %}?token={{ api_token }}{% endif %}"
+       hx-get="/runs/{{ run_id }}/report"
        hx-trigger="revealed once"
        hx-swap="innerHTML">
     <span class="muted">Expand to load report…</span>
@@ -112,8 +112,9 @@
   var token = {{ api_token | tojson }};
   var sseUrl = {{ sse_url | tojson }};
   var runId = {{ run_id | tojson }};
+  // EventSource cannot set Authorization headers — ?token= is required (R6).
   if (token) {
-    sseUrl += "?token=" + encodeURIComponent(token);
+    sseUrl += "?token=" + encodeURIComponent(token); // EventSource (R6)
   }
 
   var runState = {{ run_state | tojson }};
@@ -210,7 +211,6 @@
     if (typeof htmx === "undefined" || !tbody) return;
     captureOpenWaves();
     var url = "/runs/" + encodeURIComponent(runId) + "/waves-table";
-    if (token) url += "?token=" + encodeURIComponent(token);
     htmx.ajax("GET", url, { target: tbody, swap: "innerHTML" });
   }
 
@@ -218,7 +218,6 @@
     var host = document.getElementById("orchestrator-host");
     if (!host || typeof htmx === "undefined") return;
     var url = "/runs/" + encodeURIComponent(runId) + "/orchestrator";
-    if (token) url += "?token=" + encodeURIComponent(token);
     htmx.ajax("GET", url, { target: host, swap: "innerHTML" });
   }
 
@@ -291,7 +290,6 @@
     if (shouldPoll) {
       var url = "/runs/" + encodeURIComponent(runId) + "/waves/" +
         encodeURIComponent(row.getAttribute("data-node-id")) + "/worktree";
-      if (token) url += "?token=" + encodeURIComponent(token);
       host.setAttribute("hx-get", url);
       host.setAttribute("hx-trigger", "load, every 5s");
       host.setAttribute("hx-swap", "innerHTML");

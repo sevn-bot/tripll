@@ -2,4 +2,19 @@
 # Add dotted paths for nested keys (e.g. "message.content.signature").
 hide_keys = [
   "signature",
+  "authorization",
+  "api_key",
+  "apikey",
+  "token",
+  "access_token",
+  "refresh_token",
+  "secret",
+  "client_secret",
+  "password",
+  "passwd",
+  "cookie",
+  "set-cookie",
+  "bearer",
+  "private_key",
+  "session",
 ]

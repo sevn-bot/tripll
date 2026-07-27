@@ -52,6 +52,28 @@ _RESET_INPUT_GLOBS = (
 )
 
 
+def _is_safe_run_id(run_id: str) -> bool:
+    """Return False when *run_id* could escape the runs tree via path traversal."""
+    if not run_id or run_id in (".", ".."):
+        return False
+    if "\x00" in run_id or run_id.startswith("/"):
+        return False
+    if os.sep in run_id or (os.altsep and os.altsep in run_id):
+        return False
+    if "/" in run_id or "\\" in run_id:
+        return False
+    return ".." not in run_id.split("/")
+
+
+def _run_dir_contained(resolved: Path, parent: Path) -> bool:
+    """Return True when *resolved* is inside *parent* (SEC-02)."""
+    try:
+        resolved.relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
+
+
 class PlanPathValidationError(Exception):
     """Raised when ``*-wave-plan.md`` files contain dead in-repo path refs.
 
@@ -514,16 +536,25 @@ class RunsRoot:
     def find_run_dir(self, run_id: str) -> Path | None:
         """Locate ``<run-id>/`` under processing, processed, or failed.
 
+        Rejects traversal sequences, separators, and symlinks that resolve
+        outside the expected parent folder (SEC-02).
+
         Args:
             run_id (str): Run identifier.
 
         Returns:
             Path | None: Run directory if found, else ``None``.
         """
+        if not _is_safe_run_id(run_id):
+            return None
         for folder in (self.processing_dir, self.processed_dir, self.failed_dir):
             path = folder / run_id
-            if path.is_dir():
-                return path
+            if not path.is_dir():
+                continue
+            resolved = path.resolve()
+            if not _run_dir_contained(resolved, folder):
+                return None
+            return path
         return None
 
     def delete_run(self, run_id: str) -> Path:

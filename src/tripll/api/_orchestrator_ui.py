@@ -152,10 +152,8 @@ def _wave_summary_for_header(
 
 
 def _log_fragment_url(run_id: str, node_id: str, *, api_token: str = "") -> str:
-    path = f"/runs/{run_id}/waves/{quote(node_id, safe='')}/log"
-    if api_token:
-        return f"{path}?token={quote(api_token, safe='')}"
-    return path
+    _ = api_token
+    return f"/runs/{run_id}/waves/{quote(node_id, safe='')}/log"
 
 
 def _feed_entries(

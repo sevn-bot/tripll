@@ -21,7 +21,7 @@
 <body>
   <h1>Authentication required</h1>
   <p>This control plane requires a Bearer token when <code>TRIPLL_API_TOKEN</code> is set.</p>
-  <p>Reload with <code>?token=&lt;your-token&gt;</code> in the URL, or send an
+  <p>Reload with a <code>token</code> query parameter in the URL, or send an
      <code>Authorization: Bearer …</code> header (API clients and htmx).</p>
   {% if detail %}
   <p>{{ detail }}</p>
