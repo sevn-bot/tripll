@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W3 complete — W4 next
+**Status:** W4 complete — W5 next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W3 ✅ (2026-07-27) — W4 next |
-| **Stage** | HTML auth + CSRF enforced when token set; 6 xfailed remain (4 W3 auth-success + 2 W4) |
-| **Next action** | W4.1 — sanitize `run_id` in `find_run_dir` |
+| **Current wave** | W4 ✅ (2026-07-27) — W5 next |
+| **Stage** | Token transport via hx-headers/tojson; find_run_dir traversal guard; 16-key redaction; obs capture_all=False verified; 4 W3 auth-success xfails remain |
+| **Next action** | W5.1 — `asyncio.gather(..., return_exceptions=True)` in engine.py |
 | **Blocked on** | — |
-| **Last pushed sha** | `75b4a60` |
+| **Last pushed sha** | `1046f2d` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1541,7 +1541,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [x] (2026-07-26 ✅: b7b6233 — 33 xfailed, 0 failed; tier markers) |
 | W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [x] (2026-07-27 ✅: be971bc — hash_agent_def skw-only; roster 71/71 green; grep src/tests/docs 0) |
 | W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [x] (2026-07-27 ✅: e69fa47 — require_auth×20 router.py; _csrf.py; test_ui_auth 18/18 W3 green) |
-| W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [ ] |
+| W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [x] (2026-07-27 ✅: 1046f2d — find_run_dir guard; ?token= EventSource-only; tojson base.html; 16 hide keys; env-shaped redaction; W1.2–W1.5 green) |
 | W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [ ] |
 | W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [ ] |
 | W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [ ] |
@@ -2124,31 +2124,31 @@ unset TRIPLL_API_TOKEN; curl -s -o /dev/null -w '%{http_code}' localhost:8000/  
 
 **Findings:** SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 · **Decisions:** R6
 
-- [ ] **W4.1** Sanitize `run_id` in `find_run_dir` (`pipeline.py:503–514`): reject separators and
+- [x] **W4.1** Sanitize `run_id` in `find_run_dir` (`pipeline.py:503–514`): reject separators and
       `..`, resolve, and assert the result is contained in the expected parent (SEC-02). Apply the
       same guard to the API ledger lookup. `run_id` reaches this from 6+ CLI call sites — fix the
-      helper, not the callers.
-- [ ] **W4.2** Remove `?token=` from every htmx URL — `run_detail.html`, `_waves_tbody.html`,
+      helper, not the callers. (2026-07-27 ✅ — `_is_safe_run_id` + `_run_dir_contained`; `_find_ledger` uses `find_run_dir`)
+- [x] **W4.2** Remove `?token=` from every htmx URL — `run_detail.html`, `_waves_tbody.html`,
       `_attempts.html`, `log_full.html` — relying on the `hx-headers` Bearer header already present
       at `run_detail.html:51–74` (SEC-03). **Keep** `?token=` only for `EventSource` and comment why
-      (R6).
-- [ ] **W4.3** Change `base.html:16` to `{{ api_token | tojson }}`, matching
+      (R6). (2026-07-27 ✅ — templates + router URL helpers; EventSource-only `?token=` with R6 comment)
+- [x] **W4.3** Change `base.html:16` to `{{ api_token | tojson }}`, matching
       `_hitl_modal.html:36` (SEC-04). HTML-escaping a token into a JS string literal is both an
-      injection risk and a correctness bug for tokens containing quotes.
-- [ ] **W4.4** Expand `config/log-hide-keys.toml` well beyond `signature` (SEC-07): `authorization`,
+      injection risk and a correctness bug for tokens containing quotes. (2026-07-27 ✅ — `Bearer " + {{ api_token | tojson }}`)
+- [x] **W4.4** Expand `config/log-hide-keys.toml` well beyond `signature` (SEC-07): `authorization`,
       `api_key`, `apikey`, `token`, `access_token`, `refresh_token`, `secret`, `client_secret`,
       `password`, `passwd`, `cookie`, `set-cookie`, `bearer`, `private_key`, `session`. Agent logs
-      routinely contain `.env` reads and tool output — assume the viewer shows raw agent stdout.
-- [ ] **W4.5** Add value-shaped redaction for `KEY=value` / `KEY: value` lines carrying a
-      secret-looking key, not only structured JSON fields.
-- [ ] **W4.6** *(OBS-01 — **re-verify**, do not re-edit)* P3.3 already set
+      routinely contain `.env` reads and tool output — assume the viewer shows raw agent stdout. (2026-07-27 ✅ — 16 keys)
+- [x] **W4.5** Add value-shaped redaction for `KEY=value` / `KEY: value` lines carrying a
+      secret-looking key, not only structured JSON fields. (2026-07-27 ✅ — `_redact_env_shaped_line`)
+- [x] **W4.6** *(OBS-01 — **re-verify**, do not re-edit)* P3.3 already set
       `instrument_httpx(capture_all=False)` and wired `ScrubbingOptions` while rewriting
       `configure_observability`. Confirm it held, confirm the SEC-07 hide-list you grow in W4.4 is the
       list P3's span redaction reads (R22 — one hide-list), and leave `obs.py` otherwise alone: P3 is
       the writer of that file. If `capture_all=True` is back, that is a **tamper finding**, not a task.
-      Observability must not become an exfiltration path.
-- [ ] **W4.7** Turn W1.2, W1.3, W1.4, W1.5 green.
-- [ ] **W4.8** **Commit + push** (`fix(security): harden token transport, path handling, redaction`).
+      Observability must not become an exfiltration path. (2026-07-27 ✅ — `capture_all=False` at obs.py:162; `load_hide_keys()` in scrubbing)
+- [x] **W4.7** Turn W1.2, W1.3, W1.4, W1.5 green. (2026-07-27 ✅ — xfail removed; run_id_safety, token_transport, log_redact, obs tier-1 green)
+- [x] **W4.8** **Commit + push** (`fix(security): harden token transport, path handling, redaction`). (2026-07-27 ✅: 1046f2d)
 
 **Acceptance:**
 
