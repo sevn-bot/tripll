@@ -74,7 +74,7 @@ from tripll.ledger import (
     list_waves,
     open_ledger,
 )
-from tripll.pipeline import RunsRoot
+from tripll.pipeline import RunsRoot, resolve_runs_root
 from tripll.profiles import (
     ProfileRow,
     control_plane_db_path,
@@ -1316,13 +1316,9 @@ def create_app(
 def _resolve_runs_root(runs_root: Path | None) -> RunsRoot:
     """Resolve the runs root from an explicit path or env/default.
 
-    Uses the same repo-root-anchored default as the CLI so the runs directory
-    is identical whether tripll is invoked via ``tripll serve`` from the
-    repo root, from inside ``wave-orchestrator/``, or from any other CWD.
-
-    The default path is ``<repo_root>/runs/`` where
-    *repo_root* is resolved by :func:`~tripll.repo_root.resolve_repo_root`
-    (honours ``TRIPLL_REPO_ROOT`` env, then walks up for ``.git``).
+    Delegates to :func:`~tripll.pipeline.resolve_runs_root` so CLI and API share
+    the same repo-anchored default (``.tripll/runs`` for target repos,
+    ``runs/`` for the tripll dev checkout).
 
     Args:
         runs_root (Path | None): Explicit override, or ``None`` to use default.
@@ -1330,15 +1326,7 @@ def _resolve_runs_root(runs_root: Path | None) -> RunsRoot:
     Returns:
         RunsRoot: Configured runs root instance.
     """
-    if runs_root is not None:
-        return RunsRoot(runs_root)
-    env_path = os.environ.get("TRIPLL_RUNS")
-    if env_path:
-        return RunsRoot(Path(env_path))
-    from tripll.repo_root import resolve_repo_root
-
-    repo_root = resolve_repo_root()
-    return RunsRoot((repo_root / "wave-orchestrator" / "runs").resolve())
+    return resolve_runs_root(runs_root)
 
 
 def _tripll_argv() -> list[str]:

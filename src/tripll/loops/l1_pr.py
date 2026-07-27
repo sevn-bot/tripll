@@ -16,6 +16,8 @@ Exports:
     approve_merge_gate — record human merge approval (never auto-merge).
     pr_status — read PR phase state for CLI/API.
     shepherd_run — run one PR shepherd step for a run directory.
+    pr_checkpoint_db_path — SQLite checkpoint path for the PR LangGraph loop.
+    load_open_findings — open findings from the repo graph store.
 """
 
 from __future__ import annotations
@@ -45,15 +47,20 @@ _AGENT_CHAINS: dict[str, tuple[str, str]] = {
     "review_comment": ("review-comment-triager", "review-comment-fixer"),
 }
 
+PR_CHECKPOINT_FILENAME = "pr-checkpoints.db"
+
 __all__ = [
     "MERGE_APPROVED_MARKER",
     "MERGE_GATE_MARKER",
+    "PR_CHECKPOINT_FILENAME",
     "PR_NODES",
     "approve_merge_gate",
     "build_l1_pr_graph",
     "compile_l1_pr_graph",
     "evaluate_pr_exits",
+    "load_open_findings",
     "park_at_merge_gate",
+    "pr_checkpoint_db_path",
     "pr_status",
     "run_pr_loop_step",
     "shepherd_run",
@@ -67,7 +74,7 @@ def _open_findings(findings: list[dict[str, Any]] | None) -> list[dict[str, Any]
 def _state_findings(state: L1OuterState) -> list[dict[str, Any]]:
     raw = state.get("findings")
     if isinstance(raw, list):
-        return cast("list[dict[str, Any]]", raw)
+        return raw
     return []
 
 
@@ -377,10 +384,139 @@ def build_l1_pr_graph() -> Any:
     return graph
 
 
+def pr_checkpoint_db_path(run_dir: Path) -> Path:
+    """Return the PR-loop LangGraph checkpoint database for *run_dir*.
+
+    Args:
+        run_dir (Path): ``processing/<run-id>/`` directory.
+
+    Returns:
+        Path: SQLite checkpoint path (separate from outer-loop checkpoints).
+    """
+    return run_dir / PR_CHECKPOINT_FILENAME
+
+
+def load_open_findings(*, run_dir: Path, run_id: str) -> list[dict[str, Any]]:
+    """Load open findings for *run_id* from the repo graph store.
+
+    Args:
+        run_dir (Path): Active run directory.
+        run_id (str): Parent run identifier.
+
+    Returns:
+        list[dict[str, Any]]: Open finding dicts (empty when graph store absent).
+    """
+    from tripll.api._l1_panels import resolve_graph_db
+    from tripll.github.findings import list_findings_from_store
+    from tripll.graphstore import SqliteGraphStore
+    from tripll.repo_root import resolve_repo_root
+
+    db_path = resolve_graph_db(run_dir=run_dir, repo_root=resolve_repo_root())
+    if db_path is None:
+        return []
+    store = SqliteGraphStore(str(db_path))
+    try:
+        rows = list_findings_from_store(store, state="open")
+        return [finding for finding in rows if finding.get("run_id") in (None, "", run_id)]
+    finally:
+        store.close()
+
+
+def _run_deliver_phase(*, run_id: str, run_dir: Path) -> dict[str, Any]:
+    """Execute idempotent push and open_pr for the deliver phase."""
+    from tripll.github import pr as github_pr
+
+    actions: list[dict[str, Any]] = []
+    for action in ("push", "open_pr"):
+        key = f"{action}:{run_id}"
+        outcome = github_pr.run_pr_action(
+            action,
+            idempotency_key=key,
+            context={"run_id": run_id, "run_dir": str(run_dir)},
+        )
+        actions.append({"action": action, **outcome})
+    return {"phase": "deliver", "actions": actions}
+
+
+def _format_graph_result(
+    *,
+    phase: str,
+    values: dict[str, Any],
+    next_nodes: tuple[str, ...],
+) -> dict[str, Any]:
+    """Shape LangGraph state into a shepherd CLI payload."""
+    paused = bool(values.get("paused")) or "merge_gate" in next_nodes
+    return {
+        "phase": phase,
+        "step": values.get("step"),
+        "history": list(values.get("history") or []),
+        "dispatch": values.get("dispatch"),
+        "dispatch_results": values.get("dispatch_results"),
+        "merge_gate": values.get("merge_gate"),
+        "open_findings": values.get("open_findings"),
+        "dry_run": values.get("dry_run"),
+        "push_warning": values.get("push_warning"),
+        "next": list(next_nodes),
+        "paused": paused,
+        "graph_executed": True,
+    }
+
+
+def _invoke_pr_graph(
+    *,
+    run_id: str,
+    run_dir: Path,
+    findings: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compile and invoke the PR LangGraph loop for one shepherd step."""
+    from langgraph.checkpoint.sqlite import SqliteSaver
+
+    from tripll.loops import require_graph
+
+    require_graph(feature="L1 PR loop shepherd")
+
+    db_path = pr_checkpoint_db_path(run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with SqliteSaver.from_conn_string(str(db_path)) as cp:
+        app = compile_l1_pr_graph(cp, interrupt_after=["re_verify"])
+        cfg: dict[str, Any] = {
+            "configurable": {"thread_id": run_id},
+            "durability": "sync",
+        }
+        prior = app.get_state(cfg)
+        if prior.next:
+            app.invoke(None, cfg)
+        elif prior.values and prior.values.get("step"):
+            values = dict(prior.values)
+            return _format_graph_result(
+                phase="investigate_and_fix",
+                values=values,
+                next_nodes=tuple(prior.next or ()),
+            )
+        else:
+            seed: L1OuterState = {
+                "run_id": run_id,
+                "thread_id": run_id,
+                "run_dir": str(run_dir),
+                "findings": findings,
+                "history": [],
+            }
+            app.invoke(seed, cfg)
+        snapshot = app.get_state(cfg)
+        values = dict(snapshot.values or {})
+        next_nodes = tuple(snapshot.next or ())
+        return _format_graph_result(
+            phase="investigate_and_fix",
+            values=values,
+            next_nodes=next_nodes,
+        )
+
+
 def compile_l1_pr_graph(
     checkpointer: Any,
     *,
     interrupt_before: list[str] | None = None,
+    interrupt_after: list[str] | None = None,
 ) -> Any:
     """Compile the PR loop with durable checkpointing and merge-gate interrupt."""
     from tripll.loops import require_graph
@@ -394,7 +530,11 @@ def compile_l1_pr_graph(
     gates = list(interrupt_before or [])
     if "merge_gate" not in gates:
         gates.append("merge_gate")
-    return sg.compile(checkpointer=checkpointer, interrupt_before=gates)
+    return sg.compile(
+        checkpointer=checkpointer,
+        interrupt_before=gates,
+        interrupt_after=list(interrupt_after or []),
+    )
 
 
 def shepherd_run(
@@ -404,7 +544,12 @@ def shepherd_run(
     findings: list[dict[str, Any]] | None = None,
     phase: str = "investigate_and_fix",
 ) -> dict[str, Any] | list[dict[str, Any]]:
-    """Run one PR shepherd step for *run_id* (CLI/API entry)."""
+    """Run one PR shepherd step for *run_id* (CLI/API entry).
+
+    ``deliver`` executes idempotent push/open actions. ``investigate_and_fix``
+    compiles and invokes :func:`compile_l1_pr_graph` so investigate/fix nodes
+    dispatch real adapters (D15 merge-gate interrupt — never auto-merge).
+    """
     ctx: dict[str, Any] = {"run_id": run_id, "run_dir": str(run_dir)}
     exits = evaluate_pr_exits(ctx)
     if exits:
@@ -415,4 +560,17 @@ def shepherd_run(
             "exit_name": first.name,
             "abandon_run": first.abandon_run,
         }
+
+    if phase == "merge":
+        return park_at_merge_gate(run_dir=run_dir)
+
+    if phase == "deliver":
+        return _run_deliver_phase(run_id=run_id, run_dir=run_dir)
+
+    if phase == "investigate_and_fix":
+        loaded = (
+            findings if findings is not None else load_open_findings(run_dir=run_dir, run_id=run_id)
+        )
+        return _invoke_pr_graph(run_id=run_id, run_dir=run_dir, findings=loaded)
+
     return run_pr_loop_step(findings=findings, phase=phase, run_dir=run_dir)

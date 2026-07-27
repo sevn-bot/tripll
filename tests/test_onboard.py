@@ -80,8 +80,20 @@ def test_brownfield_programmatic(
     monkeypatch.delenv("TRIPLL_REPO_ROOT", raising=False)
     result = run_brownfield_init(repo_root=foreign_repo)
     assert result.evaluation_path is not None
-    assert result.runs_root == foreign_repo / "runs"
-    assert (foreign_repo / "runs" / "input").is_dir()
+    assert result.runs_root == foreign_repo / ".tripll" / "runs"
+    assert (foreign_repo / ".tripll" / "runs" / "input").is_dir()
+
+
+def test_brownfield_legacy_runs_root_preserved(
+    foreign_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy = foreign_repo / "runs"
+    legacy.mkdir()
+    (legacy / "input").mkdir()
+    monkeypatch.delenv("TRIPLL_RUNS", raising=False)
+    result = run_brownfield_init(repo_root=foreign_repo)
+    assert result.runs_root == legacy.resolve()
 
 
 def test_emitters_shared_template_path() -> None:

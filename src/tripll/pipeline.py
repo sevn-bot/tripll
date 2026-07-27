@@ -2,12 +2,17 @@
 
 Input directories move through: input/ → processing/<run-id>/ → processed/ | failed/.
 
-The *runs root* defaults to ``<repo_root>/runs/`` (configurable via
-:class:`RunsRoot`).  ``tripll init`` creates the four top-level folders;
+The *runs root* defaults to ``<repo_root>/.tripll/runs/`` for onboarded target
+repos, or ``<repo_root>/runs/`` for the tripll development checkout (see
+:func:`default_runs_root`).  Override with ``TRIPLL_RUNS`` or ``--runs-root``.
+``tripll init`` creates the four top-level folders;
 ``claim_input`` atomically renames an input directory into ``processing/``
 with a fresh run-id; ``complete_run`` and ``fail_run`` promote or demote it.
 
 Exports:
+    is_tripll_dev_checkout — True when *repo_root* is the tripll dev tree.
+    default_runs_root — repo-anchored default runs directory.
+    resolve_runs_root — CLI/API runs-root resolution (env + defaults).
     RunsRoot — configured runs root with folder accessors and ``init()``.
     make_run_id — derive a run-id slug from a directory name + timestamp.
     claim_input — move input dir → processing/<run-id>/ and return the run-id.
@@ -32,13 +37,13 @@ import shutil
 import stat
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
 _RESET_INPUT_FILES = (
     "parallel-wave.md",
@@ -50,6 +55,38 @@ _RESET_INPUT_GLOBS = (
     "*-wave-plan-review.md",
     "*-orchestrator-prompt.md",
 )
+
+
+def is_tripll_dev_checkout(repo_root: Path) -> bool:
+    """Return True when *repo_root* is the tripll development checkout.
+
+    Args:
+        repo_root (Path): Git repository root to inspect.
+
+    Returns:
+        bool: True when ``src/tripll`` is present (tripll orchestrating itself).
+    """
+    return (repo_root / "src" / "tripll" / "__init__.py").is_file()
+
+
+def default_runs_root(repo_root: Path) -> Path:
+    """Return the default runs directory for *repo_root*.
+
+    tripll dev checkout → ``<repo>/runs`` (unchanged operator workflow).
+    Foreign repos → ``<repo>/.tripll/runs`` unless legacy ``runs/`` exists.
+
+    Args:
+        repo_root (Path): Target git repository root.
+
+    Returns:
+        Path: Resolved default runs root.
+    """
+    legacy = repo_root / "runs"
+    if is_tripll_dev_checkout(repo_root):
+        return legacy.resolve()
+    if legacy.is_dir():
+        return legacy.resolve()
+    return (repo_root / ".tripll" / "runs").resolve()
 
 
 def _is_safe_run_id(run_id: str) -> bool:
@@ -641,3 +678,32 @@ class RunsRoot:
         _remove_run_dir(run_dir)
         logger.info("pipeline: reset run {} → input/{} (removed {})", run_id, set_name, run_dir)
         return dest
+
+
+def resolve_runs_root(
+    runs_root: Path | None = None,
+    *,
+    repo_root: Path | None = None,
+) -> RunsRoot:
+    """Resolve and return a :class:`RunsRoot` for CLI and API entrypoints.
+
+    Resolution order: explicit *runs_root*; ``TRIPLL_RUNS`` env; then
+    :func:`default_runs_root` anchored at *repo_root* (or
+    :func:`~tripll.repo_root.resolve_repo_root` when omitted).
+
+    Args:
+        runs_root (Path | None): Explicit override from CLI/API.
+        repo_root (Path | None): Repository root for default resolution.
+
+    Returns:
+        RunsRoot: Configured runs root instance.
+    """
+    if runs_root is not None:
+        return RunsRoot(Path(runs_root).resolve())
+    env_path = os.environ.get("TRIPLL_RUNS")
+    if env_path:
+        return RunsRoot(Path(env_path).resolve())
+    from tripll.repo_root import resolve_repo_root
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    return RunsRoot(default_runs_root(root))

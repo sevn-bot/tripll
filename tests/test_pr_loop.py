@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.conftest import require_module
+from tripll.loops import graph_available
 from tripll.loops.exits import evaluate_exit
 
 
@@ -129,3 +130,90 @@ def test_exit_8_abandons_when_pr_closed_externally() -> None:
     fired = evaluate_exit(8, context={"pr_state": "closed", "merged": False})
     assert fired.exit_id == 8
     assert fired.abandon_run is True
+
+
+@pytest.mark.skipif(not graph_available(), reason="graph extra required")
+def test_shepherd_investigate_dispatches_adapters(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shepherd must invoke LangGraph nodes that dispatch adapters (not print-only plans)."""
+    from tests._fakes import FakeAdapter
+
+    fake = FakeAdapter()
+    invoke = require_module("tripll.loops.dispatch_bridge", attr="invoke_loop_dispatches")
+    shepherd_run = require_module("tripll.loops.l1_pr", attr="shepherd_run")
+
+    def recording_invoke(
+        state: dict[str, object],
+        dispatch_meta: list[dict[str, object]],
+        *,
+        node: str,
+        adapter: object | None = None,
+    ) -> list[object]:
+        return invoke(state, dispatch_meta, node=node, adapter=fake)
+
+    monkeypatch.setattr(
+        "tripll.loops.dispatch_bridge.invoke_loop_dispatches",
+        recording_invoke,
+    )
+    monkeypatch.setenv("TRIPLL_PR_DRY_RUN", "1")
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    findings = [{"kind": "ci_check", "state": "open", "finding_id": "f1"}]
+    result = shepherd_run(
+        run_id="run-test",
+        run_dir=run_dir,
+        findings=findings,
+        phase="investigate_and_fix",
+    )
+    assert isinstance(result, dict)
+    assert result.get("graph_executed") is True
+    assert fake.calls >= 2
+    assert result.get("dispatch_results")
+
+
+@pytest.mark.skipif(not graph_available(), reason="graph extra required")
+def test_shepherd_second_invoke_idempotent_at_merge_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Second shepherd invoke after merge-gate interrupt must not repeat push."""
+    run_pr_action = require_module("tripll.github.pr", attr="run_pr_action")
+    shepherd_run = require_module("tripll.loops.l1_pr", attr="shepherd_run")
+    push_calls: list[str] = []
+
+    def counting_push(
+        action: str,
+        *,
+        idempotency_key: str,
+        context: dict[str, object],
+    ) -> dict[str, object]:
+        if action == "push":
+            push_calls.append(idempotency_key)
+        return run_pr_action(action, idempotency_key=idempotency_key, context=context)
+
+    monkeypatch.setattr("tripll.github.pr.run_pr_action", counting_push)
+    monkeypatch.setenv("TRIPLL_PR_DRY_RUN", "1")
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    first = shepherd_run(
+        run_id="run-test",
+        run_dir=run_dir,
+        findings=[],
+        phase="investigate_and_fix",
+    )
+    assert isinstance(first, dict)
+    assert len(push_calls) == 1
+
+    second = shepherd_run(
+        run_id="run-test",
+        run_dir=run_dir,
+        findings=[],
+        phase="investigate_and_fix",
+    )
+    assert isinstance(second, dict)
+    assert len(push_calls) == 1
+    assert second.get("paused") is True or second.get("merge_gate") is not None

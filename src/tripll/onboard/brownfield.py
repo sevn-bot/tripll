@@ -18,7 +18,7 @@ from tripll.onboard.detect import RepoLayout, detect_repo_layout
 from tripll.onboard.doctor import build_doctor_report
 from tripll.onboard.emitters import EmitResult, emit_doc_skeletons, emit_tripll_toml
 from tripll.onboard.evaluate import write_evaluation
-from tripll.pipeline import RunsRoot
+from tripll.pipeline import RunsRoot, default_runs_root
 from tripll.repo_root import resolve_repo_root
 
 __all__ = ["BrownfieldResult", "run_brownfield_init"]
@@ -75,7 +75,7 @@ def run_brownfield_init(
 
     Args:
         repo_root (Path | None): Repository root (resolved from CWD when omitted).
-        runs_root (Path | None): Runs root directory (default ``<repo>/runs``).
+        runs_root (Path | None): Runs root directory (default :func:`default_runs_root`).
         force (bool): Overwrite existing onboarding artefacts when True.
 
     Returns:
@@ -95,8 +95,9 @@ def run_brownfield_init(
         if runs_root is not None
         else Path(env_runs).resolve()
         if env_runs
-        else (root / "runs").resolve()
+        else default_runs_root(root)
     )
+    resolved_runs.parent.mkdir(parents=True, exist_ok=True)
     RunsRoot(resolved_runs).init()
 
     toml_result = emit_tripll_toml(root, layout, cfg.repo, force=force)
