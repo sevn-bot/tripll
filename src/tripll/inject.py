@@ -1,13 +1,15 @@
-"""Live hotfix injection for paused runs (L2-W5a).
+"""Live hotfix injection and graph↔ledger reconciliation (L2-W5a/W5b).
 
 Exports:
     HotfixTask — immutable inject spec persisted under ``injects/``.
+    ReconcileResult — outcome of :func:`reconcile_run_graph`.
     InjectError — validation failure with CLI exit code.
     resolve_after_node_id — map ``--after`` to a graph node id.
     validate_hotfix_inject — pause/scope/deps/cost checks.
     plan_hotfix_inject — build task + merged graph without persisting.
     apply_hotfix_inject — write audit artefact, ledger row, graph.json.
     merge_injected_hotfixes — re-apply inject artefacts after plan re-parse.
+    reconcile_run_graph — diff parsed graph vs ledger; seed new waves safely.
     load_hotfix_tasks — read all inject specs from a run directory.
 """
 
@@ -39,7 +41,9 @@ _INJECT_KIND: Literal["hotfix"] = "hotfix"
 _HOTFIX_PLAN_ID = "hotfix"
 _HOTFIX_LANE_ID = "hotfix"
 _PAUSE_MARKER = "pause-requested.md"
+_INJECT_LOCK = "inject.lock"
 _INFLIGHT_STATES = frozenset({"running", "dispatched", "verifying"})
+_PROTECTED_LEDGER_STATES = frozenset({"done", "blocked"})
 _DEFAULT_VERIFY = "make ci-affected"
 _DEFAULT_AGENT = "wave-runner"
 
@@ -73,6 +77,16 @@ class InjectError(Exception):
     def __init__(self, message: str, *, exit_code: int = 1) -> None:
         super().__init__(message)
         self.exit_code = exit_code
+
+
+@dataclass(frozen=True, slots=True)
+class ReconcileResult:
+    """Outcome of :func:`reconcile_run_graph`."""
+
+    graph: RunGraph
+    inserted: tuple[str, ...]
+    orphans: tuple[str, ...]
+    dry_run: bool
 
 
 def injects_dir(run_dir: Path) -> Path:
@@ -179,18 +193,52 @@ def _batch_for_node(graph: RunGraph, node_id: str) -> int | None:
     return None
 
 
+def _assert_inject_lock_free(run_dir: Path) -> None:
+    if (run_dir / _INJECT_LOCK).is_file():
+        raise InjectError("inject.lock held — another inject/reconcile in progress", exit_code=2)
+
+
+def _assert_no_inflight_waves(lc: LedgerConnection, run_id: str) -> None:
+    inflight = [w.node_id for w in list_waves(lc, run_id) if w.state in _INFLIGHT_STATES]
+    if inflight:
+        raise InjectError(
+            f"run {run_id} still has in-flight waves {inflight!r} — wait for drain",
+            exit_code=2,
+        )
+
+
 def _assert_run_paused(run_dir: Path, lc: LedgerConnection, run_id: str) -> None:
     if not (run_dir / _PAUSE_MARKER).is_file():
         raise InjectError(
             f"run {run_id} is not paused — write pause-requested.md first (tripll pause or API)",
             exit_code=2,
         )
-    inflight = [w.node_id for w in list_waves(lc, run_id) if w.state in _INFLIGHT_STATES]
-    if inflight:
+    _assert_no_inflight_waves(lc, run_id)
+
+
+def _assert_reconcile_gate(
+    run_dir: Path,
+    lc: LedgerConnection,
+    run_id: str,
+    *,
+    require_pause: bool,
+) -> None:
+    """Validate it is safe to mutate graph/ledger (pause + lock + drain)."""
+    _assert_inject_lock_free(run_dir)
+    if require_pause:
+        _assert_run_paused(run_dir, lc, run_id)
+
+
+def _acquire_inject_lock(run_dir: Path) -> Path:
+    lock_path = run_dir / _INJECT_LOCK
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+    except FileExistsError as exc:
         raise InjectError(
-            f"run {run_id} still has in-flight waves {inflight!r} — wait for drain before inject",
-            exit_code=2,
-        )
+            "inject.lock held — another inject/reconcile in progress", exit_code=2
+        ) from exc
+    return lock_path
 
 
 def _assert_cost_headroom(lc: LedgerConnection, run_id: str, *, budget_usd: float) -> None:
@@ -316,6 +364,155 @@ def merge_injected_hotfixes(graph: RunGraph, run_dir: Path) -> RunGraph:
         if task.node_id not in graph.nodes:
             graph = merge_hotfix_task(graph, task)
     return graph
+
+
+def _plan_reconcile_diff(
+    graph: RunGraph,
+    lc: LedgerConnection,
+    run_id: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return ``(insert_ids, orphan_ids)`` without mutating stores."""
+    ledger_rows = list_waves(lc, run_id)
+    ledger_by_id = {row.node_id: row for row in ledger_rows}
+    graph_ids = set(graph.nodes)
+
+    for row in ledger_rows:
+        if row.state in _PROTECTED_LEDGER_STATES and row.node_id not in graph_ids:
+            raise InjectError(
+                "plan edit removes or renames wave "
+                f"{row.node_id!r} (ledger state={row.state!r}) — reconcile refused",
+                exit_code=1,
+            )
+
+    inserted = tuple(sorted(nid for nid in graph_ids if nid not in ledger_by_id))
+    orphans = tuple(
+        sorted(
+            row.node_id
+            for row in ledger_rows
+            if row.node_id not in graph_ids and row.state not in _PROTECTED_LEDGER_STATES
+        )
+    )
+    return inserted, orphans
+
+
+def reconcile_run_graph(
+    rr: RunsRoot,
+    run_id: str,
+    *,
+    lc: LedgerConnection,
+    expected_graph: RunGraph | None = None,
+    dry_run: bool = False,
+    require_pause: bool = True,
+    source: str = "cli",
+) -> ReconcileResult:
+    """Diff parsed graph vs ledger waves and apply safe mutations.
+
+    Inserts ``queued`` ledger rows for new graph nodes, refuses plan edits that
+    remove or rename ``done``/``blocked`` waves, logs orphan ledger rows without
+    deleting them, and rewrites ``graph.json`` plus the task graph layer.
+
+    Args:
+        rr (RunsRoot): Run directory layout.
+        run_id (str): Processing run identifier.
+        lc (LedgerConnection): Open ledger for the run.
+        expected_graph (RunGraph | None): Pre-parsed graph; when ``None``,
+            parse from the run directory.
+        dry_run (bool): Validate only — no ledger or graph writes.
+        require_pause (bool): When ``True``, require ``pause-requested.md``
+            (CLI reconcile). Resume passes ``False``.
+        source (str): Audit label (``cli``, ``resume``, …).
+
+    Returns:
+        ReconcileResult: Inserted and orphan node ids plus the reconciled graph.
+
+    Raises:
+        InjectError: Validation, overlap, or lock failures (see ``exit_code``).
+
+    Examples:
+        >>> reconcile_run_graph.__name__
+        'reconcile_run_graph'
+    """
+    from tripll.parse import build_graph_from_dir
+
+    run_dir = rr.run_dir(run_id)
+    if not run_dir.is_dir():
+        raise InjectError(f"run not found in processing/: {run_id}", exit_code=1)
+
+    _assert_reconcile_gate(run_dir, lc, run_id, require_pause=require_pause)
+
+    graph = (
+        expected_graph
+        if expected_graph is not None
+        else build_graph_from_dir(run_dir, run_id=run_id)
+    )
+    graph = merge_injected_hotfixes(graph, run_dir)
+    errors = graph.validate()
+    if errors:
+        raise InjectError(
+            "graph validation failed before reconcile: " + "; ".join(errors),
+            exit_code=3,
+        )
+
+    inserted, orphans = _plan_reconcile_diff(graph, lc, run_id)
+    for node_id in orphans:
+        row = get_wave(lc, run_id, node_id)
+        logger.warning(
+            "reconcile: orphan ledger row {} (state={}) — not in plan, kept",
+            node_id,
+            row.state,
+        )
+
+    if dry_run:
+        logger.info(
+            "reconcile: dry-run {} — would insert {} orphan {}",
+            run_id,
+            list(inserted),
+            list(orphans),
+        )
+        return ReconcileResult(graph=graph, inserted=inserted, orphans=orphans, dry_run=True)
+
+    lock_path = _acquire_inject_lock(run_dir)
+    try:
+        meta_base = json.dumps(
+            {"source": source, "inserted": list(inserted), "orphans": list(orphans)}
+        )
+        for node_id in inserted:
+            node = graph.nodes[node_id]
+            insert_wave(
+                lc,
+                node_id=node_id,
+                run_id=run_id,
+                plan_id=node.plan_id,
+                wave_id=node.wave_id,
+                lane=node.lane,
+                initial_state="queued",
+            )
+            append_event(
+                lc,
+                run_id=run_id,
+                node_id=node_id,
+                phase="reconcile_inserted",
+                metadata=meta_base,
+            )
+        if inserted or orphans:
+            append_event(
+                lc,
+                run_id=run_id,
+                node_id=inserted[0] if inserted else orphans[0],
+                phase="graph_reconciled",
+                metadata=meta_base,
+            )
+        _write_graph_json(rr, run_id, graph)
+        _sync_task_graph(rr, run_id, graph)
+        logger.info(
+            "reconcile: applied {} — inserted {} orphan {}",
+            run_id,
+            list(inserted),
+            list(orphans),
+        )
+        return ReconcileResult(graph=graph, inserted=inserted, orphans=orphans, dry_run=False)
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 
 def plan_hotfix_inject(
@@ -454,13 +651,7 @@ def apply_hotfix_inject(
         logger.info("inject: dry-run plan written {}", plan_path)
         return HotfixTask(**{**asdict(task), "dry_run": True})
 
-    lock_path = run_dir / "inject.lock"
-    try:
-        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.close(fd)
-    except FileExistsError as exc:
-        raise InjectError("inject.lock held — another inject in progress", exit_code=2) from exc
-
+    lock_path = _acquire_inject_lock(run_dir)
     try:
         artefact = inject_root / f"{task.task_id}.json"
         payload = asdict(task)
