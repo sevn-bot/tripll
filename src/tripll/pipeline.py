@@ -321,6 +321,17 @@ class RunsRoot:
         """
         return self.run_dir(run_id) / "briefs"
 
+    def injects_dir(self, run_id: str) -> Path:
+        """Return the ``processing/<run-id>/injects/`` audit directory.
+
+        Args:
+            run_id (str): Run identifier.
+
+        Returns:
+            Path: Path for immutable hotfix inject specs.
+        """
+        return self.run_dir(run_id) / "injects"
+
     def worktrees_dir(self, run_id: str) -> Path:
         """Return the ``processing/<run-id>/worktrees/`` path.
 
