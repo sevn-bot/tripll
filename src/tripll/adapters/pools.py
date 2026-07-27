@@ -28,6 +28,7 @@ INFRA_STREAK_THRESHOLD = 3
 class _PoolHold:
     """Tracks the exact semaphores acquired for one global→provider pair."""
 
+    provider: str
     provider_sem: asyncio.Semaphore
 
 
@@ -188,11 +189,16 @@ class ProviderPoolRegistry:
             sem = asyncio.Semaphore(1)
             self._provider_sems[provider] = sem
         try:
-            await sem.acquire()
+            while True:
+                in_flight = sum(1 for hold in self._holds if hold.provider == provider)
+                if in_flight < self.effective_limit(provider):
+                    await sem.acquire()
+                    break
+                await asyncio.sleep(0.01)
         except BaseException:
             self._global.release()
             raise
-        self._holds.append(_PoolHold(provider_sem=sem))
+        self._holds.append(_PoolHold(provider=provider, provider_sem=sem))
 
     def release(self, provider: str) -> None:
         """Release provider then global semaphores (reverse order)."""

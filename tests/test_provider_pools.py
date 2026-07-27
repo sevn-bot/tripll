@@ -169,6 +169,39 @@ def test_adaptive_throttle_halves_pool() -> None:
     assert reg.effective_limit("cursor_local") == 3
 
 
+@pytest.mark.asyncio
+async def test_adaptive_throttle_limits_in_flight() -> None:
+    clock = _FakeClock()
+    reg = ProviderPoolRegistry(
+        10,
+        {"cursor_local": ProviderConfig(max_parallel=4, cooldown_s=30)},
+        clock=clock,
+        infra_threshold=2,
+    )
+    reg.record_infra("cursor_local")
+    reg.record_infra("cursor_local")
+    assert reg.effective_limit("cursor_local") == 2
+
+    await reg.acquire("cursor_local")
+    await reg.acquire("cursor_local")
+    acquired_third = False
+
+    async def try_third() -> None:
+        nonlocal acquired_third
+        await reg.acquire("cursor_local")
+        acquired_third = True
+        reg.release("cursor_local")
+
+    task = asyncio.create_task(try_third())
+    await asyncio.sleep(0.05)
+    assert acquired_third is False
+    reg.release("cursor_local")
+    await asyncio.sleep(0.05)
+    await task
+    assert acquired_third is True
+    reg.release("cursor_local")
+
+
 def test_failover_preserves_model_intent(tmp_path: Path) -> None:
     node = WaveNode(
         "p:W1",
