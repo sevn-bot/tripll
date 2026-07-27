@@ -18,23 +18,46 @@
     </nav>
     <main class="main">
       <h1>Getting started</h1>
-<p class="summary">Install tripll, initialize the runs directory, drop in a plan set, and start a run that stops at the Pre-0 human gate.</p><div class="body"><h2>Prerequisites</h2>
-<ul>
-  <li><strong>uv</strong> — installs the <code>tripll</code> CLI into the project env.</li>
-  <li><strong>A backend</strong> — the default <code>claude_code</code> needs <code>claude</code>
-    on <code>PATH</code>. tripll holds <strong>no API keys</strong>; auth lives in the backend
-    toolchain.</li>
-  <li><strong>A target repo</strong> — the git checkout tripll orchestrates. Point at it with
-    <code>TRIPLL_REPO_ROOT</code>, or run from inside it.</li>
-</ul>
+<p class="summary">Install tripll, run setup and doctor, onboard a repo with init or new, then start a run.</p><div class="body"><h2>New user path</h2>
+<p>Start here if you have only <code>pip install tripll</code> or <code>uv tool install tripll</code>
+and want to reach a started run without reading source:</p>
+<pre><code>uv tool install tripll        # or: pip install tripll
+tripll setup                  # once per machine
+tripll doctor                 # confirm backends + layout
+cd ~/code/my-project && tripll init     # brownfield
+# — or —
+tripll new my-project && cd my-project  # greenfield
+tripll doctor
+tripll validate-plan docs/plans/*-wave-plan.md
+make run-set SET=my-set       # or tripll run runs/input/my-set</code></pre>
+<p>Full walkthrough: <a href="../docs/runbooks/onboarding-runbook.md">onboarding runbook</a>
+(in-repo <code>docs/runbooks/onboarding-runbook.md</code>).</p>
 
-<h2>Install</h2>
+<h2>What init writes</h2>
+<ul>
+  <li><code>tripll.toml</code> — repo layout (specs, PRDs, plans dirs)</li>
+  <li><code>docs/specs/</code>, <code>docs/prds/</code>, starter v3 wave plan</li>
+  <li><code>docs/evaluation-&lt;date&gt;.md</code> — brownfield assessment with file:line evidence</li>
+  <li><code>runs/</code> — input/processing/processed/failed folders</li>
+</ul>
+<p><code>tripll init</code> is idempotent — operator-edited files are not overwritten.</p>
+
+<h2>Config precedence</h2>
+<ol>
+  <li>CLI flags (<code>--backend</code>, <code>--model</code>, …)</li>
+  <li>Environment (<code>TRIPLL_*</code>)</li>
+  <li>Repo <code>tripll.toml</code></li>
+  <li>Machine <code>~/.config/tripll/config.toml</code> (from <code>tripll setup</code>)</li>
+</ol>
+<p>tripll <strong>never stores provider credentials</strong> in config files (R24).</p>
+
+<h2>tripll checkout (contributors)</h2>
 <pre><code>git clone https://github.com/sevn-bot/tripll
 cd tripll
 make setup      # uv sync (dev/api/obs) + git hooks
 make init       # creates runs/{input,processing,processed,failed}/</code></pre>
 
-<h2>First run</h2>
+<h2>First run (operator quick path)</h2>
 <pre><code># Drop ONE input set under runs/input/&lt;name&gt;/ then:
 make plan-set SET=my-set     # parse + validate the graph (no dispatch)
 make run-set  SET=my-set     # start the run → stops at the Pre-0 gate

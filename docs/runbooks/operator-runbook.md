@@ -486,6 +486,21 @@ on the network can launch runs and change settings through the HTML UI. That com
 is the one genuinely dangerous operator mistake — always set a token before exposing the
 dashboard beyond localhost.
 
+### Dashboard launch diagnostics (PERF-02 companion)
+
+The **Launch run** form on `/` spawns `tripll run …` via `subprocess.Popen` with
+`stdout=DEVNULL` and `stderr=DEVNULL` (`src/tripll/api/ui/router.py`). A failed spawn
+leaves no UI-visible error — check `runs/processing/` for a new folder or run
+`tripll status` from a terminal. Prefer `make run-set` when debugging launch failures.
+
+### Sync SQLite in async routes (PERF-02)
+
+The control plane uses **synchronous** `sqlite3` connections inside FastAPI `async` route
+handlers (`open_ledger`, profile store). This is acceptable for the **single-operator**
+dashboard (one human, low concurrency) but would block the event loop under heavy parallel
+load. Do not re-architect without a measured multi-tenant requirement — document instead
+of silently regressing latency.
+
 ---
 
 ## Git safety (git clean guard)

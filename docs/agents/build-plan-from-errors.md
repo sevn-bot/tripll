@@ -1,5 +1,8 @@
 # build-plan-from-errors
 
+> **Dispatch status:** **Contract only** — W5 driver prompt that authors a remediation plan; produces files, not an Engine dispatch role.
+
+
 Turn gateway **error turn bundles** into **one** runnable **tripll v1** wave-plan per
 `make build-plan-from-errors` driver run.
 

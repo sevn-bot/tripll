@@ -1,5 +1,8 @@
 # wave-verifier
 
+> **Dispatch status:** **Engine-dispatched** — verify phase after each implementation attempt (isolated worktree, no implementer transcript).
+
+
 Isolated post-implementation verification gate (design §11.9, D17).
 
 | Field | Value |

@@ -20,7 +20,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from loguru import logger
@@ -711,6 +711,36 @@ def list_runs_cmd(runs_root: RunsRootOpt = None) -> None:
     _status_all(rr)
 
 
+def _attempt_dispatch_labels(attempts: list[Any]) -> tuple[str, str, str]:
+    """Return ``(backend, model, reasoning_effort)`` from the latest attempt brief."""
+    backend = "—"
+    model = "—"
+    effort = "—"
+    for attempt in reversed(attempts):
+        if backend == "—":
+            b = str(getattr(attempt, "backend", "") or "").strip()
+            if b:
+                backend = b
+        brief_path = getattr(attempt, "brief_path", None)
+        if brief_path and (model == "—" or effort == "—"):
+            try:
+                data = json.loads(Path(str(brief_path)).read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, TypeError):
+                data = None
+            if isinstance(data, dict):
+                if model == "—":
+                    m = str(data.get("model") or "").strip()
+                    if m:
+                        model = m
+                if effort == "—":
+                    e = str(data.get("reasoning_effort") or "").strip()
+                    if e:
+                        effort = e
+        if backend != "—" and model != "—" and effort != "—":
+            break
+    return backend, model, effort
+
+
 def _status_run(rr: RunsRoot, run_id: str) -> None:
     """Print detailed wave status for a single run.
 
@@ -739,6 +769,10 @@ def _status_run(rr: RunsRoot, run_id: str) -> None:
         run_cost = get_run_cost(lc, run_id)
         cost_by_provider = get_run_cost_by_provider(lc, run_id)
         fired_exits = list_fired_exit_ids(lc, run_id)
+        wave_dispatch: list[tuple[str, str, str, str]] = []
+        for w in waves:
+            backend, model, effort = _attempt_dispatch_labels(list_attempts(lc, run_id, w.node_id))
+            wave_dispatch.append((w.node_id, backend, model, effort))
         evidence = {
             w.node_id: next(
                 (a.evidence for a in reversed(list_attempts(lc, run_id, w.node_id)) if a.evidence),
@@ -757,6 +791,11 @@ def _status_run(rr: RunsRoot, run_id: str) -> None:
     typer.echo("-" * 65)
     for w in waves:
         typer.echo(f"{w.node_id:<40}  {w.state:<14}  {w.attempt_count}")
+
+    typer.echo(f"\n{'NODE-ID':<40}  {'PROVIDER':<14}  {'MODEL':<22}  {'EFFORT'}")
+    typer.echo("-" * 90)
+    for node_id, backend, model, effort in wave_dispatch:
+        typer.echo(f"{node_id:<40}  {backend:<14}  {model:<22}  {effort}")
 
     budget = _cost_budget_usd()
     typer.echo(f"\nCost: ${run_cost:.4f}")

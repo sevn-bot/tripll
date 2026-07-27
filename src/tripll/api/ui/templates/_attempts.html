@@ -32,7 +32,7 @@
         </td>
         <td class="attempt-evidence" title="{{ a.evidence }}">{{ a.evidence }}</td>
         <td>
-          <a class="log-full-link"
+          <a class="log-full-link" aria-label="Open full log for attempt {{ a.attempt_n }}"
              href="{{ log_full_page_url(run_id, node_id, a.attempt_n, api_token=api_token) }}"
              target="_blank"
              rel="noopener">full log ↗</a>

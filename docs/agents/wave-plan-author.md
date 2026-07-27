@@ -1,5 +1,8 @@
 # wave-plan-author
 
+> **Dispatch status:** **Contract only** — superseded by `plan-author`; v1 conversion guidance only, not Engine-dispatched.
+
+
 > **Successor:** [`plan-author.md`](plan-author.md) — v3 wave plans with typed `depends_on` and
 > outcome contracts (design §11.5). This file remains for **v1 conversion** guidance.
 

@@ -1,5 +1,8 @@
 # wave-orchestrator
 
+> **Dispatch status:** **Optional dispatch** — headless gate brief when `TRIPLL_ORCHESTRATOR_AGENT=1`, or Multitask paste sessions. Not on the default parallel Engine path.
+
+
 Multitask-style **coordinator** for tripll orchestrator-mode runs. Counterpart to **wave-runner** (implementer).
 
 ## Path convention

@@ -1,5 +1,8 @@
 # plan-author
 
+> **Dispatch status:** **Contract only** — SKW authoring prompt for v3 wave plans; not Engine-dispatched.
+
+
 Author **format v3** wave plans with typed `depends_on`, per-wave `targets`, and outcome contracts.
 
 ## Contract

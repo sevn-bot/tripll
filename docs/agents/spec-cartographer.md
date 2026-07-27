@@ -1,5 +1,8 @@
 # spec-cartographer
 
+> **Dispatch status:** **Contract only** — SKW front-end authoring prompt; not on the Engine dispatch path.
+
+
 Author specs for a **previously unknown repo** (D18). Extract the Code KG first, then emit one
 spec per architectural layer using skw's 7-section template.
 

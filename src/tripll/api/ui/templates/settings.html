@@ -12,19 +12,19 @@
 <form class="ui-form" method="post" action="/settings">
   {% include "_csrf_field.html" %}
   <label for="model_default">Default model</label>
-  <input type="text" id="model_default" name="model_default" value="{{ config.model_default }}" required />
+  <input type="text" id="model_default" name="model_default" value="{{ config.model_default }}" required aria-label="Default model" />
 
   <label for="cost_budget_usd">Cost budget (USD)</label>
-  <input type="number" id="cost_budget_usd" name="cost_budget_usd" value="{{ config.cost_budget_usd }}" min="0" step="0.01" />
+  <input type="number" id="cost_budget_usd" name="cost_budget_usd" value="{{ config.cost_budget_usd }}" min="0" step="0.01" aria-label="Cost budget in USD" />
 
   <label for="max_parallel">Max parallel waves</label>
-  <input type="number" id="max_parallel" name="max_parallel" value="{{ config.max_parallel }}" min="1" step="1" required />
+  <input type="number" id="max_parallel" name="max_parallel" value="{{ config.max_parallel }}" min="1" step="1" required aria-label="Maximum parallel waves" />
 
   <label>Verbose logging</label>
   <p class="muted display-only">Controlled by <code>TRIPLL_VERBOSE</code> at server start (display only).</p>
 
   <div class="form-actions">
-    <button type="submit">Save settings</button>
+    <button type="submit" aria-label="Save settings">Save settings</button>
   </div>
 </form>
 

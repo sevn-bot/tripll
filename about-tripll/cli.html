@@ -33,10 +33,15 @@
   <tr><td><code>make check</code> / <code>make ci</code></td><td>Quality gate (lint + typecheck + test) and full local CI.</td></tr>
 </table>
 
-<h2>CLI</h2>
+<h2>Onboarding CLI</h2>
+<pre><code>tripll setup              # machine config (~/.config/tripll/config.toml)
+tripll doctor             # readiness before dispatch
+tripll init               # brownfield repo onboarding
+tripll new &lt;name&gt;         # greenfield scaffold</code></pre>
+
+<h2>Dispatch CLI</h2>
 <p>The <code>tripll</code> console script underlies the Make targets:</p>
-<pre><code>tripll init
-tripll validate runs/input/my-set
+<pre><code>tripll validate runs/input/my-set
 tripll plan     runs/input/my-set --write-manifest
 tripll run      runs/input/my-set --backend claude_code
 tripll status   &lt;run-id&gt;
@@ -45,6 +50,15 @@ tripll serve</code></pre>
 <p>Pass <code>--backend</code> / <code>--model</code> / <code>--agent</code> to choose a backend;
 <code>--integrate</code> to merge batches on one branch; <code>--dry-run</code> to preview dispatch.</p>
 
+<h2>Config files</h2>
+<table class="table">
+  <tr><th>File</th><th>Scope</th></tr>
+  <tr><td><code>~/.config/tripll/config.toml</code></td><td>Machine — written by <code>tripll setup</code>.</td></tr>
+  <tr><td><code>tripll.toml</code></td><td>Repo — layout paths from <code>tripll init</code> / <code>tripll new</code>.</td></tr>
+</table>
+<p>Precedence: CLI → <code>TRIPLL_*</code> env → repo <code>tripll.toml</code> → machine config.
+See the in-repo <code>docs/runbooks/onboarding-runbook.md</code>.</p>
+
 <h2>Environment variables</h2>
 <table class="table">
   <tr><th>Variable</th><th>Purpose</th></tr>
@@ -52,7 +66,8 @@ tripll serve</code></pre>
   <tr><td><code>TRIPLL_RUNS</code></td><td>Override the <code>runs/</code> root.</td></tr>
   <tr><td><code>TRIPLL_MAX_PARALLEL</code></td><td>Cap concurrent waves.</td></tr>
   <tr><td><code>TRIPLL_COST_BUDGET_USD</code></td><td>Stop when the spend cap is hit.</td></tr>
-  <tr><td><code>TRIPLL_API_TOKEN</code></td><td>Bearer token for the dashboard API.</td></tr>
+  <tr><td><code>TRIPLL_API_TOKEN</code></td><td>Bearer token for dashboard HTML pages and JSON API (R4).</td></tr>
+  <tr><td><code>TRIPLL_HUMAN_GATES</code></td><td>Override plan human gates: <code>prompt</code>, <code>auto_accept</code>, or <code>fail</code>.</td></tr>
   <tr><td><code>TRIPLL_VERBOSE</code> / <code>TRIPLL_DEBUG</code></td><td>Log verbosity (debug dumps raw stream-json).</td></tr>
   <tr><td><code>LOGFIRE_TOKEN</code></td><td>Enables Logfire tracing (otherwise observability is a no-op).</td></tr>
 </table>

@@ -1,5 +1,8 @@
 # implementer
 
+> **Dispatch status:** **Engine-dispatched** — default wave executor for `role: impl` nodes; the adapter invokes this slug (legacy aliases: `wave-plan-executor`, `wave-runner`).
+
+
 Wave-scoped executor — successor to `wave-plan-executor` / `wave-runner` (design §11.8).
 
 ## Contract

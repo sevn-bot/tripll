@@ -80,6 +80,7 @@ from tripll.ledger import (
     WaveRow,
     get_run,
     get_run_cost,
+    get_run_cost_by_provider,
     latest_events_by_node,
     list_attempts,
     list_events,
@@ -900,8 +901,8 @@ def _timeline_events(lc: LedgerConnection, run_id: str) -> list[EventRow]:
     return events
 
 
-def _model_from_brief_path(brief_path: str | None) -> str | None:
-    """Read ``model`` from a dispatch brief JSON file when present."""
+def _brief_field_from_path(brief_path: str | None, field: str) -> str | None:
+    """Read one string field from a dispatch brief JSON file when present."""
     if not brief_path:
         return None
     try:
@@ -910,8 +911,13 @@ def _model_from_brief_path(brief_path: str | None) -> str | None:
         return None
     if not isinstance(data, dict):
         return None
-    model = str(data.get("model") or "").strip()
-    return model or None
+    value = str(data.get(field) or "").strip()
+    return value or None
+
+
+def _model_from_brief_path(brief_path: str | None) -> str | None:
+    """Read ``model`` from a dispatch brief JSON file when present."""
+    return _brief_field_from_path(brief_path, "model")
 
 
 def _format_attempt_started(started_at: str | None) -> str:
@@ -955,6 +961,22 @@ def _wave_model_label(attempts: list[Any]) -> str:
         model = _model_from_brief_path(getattr(attempt, "brief_path", None))
         if model:
             return model
+    return "—"
+
+
+def _wave_backend_label(attempts: list[Any]) -> str:
+    for attempt in reversed(attempts):
+        backend = str(getattr(attempt, "backend", "") or "").strip()
+        if backend:
+            return backend
+    return "—"
+
+
+def _wave_effort_label(attempts: list[Any]) -> str:
+    for attempt in reversed(attempts):
+        effort = _brief_field_from_path(getattr(attempt, "brief_path", None), "reasoning_effort")
+        if effort:
+            return effort
     return "—"
 
 
@@ -1064,6 +1086,9 @@ def _build_wave_rows(
                 "display_action": last_action or status_detail or "—",
                 "status_detail": status_detail,
                 "model": _wave_model_label(attempt_ctx["attempts"]),
+                "backend": _wave_backend_label(attempt_ctx["attempts"]),
+                "provider": _wave_backend_label(attempt_ctx["attempts"]),
+                "reasoning_effort": _wave_effort_label(attempt_ctx["attempts"]),
                 "input_tokens": ev.input_tokens if ev else None,
                 "output_tokens": ev.output_tokens if ev else None,
                 "cost_usd": ev.cost_usd if ev else None,
@@ -1111,6 +1136,7 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         latest = latest_events_by_node(lc, run_id)
         timeline_events = _timeline_events(lc, run_id)
         run_cost = get_run_cost(lc, run_id)
+        cost_by_provider = get_run_cost_by_provider(lc, run_id)
         fired_exit_ids = list_fired_exit_ids(lc, run_id)
         wave_rows = _build_wave_rows(waves, latest, rr=rr, run_id=run_id, lc=lc)
         ledger_node_ids = [w.node_id for w in waves]
@@ -1144,6 +1170,7 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         "run_id": run_id,
         "run_state": run_row.state,
         "run_cost": run_cost,
+        "cost_by_provider": cost_by_provider,
         "is_live": is_live,
         "log_file_count": log_file_count,
         "report_exists": report_exists,

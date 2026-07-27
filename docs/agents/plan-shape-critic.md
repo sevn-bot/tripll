@@ -1,5 +1,8 @@
 # plan-shape-critic
 
+> **Dispatch status:** **Contract only** — SKW reviewing prompt for plan shape; not Engine-dispatched.
+
+
 Review-only shape verdict on compiled plans (design §11.6).
 
 | Field | Value |

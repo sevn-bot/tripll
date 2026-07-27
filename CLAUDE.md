@@ -30,6 +30,10 @@ Use **Make** for every recurring command — run **`make help`** for the full li
 
 | Target | When |
 |--------|------|
+| **`tripll setup`** | Once per machine — providers, models, tracing (`~/.config/tripll/config.toml`) |
+| **`tripll doctor`** | Before first dispatch — readiness + missing logins (never stores credentials) |
+| **`tripll init`** | Brownfield onboarding — specs, plans, evaluation, repo `tripll.toml` |
+| **`tripll new`** | Greenfield scaffold — Python skeleton + starter docs |
 | **`make setup`** | Fresh checkout: `uv sync` (dev/api/obs) + git hooks |
 | **`make check`** | Required gate: lint + typecheck + log-redact gate + test |
 | **`make ci`** | `make check` + `uv build` (mirrors GitHub Actions) |
@@ -50,8 +54,9 @@ only** (never stdlib `logging`). Before finishing: **`make lint`** and **`make t
 
 ## Observability
 
-Optional Logfire/OTel via the `obs` extra and `tripll.obs.configure_observability()` (wired into
-the CLI). It is a **no-op** without `LOGFIRE_TOKEN` and must never break the CLI.
+Optional Logfire/OTel via the `obs` extra and **`tripll.obs.configure_observability()`** — the
+**sole** tracing configurator (**R22**); do not add a second one. Wired into the CLI. It is a
+**no-op** without `LOGFIRE_TOKEN` and must never break the CLI.
 
 ## External dependencies
 

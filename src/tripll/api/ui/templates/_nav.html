@@ -1,9 +1,9 @@
 <nav class="top-nav" aria-label="Main">
-  <a class="nav-brand" href="/">⚡ tripll</a>
+  <a class="nav-brand" href="/" aria-label="tripll home">⚡ tripll</a>
   <div class="nav-links">
-    <a href="/agents" class="nav-link{% if nav_section == 'agents' %} active{% endif %}">Agents</a>
-    <a href="/" class="nav-link{% if nav_section == 'runs' %} active{% endif %}">Runs</a>
-    <a href="/settings" class="nav-link{% if nav_section == 'settings' %} active{% endif %}">Settings</a>
-    <a href="/docs" class="nav-link nav-external" target="_blank" rel="noopener noreferrer">API docs</a>
+    <a href="/agents" class="nav-link{% if nav_section == 'agents' %} active{% endif %}" aria-label="Agent profiles">Agents</a>
+    <a href="/" class="nav-link{% if nav_section == 'runs' %} active{% endif %}" aria-label="Runs dashboard">Runs</a>
+    <a href="/settings" class="nav-link{% if nav_section == 'settings' %} active{% endif %}" aria-label="Settings">Settings</a>
+    <a href="/docs" class="nav-link nav-external" target="_blank" rel="noopener noreferrer" aria-label="Open API docs in new tab">API docs</a>
   </div>
 </nav>

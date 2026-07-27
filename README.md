@@ -1,16 +1,59 @@
 # tripll
 
-Headless parallel wave-plan execution pipeline. Drop a folder of plan files into
-`runs/input/`, and `tripll` will:
+Headless parallel wave-plan execution pipeline. Parse wave plans into a **RunGraph**,
+dispatch each wave to an agent backend, stop at human gates, retry failures, and optionally
+integrate batches on one branch.
+
+---
+
+## New here? Start here
+
+If you only have `pip install tripll` (or `uv tool install tripll`) and a git checkout you
+want to automate, follow this path **before** the operator sections below:
+
+```bash
+uv tool install tripll        # or: pip install tripll
+tripll setup                  # once per machine — providers, models, tracing
+tripll doctor                 # confirm backends and repo layout will run
+cd ~/code/my-project && tripll init     # brownfield: specs + evaluation + tripll.toml
+# — or —
+tripll new my-project                   # greenfield: scaffold + starter docs
+cd my-project && tripll doctor
+tripll validate-plan docs/plans/*-wave-plan.md
+make run-set SET=my-set                 # or tripll run runs/input/my-set
+```
+
+| Step | What you get |
+|------|----------------|
+| **`tripll setup`** | Machine config at `~/.config/tripll/config.toml` (providers, default models). |
+| **`tripll doctor`** | Readiness report — missing logins surfaced as actions, never stored secrets (**R24**). |
+| **`tripll init`** | Brownfield: `tripll.toml`, starter specs/PRDs/plans, `docs/evaluation-<date>.md` with file:line evidence, `runs/` dirs. Idempotent — operator edits preserved. |
+| **`tripll new`** | Greenfield: Python skeleton + the same emitters as `init`. |
+
+**Config precedence (four layers):** CLI flags → environment (`TRIPLL_*`) → repo
+`tripll.toml` → machine `~/.config/tripll/config.toml`. See
+[`docs/runbooks/onboarding-runbook.md`](docs/runbooks/onboarding-runbook.md).
+
+**Human gates:** v3 plans may set `[pipeline] human_gates` to `prompt` (default),
+`auto_accept`, or `fail`. Override with `TRIPLL_HUMAN_GATES=auto_accept` for unattended
+Pre-0 when tier-4 canaries pass — documented in
+[`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md#human-gate-modes-human_gates).
+
+Deep dives: [`docs/design-note.md`](docs/design-note.md) ·
+[`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md) ·
+[`docs/runbooks/onboarding-runbook.md`](docs/runbooks/onboarding-runbook.md).
+
+---
+
+## Pipeline overview
+
+Drop a folder of plan files into `runs/input/`, and `tripll` will:
 
 1. Parse the set into a **RunGraph** (lanes, batches, Pre-0 gates, CW seams).
 2. Dispatch each wave to an agent backend in dependency order.
 3. Stop at the **Pre-0 human gate** until you approve.
 4. Retry failed waves (**5 attempts** for impl waves, then escalate).
 5. Optionally **integrate** each batch on one branch (`--integrate`).
-
-Deep dives: [`docs/design-note.md`](docs/design-note.md) (graph model),
-[`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md) (operations).
 
 ---
 
@@ -319,6 +362,7 @@ All targets run from **`wave-orchestrator/`**. Variables:
 | `make resume-run RUN=<id>` | Resume a paused run (`BACKEND=` optional) |
 | `make tripll ARGS='…'` | Any subcommand (`approve`, `resume`, `plan`, …) |
 | `make check` | Lint + typecheck + pullfrog pin + about-site + test |
+| `make bench` | Replay sealed brief-packing benchmark (tier 2; see `bench/`) |
 | `make review` | Advisory pullfrog-py diff review vs `origin/main` |
 | `make about-site` | Regenerate `about-tripll/` HTML from `_sources/` |
 | `make seed-orchestrator-smoke-set` | Copy W0 orchestrator example → `runs/input/orchestrator-mode-smoke/` |
@@ -419,7 +463,7 @@ Swagger API docs at `http://localhost:8765/docs`.
 | Page | What you see |
 |------|----------------|
 | **Runs** (`/`) | Runs table (state, cost, live badge); **Launch run** form (input set + profile); backend availability summary |
-| **Run detail** (`/runs/{id}`) | Hydrated wave table on first paint; SSE live updates; run header (state, cost, live/offline, pause/escalation banners); batch timeline swimlanes; **L1 panels** (graph subgraph, findings, exit caps); event timeline sidebar (500-event replay + SSE tail); Approve / Resume / Pause buttons; collapsible `report.md` embed |
+| **Run detail** (`/runs/{id}`) | Hydrated wave table (provider, model, effort, cost) on first paint; SSE live updates; run header (state, cost, per-provider rollup, live/offline, pause/escalation banners); batch timeline swimlanes; **L1 panels** (graph subgraph, findings, exit caps); event timeline sidebar (500-event replay + SSE tail); Approve / Resume / Pause buttons; collapsible `report.md` embed |
 | **Wave expander** (per row) | Attempt history + "starting attempt N" badge; wave-task checklist with active bullet; git worktree status + diff stat (5 s poll while running); read-only log tail viewer |
 | **Agents** (`/agents`) | Profile list; create/edit forms (backend, model, agent, skills) — no curl required |
 | **Settings** (`/settings`) | Runtime config form (`max_parallel`, cost budget, etc.) |
@@ -446,7 +490,8 @@ table + turn log). See README **Orchestrator mode** and operator runbook §8.
 
 | Variable | Purpose |
 |----------|---------|
-| `TRIPLL_API_TOKEN` | When set, requires Bearer token on all API/UI fragment requests. Dashboard injects token into htmx headers and `?token=` on SSE/fragment URLs. **Required** when binding beyond localhost. |
+| `TRIPLL_API_TOKEN` | When set, requires Bearer token on **all HTML pages and JSON API routes** (R4). Dashboard injects token into htmx headers and `?token=` on SSE/fragment URLs. **Required** when binding beyond localhost. |
+| `TRIPLL_HUMAN_GATES` | Override plan `[pipeline] human_gates`: `prompt`, `auto_accept`, or `fail`. |
 | `TRIPLL_RUNS` | Runs root directory (default `./runs`). |
 | `TRIPLL_MAX_PARALLEL` | Max concurrent wave dispatches (also editable on Settings page). |
 | `TRIPLL_COST_BUDGET_USD` | Run cost budget; pause marker when exceeded. |

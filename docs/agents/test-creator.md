@@ -1,5 +1,8 @@
 # test-creator
 
+> **Dispatch status:** **Engine-dispatched** — waves with `role: test-author` (typically W1); the only role allowed to edit `tests/`.
+
+
 Single **test owner** for tests-first tripll runs. Authors the entire suite in **Wave 1**
 (`role: test-author`), right after the W0 contract gate. Counterpart to **wave-runner**
 (implementation, which may not touch tests).

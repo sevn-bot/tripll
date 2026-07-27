@@ -1,5 +1,8 @@
 # graph-extractor
 
+> **Dispatch status:** **Contract only** — SKW infra prompt for code-graph extraction; not Engine-dispatched (CLI: `tripll graph extract`).
+
+
 Deterministic + semantic code KG extraction (design §11.2).
 
 | Field | Value |

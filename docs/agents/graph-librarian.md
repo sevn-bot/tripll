@@ -1,5 +1,8 @@
 # graph-librarian
 
+> **Dispatch status:** **Contract only** — SKW verifying prompt for graph hygiene; not Engine-dispatched.
+
+
 Stage-7 quality gate on extractor output (design §11.3).
 
 | Field | Value |

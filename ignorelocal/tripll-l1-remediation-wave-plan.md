@@ -1,6 +1,6 @@
 # tripll L1 remediation — gate integrity, security, concurrency, exit closure — wave plan
 
-**Status:** W15 complete — W12 next
+**Status:** W12 complete — Final next
 **Date:** 2026-07-26
 **Source audit:** `ignorelocal/project-evaluation-2026-07-25.md` (cited as `§n` / finding IDs)
 **Target repo:** [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) — this checkout
@@ -20,11 +20,11 @@ its sha256 — Thermos re-verifies the hash)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W15 ✅ (2026-07-27) — W12 next |
-| **Stage** | Greenfield `tripll new`: packaged skeleton + shared brownfield emitters |
-| **Next action** | W12.1 — dispatch-status banner on `docs/agents/*.md` (ARCH-06) |
+| **Current wave** | W12 ✅ (2026-07-27) — Final next |
+| **Stage** | Docs/a11y/DASH-01 complete — Final CI gate next |
+| **Next action** | Final — xfail sweep, `make ci` green twice, green GitHub Actions on branch head |
 | **Blocked on** | — |
-| **Last pushed sha** | `f767d3d` |
+| **Last pushed sha** | `abf96c6` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1552,7 +1552,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [x] (2026-07-27 ✅: e1fb05d — config.py four-layer precedence; setup/doctor CLI; v3 template packaged; force-include removed; wheel guard test) |
 | W14 | `cursor_local` auto | **Brownfield `tripll init`**: specs, PRDs, plans, `tripll.toml` and a **repo evaluation**; cut the sevn import | ONB-02, ONB-03, ONB-05 | [x] (2026-07-27 ✅: 7001fbf — brownfield init, emitters, evaluate, onboarding runbook) |
 | W15 | `cursor_local` auto | **Greenfield `tripll new`**: scaffold a project with specs and config, sharing brownfield's emitters | ONB-04 | [x] (2026-07-27 ✅: 1751ce4 — greenfield new, packaged skeleton, shared emitters, validate-plan + make check) |
-| W12 | `cursor_local` auto | Roster honesty banner, a11y labels, PERF-02 note, **provider/model/effort in the dashboard**, **onboarding in the README + about-site**, docs | ARCH-06, FRONT-01, PERF-02, DASH-01 | [ ] |
+| W12 | `cursor_local` auto | Roster honesty banner, a11y labels, PERF-02 note, **provider/model/effort in the dashboard**, **onboarding in the README + about-site**, docs | ARCH-06, FRONT-01, PERF-02, DASH-01 | [x] (2026-07-27 ✅: abf96c6 — dispatch banners, a11y, DASH-01, onboarding docs, make check) |
 | Final | `cursor_local` claude-opus-5 | xfail sweep, `make ci` green, **green CI run on the branch**, change summary | — | [ ] |
 | Thermos | `cursor_local` claude-opus-5, **fresh session** | Branch review, **tamper audit**, merge request; commit+push each pass | — | [ ] |
 
@@ -2622,24 +2622,24 @@ grep -rn 'spec-template' src/tripll/onboard | sort -u | wc -l       # shared res
 
 **Findings:** ARCH-06, FRONT-01, PERF-02 · **Also documents:** W13–W15 onboarding
 
-- [ ] **W12.1** Add a dispatch-status banner to `docs/agents/*.md` (ARCH-06): which roles the Engine
+- [x] **W12.1** (2026-07-27 ✅: abf96c6 — dispatch-status banners on all 17 `docs/agents/*.md`) Add a dispatch-status banner to `docs/agents/*.md` (ARCH-06): which roles the Engine
       actually dispatches vs which are prompts/contracts only. 17 documented roles with a small live
       subset is the single biggest source of operator confusion in the docs.
-- [ ] **W12.2** Correct the roster claim in `docs/` where L1 loops *name* `ci-investigator` /
+- [x] **W12.2** (2026-07-27 ✅: abf96c6 — corrected L1 PR loop roster claims for W9 scope) Correct the roster claim in `docs/` where L1 loops *name* `ci-investigator` /
       `check-fixer` / `pr-shepherd` — accurate only for the path W9 closed; say so precisely.
-- [ ] **W12.3** Add `aria-label` to interactive controls in the dashboard templates (FRONT-01).
-- [ ] **W12.4** Document PERF-02 (sync SQLite in async routes) as a known single-operator
+- [x] **W12.3** (2026-07-27 ✅: abf96c6 — `aria-label` on all dashboard template controls) Add `aria-label` to interactive controls in the dashboard templates (FRONT-01).
+- [x] **W12.4** (2026-07-27 ✅: abf96c6 — PERF-02 sync SQLite documented in operator-runbook) Document PERF-02 (sync SQLite in async routes) as a known single-operator
       constraint in the runbook rather than re-architecting it.
-- [ ] **W12.5** Document the dashboard launch path's fire-and-forget `subprocess.Popen` with
+- [x] **W12.5** (2026-07-27 ✅: abf96c6 — dashboard launch Popen diagnostics documented) Document the dashboard launch path's fire-and-forget `subprocess.Popen` with
       discarded stdout/stderr (`router.py:255`) — or capture output to the run dir so a failed
       launch is diagnosable from the UI.
-- [ ] **W12.5a** *(DASH-01)* Surface **provider / model / reasoning effort** per wave in the
+- [x] **W12.5a** (2026-07-27 ✅: abf96c6 — provider/model/effort in dashboard + `tripll status`) *(DASH-01)* Surface **provider / model / reasoning effort** per wave in the
       dashboard waves table (`_waves_tbody.html`) and in `tripll status`. In a mixed-provider run
       this is the first question an operator asks; today the answer is only in the ledger.
       Show the per-provider cost rollup from W6.5 alongside it.
-- [ ] **W12.6** Update `README.md`: `TRIPLL_API_TOKEN` now covers HTML too, bind-address guidance,
+- [x] **W12.6** (2026-07-27 ✅: abf96c6 — README auth, bench, human_gates updates) Update `README.md`: `TRIPLL_API_TOKEN` now covers HTML too, bind-address guidance,
       `make bench`, and the `human_gates` config from P0.8.
-- [ ] **W12.6a** **Lead the README with the new-user path** (W13–W15). Today the README opens on
+- [x] **W12.6a** (2026-07-27 ✅: abf96c6 — README new-user path (W13–W15 commands)) **Lead the README with the new-user path** (W13–W15). Today the README opens on
       pipeline internals and assumes plans already exist; a first-time reader has nowhere to start:
 
       ```bash
@@ -2653,14 +2653,14 @@ grep -rn 'spec-template' src/tripll/onboard | sort -u | wc -l       # shared res
       Document what `init` writes, what the evaluation is for, the four-layer config precedence, and
       the fact that **no credential is ever stored by tripll** (R24). Keep the existing operator
       "Quick run" section — it stays valid for someone who already has plans.
-- [ ] **W12.6b** Add the same path to `about-tripll/_sources/getting-started.yaml`, and a `tripll.toml`
+- [x] **W12.6b** (2026-07-27 ✅: abf96c6 — about-site getting-started + cli config reference) Add the same path to `about-tripll/_sources/getting-started.yaml`, and a `tripll.toml`
       + `~/.config/tripll/config.toml` reference to the CLI page. Cross-link
       `docs/runbooks/onboarding-runbook.md` from both.
-- [ ] **W12.6c** Update `CLAUDE.md`'s command table with `setup` / `doctor` / `init` / `new`, and
+- [x] **W12.6c** (2026-07-27 ✅: abf96c6 — CLAUDE.md setup/doctor/init/new + R22 obs note) Update `CLAUDE.md`'s command table with `setup` / `doctor` / `init` / `new`, and
       state that `tripll.obs` is the **sole** tracing configurator (R22) so no future agent re-adds a
       second one.
-- [ ] **W12.7** Regenerate the help site (`make about-site`); `about-site-check` must stay green.
-- [ ] **W12.8** **Commit + push** (`docs: align agent roster, auth posture, and operator guidance`).
+- [x] **W12.7** (2026-07-27 ✅: abf96c6 — `make about-site`; about-site-check green) Regenerate the help site (`make about-site`); `about-site-check` must stay green.
+- [x] **W12.8** (2026-07-27 ✅: abf96c6 — Commit + push) **Commit + push** (`docs: align agent roster, auth posture, and operator guidance`).
 
 **Acceptance:**
 

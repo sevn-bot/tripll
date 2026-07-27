@@ -1,6 +1,12 @@
 # review-comment-fixer
 
+> **Dispatch status:** **Contract only** — follows `review-comment-triager` in PR-loop metadata; **not** adapter-wired in the W9 closure.
+
+
 Fixes accepted review findings; resolution queued for approval (design §11.13).
+
+Follows `review-comment-triager` in PR-loop **metadata** only — **not** adapter-dispatched
+until a future loop extension (W9 closed `ci_check` investigate→fix only).
 
 | Field | Value |
 |-------|-------|

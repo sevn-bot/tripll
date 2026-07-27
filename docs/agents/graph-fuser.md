@@ -1,5 +1,8 @@
 # graph-fuser
 
+> **Dispatch status:** **Contract only** — SKW reviewing prompt for graph merge decisions; not Engine-dispatched.
+
+
 Merge/no-merge decisions for ambiguous entity pairs (design §11.4).
 
 | Field | Value |
