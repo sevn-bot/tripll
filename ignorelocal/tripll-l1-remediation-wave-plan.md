@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Observability guarded; `make bench` + non-blocking CI job; brief-packer single-compute; dispatch spans on `_execute_node` / batch |
 | **Next action** | W11.1 — replace hand-rolled TOML parse in `log_redact.py` with stdlib `tomllib` (DX-03) |
 | **Blocked on** | — |
-| **Last pushed sha** | `ddad66d` |
+| **Last pushed sha** | `a39dc9a` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1547,7 +1547,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [x] (2026-07-27 ✅: 4079acb — evaluate_exit in engine; pullfrog_success setter; exit_firing tests green; design-note Engine-live ×8) |
 | W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [x] (2026-07-27 ✅: 900cea9 — dispatch_bridge.py; l1_pr investigate/fix invoke adapter; test_pr_loop 10/10 green) |
 | W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [x] (2026-07-27 ✅: 15d2028 — cw_portability + corpus_replay green; empty default hotspots) |
-| W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [x] (2026-07-27 ✅: ddad66d — obs+brief_packer 14/14; make bench; CI continue-on-error; PERF-01; execute_node/batch spans) |
+| W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [x] (2026-07-27 ✅: a39dc9a — obs+brief_packer 14/14; make bench; CI continue-on-error; PERF-01; execute_node/batch spans) |
 | W11 | `cursor_local` auto | `tomllib` for hide-keys; rebaseline 7 dependabot PRs | DX-03, Dependabot | [ ] |
 | W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [ ] |
 | W14 | `cursor_local` auto | **Brownfield `tripll init`**: specs, PRDs, plans, `tripll.toml` and a **repo evaluation**; cut the sevn import | ONB-02, ONB-03, ONB-05 | [ ] |
@@ -2383,7 +2383,7 @@ make test -- -k corpus_replay                                      # legacy equi
 - [x] **W10.5** Add a first-class span around `_execute_node` / batch dispatch so Logfire traces
       correlate with ledger attempts (audit §11: correlation is thin). (2026-07-27 ✅ — `tripll.execute_node` + `tripll.batch_dispatch` spans)
 - [x] **W10.6** Turn W1.5 and W1.14 green. (2026-07-27 ✅ — xfail markers removed from test_obs.py, test_brief_packer.py)
-- [x] **W10.7** **Commit + push** (`test(obs): guard observability and productize bench`). (2026-07-27 ✅: ddad66d)
+- [x] **W10.7** **Commit + push** (`test(obs): guard observability and productize bench`). (2026-07-27 ✅: a39dc9a)
 
 **Acceptance:**
 
