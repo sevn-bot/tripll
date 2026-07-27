@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- W13 config spine: `tripll.toml` + user config (`~/.config/tripll/config.toml`), `tripll setup`,
+  `tripll doctor`, four-layer config precedence, packaged v3 wave-plan template, and wheel
+  packaging guard for templates/rules/prompts.
 - P0 gate restoration: CI job timeout (20m), Python 3.12 pin in bootstrap, `sync` prereqs on
   `make lint`/`make typecheck`, plan self-hosting (`[pipeline] creates` validate-plan exemption),
   `human_gates` config (`prompt` | `auto_accept` | `fail`) with tier-4 CI canary parking, and

@@ -368,6 +368,54 @@ def _root(
 
 
 # ---------------------------------------------------------------------------
+# setup / doctor (W13)
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def setup(
+    non_interactive: Annotated[
+        bool,
+        typer.Option(
+            "--non-interactive",
+            help="Write config without prompts (CI / automation).",
+        ),
+    ] = False,
+    provider: Annotated[
+        str | None,
+        typer.Option(
+            "--provider",
+            "-p",
+            help="Default provider for --non-interactive (e.g. cursor_local).",
+        ),
+    ] = None,
+) -> None:
+    """One-time machine setup — providers, models, tracing (writes user config)."""
+    from tripll.onboard.setup import run_setup
+
+    run_setup(non_interactive=non_interactive, provider=provider)
+
+
+@app.command()
+def doctor(
+    next_plan: Annotated[
+        Path | None,
+        typer.Option(
+            "--next",
+            help="Plan file path — include next-command hint from checkbox state.",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = None,
+) -> None:
+    """Preflight: Python, extras, providers, config layers, v3 template."""
+    from tripll.onboard.doctor import run_doctor
+
+    raise typer.Exit(run_doctor(plan_path=next_plan))
+
+
+# ---------------------------------------------------------------------------
 # init
 # ---------------------------------------------------------------------------
 
@@ -387,6 +435,7 @@ def init(
     typer.echo(f"  processing/ → {rr.processing_dir}")
     typer.echo(f"  processed/  → {rr.processed_dir}")
     typer.echo(f"  failed/     → {rr.failed_dir}")
+    typer.echo("Next: tripll setup (once per machine), then tripll doctor")
 
 
 # ---------------------------------------------------------------------------
