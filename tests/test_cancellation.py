@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import os
-import signal
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from tripll.adapters.base import DispatchResult
+from tripll.adapters.base import DispatchResult, run_streaming
 from tripll.engine import Engine
 from tripll.graph import Batch, Lane, RunGraph, WaveNode
 from tripll.ledger import list_waves, open_ledger
@@ -40,8 +37,7 @@ class _SlowAdapter(FakeAdapter):
     """Hold dispatch open until cancelled."""
 
     async def dispatch(self, brief, **kwargs):  # type: ignore[no-untyped-def]
-        with contextlib.suppress(asyncio.CancelledError):
-            await asyncio.sleep(60)
+        await asyncio.sleep(60)
         return DispatchResult(
             outcome="failed", result_text="cancelled", returncode=1, argv=["slow"]
         )
@@ -88,7 +84,6 @@ def _seed(engine: Engine, graph: RunGraph) -> str:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W5: sibling exception isolation", strict=False)
 def test_one_node_failure_does_not_cancel_siblings(tmp_path: Path) -> None:
     """BUG-01: one raising node must not cancel its siblings."""
     adapter = _FailOneAdapter("p:W1")
@@ -103,7 +98,9 @@ def test_one_node_failure_does_not_cancel_siblings(tmp_path: Path) -> None:
     graph = _two_node_graph("run-sibling")
     run_id = _seed(engine, graph)
     result = asyncio.run(engine._drive(run_id, graph))
-    ledger_path = engine.runs_root.processed_dir / run_id / "ledger.db"
+    run_dir = engine.runs_root.find_run_dir(run_id)
+    assert run_dir is not None
+    ledger_path = run_dir / "ledger.db"
     with open_ledger(ledger_path) as lc:
         waves = {w.node_id: w for w in list_waves(lc, run_id)}
     assert waves["q:W1"].state in ("done", "passed", "verified")
@@ -111,7 +108,6 @@ def test_one_node_failure_does_not_cancel_siblings(tmp_path: Path) -> None:
 
 
 @pytest.mark.tier1
-@pytest.mark.xfail(reason="green after W5: no stranded running after cancel", strict=False)
 def test_cancelled_run_has_no_stranded_running_waves(tmp_path: Path) -> None:
     """BUG-03: cancellation leaves waves terminal or recoverable, never ``running``."""
     adapter = _SlowAdapter()
@@ -134,18 +130,17 @@ def test_cancelled_run_has_no_stranded_running_waves(tmp_path: Path) -> None:
             await task
 
     asyncio.run(_drive_and_cancel())
-    ledger_path = engine.runs_root.processing_dir / run_id / "ledger.db"
-    if not ledger_path.is_file():
-        ledger_path = engine.runs_root.processed_dir / run_id / "ledger.db"
+    run_dir = engine.runs_root.find_run_dir(run_id)
+    assert run_dir is not None
+    ledger_path = run_dir / "ledger.db"
     with open_ledger(ledger_path) as lc:
         running = [w for w in list_waves(lc, run_id) if w.state == "running"]
     assert running == []
 
 
 @pytest.mark.tier2
-@pytest.mark.xfail(reason="green after W5: no orphan child process on cancel", strict=False)
 def test_cancel_dispatch_leaves_no_surviving_child_process(tmp_path: Path) -> None:
-    """BUG-02: tier-2 real-pid assertion — no mock."""
+    """BUG-02: cancelling run_streaming mid-flight kills the child process."""
     helper = tmp_path / "slow_child.py"
     helper.write_text(
         "import time\n"
@@ -153,14 +148,22 @@ def test_cancel_dispatch_leaves_no_surviving_child_process(tmp_path: Path) -> No
         "time.sleep(120)\n",
         encoding="utf-8",
     )
-    proc = subprocess.Popen([sys.executable, str(helper)], cwd=tmp_path)
-    try:
-        proc.send_signal(signal.SIGTERM)
-        proc.wait(timeout=5)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait(timeout=5)
+
+    async def _run_and_cancel() -> None:
+        task = asyncio.create_task(
+            run_streaming(
+                [sys.executable, str(helper)],
+                cwd=tmp_path,
+                log_path=tmp_path / "dispatch.log",
+                timeout_s=300,
+            )
+        )
+        await asyncio.sleep(0.1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(_run_and_cancel())
     marker = tmp_path / "pid.marker"
     if marker.is_file():
         pid = int(marker.read_text())
@@ -168,7 +171,6 @@ def test_cancel_dispatch_leaves_no_surviving_child_process(tmp_path: Path) -> No
 
 
 @pytest.mark.tier2
-@pytest.mark.xfail(reason="green after W5: resume after kill mid-batch", strict=False)
 def test_kill_mid_batch_restart_resumes(tmp_path: Path) -> None:
     """BUG-03 tier-2: kill process mid-batch, restart, confirm resume."""
     pytest.skip("requires full engine subprocess harness — green after W5")

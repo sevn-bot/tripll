@@ -1740,10 +1740,19 @@ class Engine:
         try:
             with trace_span("tripll.run", run_id=run_id, **run_attrs) as run_bag:
                 with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
-                    # Crash recovery: re-queue waves interrupted mid-dispatch.
+                    # W5.4: startup reconciliation — stale in-flight waves from a dead engine.
                     for w in list_waves(lc, run_id):
                         if w.state in ("running", "dispatched", "verifying"):
                             transition_wave(lc, run_id, w.node_id, "queued")
+                            append_event(
+                                lc,
+                                run_id=run_id,
+                                node_id=w.node_id,
+                                phase="recovery",
+                                last_action=(
+                                    "startup reconciliation: no live dispatch for stale wave"
+                                ),
+                            )
 
                     transition_run(lc, run_id, "active")
 
@@ -2328,7 +2337,71 @@ class Engine:
         async def _guarded(node: WaveNode) -> NodeResult:
             return await self._execute_node(lc, run_id, graph, node)
 
-        return list(await asyncio.gather(*(_guarded(n) for n in nodes)))
+        raw = await asyncio.gather(*(_guarded(n) for n in nodes), return_exceptions=True)
+        results: list[NodeResult] = []
+        for node, item in zip(nodes, raw, strict=True):
+            if isinstance(item, BaseException):
+                logger.error(
+                    "engine: {} node {} raised unexpectedly: {}",
+                    run_id,
+                    node.node_id,
+                    item,
+                )
+                results.append(
+                    NodeResult(
+                        node.node_id,
+                        "blocked",
+                        0,
+                        f"dispatch error: {item}",
+                    )
+                )
+            else:
+                results.append(item)
+        return results
+
+    async def _shielded_finalize_wave_ledger(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        node_id: str,
+    ) -> None:
+        """Re-queue a wave left in-flight after cancellation or crash (BUG-03).
+
+        Uses ``asyncio.shield`` so ledger finalization completes even when the
+        enclosing ``_execute_node`` coroutine is cancelled.
+
+        Args:
+            lc (LedgerConnection): Open ledger connection.
+            run_id (str): Run identifier.
+            node_id (str): Wave node identifier.
+        """
+
+        async def _do() -> None:
+            row = get_wave(lc, run_id, node_id)
+            if row.state not in ("running", "dispatched", "verifying"):
+                return
+            try:
+                await asyncio.wait_for(self._ledger_lock.acquire(), timeout=5.0)
+            except TimeoutError:
+                logger.warning(
+                    "engine: {} {} ledger lock timeout in cancellation finalizer",
+                    run_id,
+                    node_id,
+                )
+                return
+            try:
+                transition_wave(lc, run_id, node_id, "queued")
+                append_event(
+                    lc,
+                    run_id=run_id,
+                    node_id=node_id,
+                    phase="recovery",
+                    last_action="cancellation: wave re-queued for resume",
+                )
+            finally:
+                self._ledger_lock.release()
+
+        await asyncio.shield(_do())
 
     async def _execute_node(
         self, lc: LedgerConnection, run_id: str, graph: RunGraph, node: WaveNode
@@ -2549,20 +2622,54 @@ class Engine:
                     reasoning_effort=node.reasoning_effort,
                     attempt_n=attempt,
                 ) as wave_bag:
-                    result = await adapter.dispatch(
-                        brief,
-                        worktree_path=worktree.path,
-                        log_path=log_path,
-                        timeout_s=node.wall_clock_limit_s,
-                        log_header={
-                            "run_id": run_id,
-                            "node_id": node.node_id,
-                            "attempt": attempt,
-                            "attempt_id": attempt_id,
-                            "backend": adapter.name,
-                        },
-                        on_event=_on_stream_event,
-                    )
+                    try:
+                        result = await adapter.dispatch(
+                            brief,
+                            worktree_path=worktree.path,
+                            log_path=log_path,
+                            timeout_s=node.wall_clock_limit_s,
+                            log_header={
+                                "run_id": run_id,
+                                "node_id": node.node_id,
+                                "attempt": attempt,
+                                "attempt_id": attempt_id,
+                                "backend": adapter.name,
+                            },
+                            on_event=_on_stream_event,
+                        )
+                    except asyncio.CancelledError:
+                        wave_bag["state"] = "cancelled"
+                        raise
+                    except Exception as exc:
+                        wave_bag["state"] = "failed"
+                        wave_bag["failure_class"] = "unexpected"
+                        evidence = f"dispatch raised: {exc}"
+                        from tripll.adapters.base import DispatchResult
+
+                        err_result = DispatchResult(
+                            outcome="failed",
+                            result_text=evidence,
+                            returncode=1,
+                            argv=adapter.build_argv(brief, worktree.path),
+                        )
+                        async with self._ledger_lock:
+                            self._end_attempt_with_usage(
+                                lc,
+                                attempt_id,
+                                outcome="failed",
+                                evidence=evidence,
+                                result=err_result,
+                            )
+                            append_event(
+                                lc,
+                                run_id=run_id,
+                                node_id=node.node_id,
+                                phase="failed",
+                                last_action=evidence[:120],
+                                attempt_n=attempt,
+                            )
+                            transition_wave(lc, run_id, node.node_id, "blocked")
+                        return NodeResult(node.node_id, "blocked", attempts_used, evidence)
                     wave_bag["fallback_used"] = fallback_used
                 self._last_dispatch_result_text = result.result_text or ""
                 from tripll.adapters.failure_class import classify_dispatch
@@ -2824,10 +2931,15 @@ class Engine:
             if pools is not None:
                 pools.release(provider)
             self._recover_worktree(worktree, run_id, node.node_id)
-            row = get_wave(lc, run_id, node.node_id)
-            if row.state in ("running", "dispatched", "verifying"):
-                async with self._ledger_lock:
-                    transition_wave(lc, run_id, node.node_id, "queued")
+            try:
+                await self._shielded_finalize_wave_ledger(lc, run_id, node.node_id)
+            except Exception as exc:
+                logger.warning(
+                    "engine: {} {} ledger finalizer failed: {}",
+                    run_id,
+                    node.node_id,
+                    exc,
+                )
             if cleanup_worktree_on_exit and not self._orchestrator_single_branch:
                 self.wtm.cleanup(worktree)
 
