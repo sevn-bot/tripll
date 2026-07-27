@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | HTML auth + CSRF enforced when token set; 6 xfailed remain (4 W3 auth-success + 2 W4) |
 | **Next action** | W4.1 — sanitize `run_id` in `find_run_dir` |
 | **Blocked on** | — |
-| **Last pushed sha** | `92bf09d` |
+| **Last pushed sha** | `e69fa47` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1540,7 +1540,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W0 | `cursor_local` auto | Baseline sha, anchor re-grep, apply the base-branch rule, ADRs 006–011, pin the contract | — | [x] (2026-07-26 ✅: c9bb7c1 — ADRs 006–011 + contract sha256; anchors re-grepped; issues #16–#18) |
 | W1 | `cursor_local` auto | RED suite (xfail-guarded, tier-tagged) + `docs/test-plans/l1-remediation.md` — `role: test-author` | all | [x] (2026-07-26 ✅: b7b6233 — 33 xfailed, 0 failed; tier markers) |
 | W2 | `cursor_local` auto | Re-home AgentDef source to `skw/agents/`; harvest local Cursor briefs; green the roster suite | TEST-03, ARCH-agentdef | [x] (2026-07-27 ✅: be971bc — hash_agent_def skw-only; roster 71/71 green; grep src/tests/docs 0) |
-| W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [x] (2026-07-27 ✅: 92bf09d — require_auth×20 router.py; _csrf.py; test_ui_auth 18/18 W3 green) |
+| W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [x] (2026-07-27 ✅: e69fa47 — require_auth×20 router.py; _csrf.py; test_ui_auth 18/18 W3 green) |
 | W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [ ] |
 | W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [ ] |
 | W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [ ] |
@@ -2102,7 +2102,7 @@ Plus: `hash_agent_def` returns a non-`None` digest for all 14 section-11 slugs (
       (R4). Document the bind-address risk in the runbook: token unset + non-localhost bind is the
       one genuinely dangerous combination. (2026-07-27 ✅ — operator-runbook § control plane auth)
 - [x] **W3.7** Turn `tests/test_ui_auth.py` green (W1.1). (2026-07-27 ✅ — 18 passed; 4 xfail auth-success + 2 W4; CSRF/auth contract satisfied)
-- [x] **W3.8** **Commit + push** (`fix(api): enforce auth and csrf on the html control plane`). (2026-07-27 ✅: 92bf09d)
+- [x] **W3.8** **Commit + push** (`fix(api): enforce auth and csrf on the html control plane`). (2026-07-27 ✅: e69fa47)
 
 **Acceptance:**
 
