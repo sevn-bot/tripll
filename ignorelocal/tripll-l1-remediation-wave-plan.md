@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Config spine shipped: `tripll setup`, `tripll doctor`, v3 template in wheel |
 | **Next action** | W14.2 — brownfield `tripll init` with specs and repo evaluation (ONB-02) |
 | **Blocked on** | — |
-| **Last pushed sha** | `e1fb05d` |
+| **Last pushed sha** | `8e2a14c` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
