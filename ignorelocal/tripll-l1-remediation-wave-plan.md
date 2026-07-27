@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | derive cost from attempts; per-run breaker keyed by run_id; record_exit_on_run bumps updated_at; integrate resume without checkout -B; status shows per-provider cost rollup |
 | **Next action** | W7.1 — feed pullfrog_merge_signal into evaluate_exit context (BUG-06) |
 | **Blocked on** | — |
-| **Last pushed sha** | `5a39aa0` |
+| **Last pushed sha** | `43a0510` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1543,7 +1543,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W3 | `cursor_local` auto | Auth parity: mutating POSTs, page shells, CSRF | SEC-01, SEC-05, SEC-06 | [x] (2026-07-27 ✅: e69fa47 — require_auth×20 router.py; _csrf.py; test_ui_auth 18/18 W3 green) |
 | W4 | `cursor_local` auto | Token transport, traversal guard, redaction list, obs capture | SEC-02, SEC-03, SEC-04, SEC-07, OBS-01 | [x] (2026-07-27 ✅: 1046f2d — find_run_dir guard; ?token= EventSource-only; tojson base.html; 16 hide keys; env-shaped redaction; W1.2–W1.5 green) |
 | W5 | `cursor_local` auto | Cancellation safety: gather, subprocess kill, shielded ledger finalizer | BUG-01, BUG-02, BUG-03 | [x] (2026-07-27 ✅: 5ff37f8 — return_exceptions gather; proc.kill finally; shield+lock-timeout finalizer; startup reconciliation events; cancellation 3 pass 1 skip) |
-| W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [x] (2026-07-27 ✅: 5a39aa0 — cost derived from attempts; per-run breaker; integrate resume; status per-provider rollup) |
+| W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [x] (2026-07-27 ✅: 43a0510 — cost derived from attempts; per-run breaker; integrate resume; status per-provider rollup) |
 | W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [ ] |
 | W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [ ] |
 | W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [ ] |
@@ -2214,27 +2214,27 @@ pgrep -f 'claude|cursor-agent' | wc -l                        # 0 orphans
       debit `runs.cost_usd` in `reset_wave_attempts` (`:778–785`) or derive the run total from
       `attempts` on read instead of incrementing it in `end_attempt` (`:823–826`). **Deriving is
       preferred** — it makes double-count structurally impossible rather than patched.
-      (2026-07-27 ✅: 5a39aa0 — `_sum_attempt_costs` + `_sync_run_cost_from_attempts`; no increment in `end_attempt`)
+      (2026-07-27 ✅: 43a0510 — `_sum_attempt_costs` + `_sync_run_cost_from_attempts`; no increment in `end_attempt`)
 - [x] **W6.2** `exits.py:47` — scope `_BREAKER_STATE` per run rather than per process (BUG-07). The
       current global contaminates sequential runs inside `serve` and inside the test process.
-      (2026-07-27 ✅: 5a39aa0 — `_BREAKER_STATE` keyed by `(run_id, agent, problem_type)`)
+      (2026-07-27 ✅: 43a0510 — `_BREAKER_STATE` keyed by `(run_id, agent, problem_type)`)
 - [x] **W6.3** `exits.py:91` — fix the no-op `SET updated_at = updated_at` so exit records actually
       timestamp (DEBT-02).
-      (2026-07-27 ✅: 5a39aa0 — `UPDATE runs SET updated_at = ?`)
+      (2026-07-27 ✅: 43a0510 — `UPDATE runs SET updated_at = ?`)
 - [x] **W6.4** `integrate.py:228` — stop using `git checkout -B` unconditionally (BUG-10). Create
       the branch when absent; when present, fast-forward or fail loudly. Re-running integrate must
       never destroy prior lane merges.
-      (2026-07-27 ✅: 5a39aa0 — `checkout -b` when absent; checkout existing + dirty guard)
+      (2026-07-27 ✅: 43a0510 — `checkout -b` when absent; checkout existing + dirty guard)
 - [x] **W6.5** *(COST-01)* Attribute cost **per provider**. `attempts` already carries `backend`
       and cost, so this is aggregation, not schema: expose a per-provider rollup on the run, surface
       it in `status`, and add a `budget_usd` reading that states which provider consumed what.
       A single mixed-provider total cannot answer "did Cursor or Claude Code burn the budget."
       Derive it from `attempts` (W6.1's preferred shape) so it cannot double-count either.
-      (2026-07-27 ✅: 5a39aa0 — `get_run_cost_by_provider`; `tripll status` rollup + budget line)
+      (2026-07-27 ✅: 43a0510 — `get_run_cost_by_provider`; `tripll status` rollup + budget line)
 - [x] **W6.6** Turn W1.7, W1.8, W1.9 green.
-      (2026-07-27 ✅: 5a39aa0 — xfails removed; cost_accounting, exits, integrate_resume green)
+      (2026-07-27 ✅: 43a0510 — xfails removed; cost_accounting, exits, integrate_resume green)
 - [x] **W6.7** **Commit + push** (`fix(ledger): correct cost accounting, breaker scope, integrate resume`).
-      (2026-07-27 ✅: 5a39aa0)
+      (2026-07-27 ✅: 43a0510)
 
 **Acceptance:**
 
