@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Config spine shipped: `tripll setup`, `tripll doctor`, v3 template in wheel |
 | **Next action** | W14.2 — brownfield `tripll init` with specs and repo evaluation (ONB-02) |
 | **Blocked on** | — |
-| **Last pushed sha** | `670e411` |
+| **Last pushed sha** | `e1fb05d` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1549,7 +1549,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [x] (2026-07-27 ✅: 15d2028 — cw_portability + corpus_replay green; empty default hotspots) |
 | W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [x] (2026-07-27 ✅: a39dc9a — obs+brief_packer 14/14; make bench; CI continue-on-error; PERF-01; execute_node/batch spans) |
 | W11 | `cursor_local` auto | `tomllib` for hide-keys; rebaseline 7 dependabot PRs | DX-03, Dependabot | [x] (2026-07-27 ✅: c9216d9 — tomllib hide-keys; ruff/mypy/pytest/typer/uvicorn rebaseline; checkout@v7; action-gh-release@v3; 7 dependabot PRs closed) |
-| W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [x] (2026-07-27 ✅: 670e411 — config.py four-layer precedence; setup/doctor CLI; v3 template packaged; force-include removed; wheel guard test) |
+| W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [x] (2026-07-27 ✅: e1fb05d — config.py four-layer precedence; setup/doctor CLI; v3 template packaged; force-include removed; wheel guard test) |
 | W14 | `cursor_local` auto | **Brownfield `tripll init`**: specs, PRDs, plans, `tripll.toml` and a **repo evaluation**; cut the sevn import | ONB-02, ONB-03, ONB-05 | [ ] |
 | W15 | `cursor_local` auto | **Greenfield `tripll new`**: scaffold a project with specs and config, sharing brownfield's emitters | ONB-04 | [ ] |
 | W12 | `cursor_local` auto | Roster honesty banner, a11y labels, PERF-02 note, **provider/model/effort in the dashboard**, **onboarding in the README + about-site**, docs | ARCH-06, FRONT-01, PERF-02, DASH-01 | [ ] |
@@ -2442,46 +2442,46 @@ rather than re-specified on every command line.
       highest first — **env (`TRIPLL_*`) → `./tripll.toml` → `~/.config/tripll/config.toml` →
       built-in defaults**. Use stdlib `tomllib`; W11 just removed the last hand-rolled TOML parser,
       do not add another. Every existing `TRIPLL_*` var keeps working unchanged — this layer sits
-      *under* env, it does not replace it. (2026-07-27 ✅: 670e411)
+      *under* env, it does not replace it. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.2** Adopt SKW's **merge-table precedence rules** from `agent_config.py:257–274`
       (`[agent]` → `[agent.models.<id>]` → per-wave → per-stage → env). Take the resolution order,
-      which is well designed; leave the argv builder, which `adapters/` already owns. (2026-07-27 ✅: 670e411)
+      which is well designed; leave the argv builder, which `adapters/` already owns. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.3** *(ONB-01)* Add **`tripll setup`**: interactive by default, `--non-interactive` for CI.
       Detects installed backends via each adapter's `capabilities()`, asks which to enable, records
       `default_provider`, per-provider `max_parallel` / `default_model`, and the `[tracing]` block P3
-      defined. Writes `~/.config/tripll/config.toml`. Re-running edits rather than replaces. (2026-07-27 ✅: 670e411)
+      defined. Writes `~/.config/tripll/config.toml`. Re-running edits rather than replaces. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.4** *(R24)* **Never store a credential.** `setup` verifies auth by calling
       `capabilities()` and, when a backend is unavailable, prints the exact command to fix it
       (`claude login`, `cursor-agent login`). Keys stay in the backend toolchains. This is a
-      `forbidden` clause because it is the most likely thing to be "improved" later. (2026-07-27 ✅: 670e411)
+      `forbidden` clause because it is the most likely thing to be "improved" later. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.5** *(ONB-01)* Add **`tripll doctor`**: preflight that reports Python version, installed
       extras (`graph`, `kg`, `api`, `obs`, `scaffold`), each provider's availability and auth state,
       resolved repo root, resolved runs root, config file locations with which layer won, and whether
       the v3 template resolves. **Exit non-zero when no provider is available** — a doctor that always
-      exits 0 is decoration. (2026-07-27 ✅: 670e411)
+      exits 0 is decoration. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.6** *(ONB-06)* Move the **v3** wave-plan template into the package as
       `src/tripll/templates/wave-plan-template.md` and resolve it via `importlib.resources`. Today the
       only template in the wheel is `skw/wave-plan-template.md`, which is `waveorch_format = 2` —
       a pip-installed tripll literally cannot emit a current-format plan. Keep `docs/wave-plan-template.md`
-      as a symlink or a generated copy so there is **one** source of truth, and assert they match. (2026-07-27 ✅: 670e411)
+      as a symlink or a generated copy so there is **one** source of truth, and assert they match. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.7** Prune the `force-include` block in `pyproject.toml`. **Proven dead, not assumed:**
       two wheels were built, one with the block and one without, and the file lists are byte-identical
       — 266 entries each, nothing lost, nothing gained. Hatchling already ships every non-`.py` file
       under `src/tripll/`. The block is worse than redundant: it implies data files must be registered
       to ship, so the next person to add one either registers it needlessly or assumes an unlisted
       file will be dropped. Delete it **in the same commit** as the wheel-contents test below, so
-      there is never an unguarded window. (2026-07-27 ✅: 670e411)
+      there is never an unguarded window. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.7a** Add the guard the `force-include` block was pretending to be: a test that builds (or
       inspects) the wheel and asserts the v3 template, `spec-rules.toml`, `prd-rules.toml` and the
       `prompts/` tree are present. This is the assertion that actually protects packaging; the
-      `force-include` list never did. (2026-07-27 ✅: 670e411)
+      `force-include` list never did. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.8** Adapt SKW's **`nextstep.py`** into `src/tripll/onboard/nextstep.py` — "what is the next
       command to run", computed from wave checkbox state via `markdown_sections.py`. tripll has no
       equivalent and it is exactly what a new operator needs after `init`. Surface it as
-      `tripll doctor --next` and in the `init` epilogue. (2026-07-27 ✅: 670e411)
+      `tripll doctor --next` and in the `init` epilogue. (2026-07-27 ✅: e1fb05d)
 - [x] **W13.9** Reuse SKW's `runtime.py` (`is_dryrun`, `is_pytest`, `is_auto_approve`) rather than
-      re-deriving those checks; they are trivial and already correct. (2026-07-27 ✅: 670e411)
-- [x] **W13.10** **Commit + push** (`feat(config): tripll.toml, one-time setup, and doctor preflight`). (2026-07-27 ✅: 670e411)
+      re-deriving those checks; they are trivial and already correct. (2026-07-27 ✅: e1fb05d)
+- [x] **W13.10** **Commit + push** (`feat(config): tripll.toml, one-time setup, and doctor preflight`). (2026-07-27 ✅: e1fb05d)
 
 **Acceptance:**
 
