@@ -25,6 +25,13 @@ INFRA_STREAK_THRESHOLD = 3
 
 
 @dataclass(frozen=True, slots=True)
+class _PoolHold:
+    """Tracks the exact semaphores acquired for one global→provider pair."""
+
+    provider_sem: asyncio.Semaphore
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderConfig:
     """Per-provider concurrency and cooldown settings.
 
@@ -141,7 +148,7 @@ class ProviderPoolRegistry:
         self._cooldown_until: dict[str, float] = {}
         self._consecutive_infra: dict[str, int] = {}
         self._infra_threshold = max(1, infra_threshold)
-        self._acquire_order: list[tuple[str, str]] = []
+        self._holds: list[_PoolHold] = []
 
     @property
     def configs(self) -> dict[str, ProviderConfig]:
@@ -163,11 +170,11 @@ class ProviderPoolRegistry:
         return max(0.0, until - self._clock())
 
     def _resize_provider(self, provider: str, new_limit: int) -> None:
+        """Update the throttle limit without replacing in-flight semaphore objects."""
         limit = max(1, min(new_limit, self._base_limits.get(provider, new_limit)))
         if limit == self._effective_limits.get(provider):
             return
         self._effective_limits[provider] = limit
-        self._provider_sems[provider] = asyncio.Semaphore(limit)
 
     async def acquire(self, provider: str) -> None:
         """Acquire global then provider semaphores (fixed order)."""
@@ -185,16 +192,16 @@ class ProviderPoolRegistry:
         except BaseException:
             self._global.release()
             raise
-        self._acquire_order.append(("global", provider))
+        self._holds.append(_PoolHold(provider_sem=sem))
 
     def release(self, provider: str) -> None:
         """Release provider then global semaphores (reverse order)."""
-        sem = self._provider_sems.get(provider)
-        if sem is not None:
-            sem.release()
+        del provider  # kept for call-site compatibility; release uses stored hold
+        if not self._holds:
+            return
+        hold = self._holds.pop()
+        hold.provider_sem.release()
         self._global.release()
-        if self._acquire_order:
-            self._acquire_order.pop()
 
     def record_infra(self, provider: str) -> None:
         """Halve the pool and start cooldown after repeated infra failures."""

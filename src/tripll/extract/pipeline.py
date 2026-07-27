@@ -98,12 +98,18 @@ def extract_repo(
         batch = extract_specs(spec_path, repo=repo, sha=resolved_sha)
         store.upsert_nodes(batch["nodes"])
         store.upsert_edges(batch["edges"])
+        all_nodes.extend(batch["nodes"])
         counts["nodes"] += len(batch["nodes"])
         counts["edges"] += len(batch["edges"])
 
     if run_semantic:
         candidates = _semantic_candidates(all_nodes)
-        sem = extract_semantic_batch(candidates, repo=repo, adapter=adapter)
+        sem = extract_semantic_batch(
+            candidates,
+            repo=repo,
+            worktree_path=repo_root,
+            adapter=adapter,
+        )
         store.upsert_edges(sem.edges)
         counts["edges"] += len(sem.edges)
         counts["semantic_turns"] = sem.turn_count

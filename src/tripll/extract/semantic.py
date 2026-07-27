@@ -13,6 +13,8 @@ from tripll.extract._common import make_edge, make_node, provenance, utc_now
 from tripll.ontology.types import validate_predicate_name
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from tripll.adapters.base import DispatchResult
 
 _EXTRACTOR = "tripll.extract.semantic"
@@ -103,6 +105,7 @@ def extract_semantic_batch(
     candidates: list[SemanticCandidate],
     *,
     repo: str,
+    worktree_path: Path,
     adapter: Any | None = None,
     batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> SemanticBatchResult:
@@ -116,9 +119,15 @@ def extract_semantic_batch(
     start = time.monotonic()
     batches = [candidates[i : i + batch_size] for i in range(0, len(candidates), batch_size)]
 
-    for batch in batches:
+    for batch_idx, batch in enumerate(batches):
         prompt = _build_prompt(batch)
-        response_text = _run_adapter(prompt, adapter=adapter)
+        response_text = _run_adapter(
+            prompt,
+            adapter=adapter,
+            worktree_path=worktree_path,
+            repo=repo,
+            batch_idx=batch_idx,
+        )
         result.turn_count += 1
         result.edges.extend(_parse_response(response_text, batch))
 
@@ -126,24 +135,80 @@ def extract_semantic_batch(
     return result
 
 
-def _run_adapter(prompt: str, *, adapter: Any | None) -> str:
+def _build_semantic_brief(
+    prompt: str,
+    *,
+    worktree_path: Path,
+    repo: str,
+    batch_idx: int,
+) -> dict[str, object]:
+    """Build a dispatch brief for one semantic extraction batch."""
+    return {
+        "node_id": f"graph:semantic:{repo}:{batch_idx}",
+        "wave_id": "SEMANTIC",
+        "plan_file": "semantic-extract",
+        "plan_worktree_path": "",
+        "branch": "graph-extract",
+        "worktree_path": str(worktree_path),
+        "owned_paths": [],
+        "forbidden_paths": [],
+        "verify_targets": [],
+        "prerequisite_waves": [],
+        "locked_decisions": [],
+        "manual_smoke_deferred": [],
+        "agent_directives": [
+            "Return only the JSON array described in the prompt. Do not edit files.",
+            prompt,
+        ],
+        "workspace_scope": [],
+        "_prompt_override": prompt,
+    }
+
+
+def _run_adapter(
+    prompt: str,
+    *,
+    adapter: Any | None,
+    worktree_path: Path,
+    repo: str,
+    batch_idx: int,
+) -> str:
     """Dispatch a single batched turn via CLI adapter or offline stub."""
+    from pathlib import Path
+
     stub = os.environ.get("TRIPLL_SEMANTIC_STUB")
     if stub:
         return stub
     if adapter is None:
         return "[]"
     import asyncio
-    from pathlib import Path
     from typing import cast
 
-    log_path = Path(os.environ.get("TRIPLL_SEMANTIC_LOG", "/tmp/tripll-semantic.log"))
+    log_path = Path(
+        os.environ.get(
+            "TRIPLL_SEMANTIC_LOG",
+            str(worktree_path / ".tripll" / "semantic-extract.log"),
+        )
+    )
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    brief = _build_semantic_brief(
+        prompt,
+        worktree_path=worktree_path,
+        repo=repo,
+        batch_idx=batch_idx,
+    )
+    timeout_s = int(os.environ.get("TRIPLL_SEMANTIC_TIMEOUT", "300"))
 
     async def _dispatch() -> DispatchResult:
         raw = await adapter.dispatch(
-            prompt=prompt,
+            brief,
+            worktree_path=worktree_path,
             log_path=log_path,
-            timeout_seconds=int(os.environ.get("TRIPLL_SEMANTIC_TIMEOUT", "300")),
+            timeout_s=timeout_s,
+            log_header={
+                "node_id": str(brief["node_id"]),
+                "backend": getattr(adapter, "name", "unknown"),
+            },
         )
         return cast("DispatchResult", raw)
 
@@ -166,14 +231,17 @@ def record_candidate_relation(
     count: int = 1,
 ) -> None:
     """Accumulate an unmodelled relation in the candidate_relations side table."""
-    if hasattr(store, "record_candidate_relation"):
-        store.record_candidate_relation(
-            predicate=predicate,
-            src_kind=src_kind,
-            dst_kind=dst_kind,
-            evidence=evidence,
-            count=count,
-        )
+    record = getattr(store, "record_candidate_relation", None)
+    if record is None:
+        msg = f"{type(store).__name__} does not support record_candidate_relation"
+        raise TypeError(msg)
+    record(
+        predicate=predicate,
+        src_kind=src_kind,
+        dst_kind=dst_kind,
+        evidence=evidence,
+        count=count,
+    )
 
 
 def make_verdict_node(

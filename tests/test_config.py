@@ -131,6 +131,7 @@ def test_doctor_fails_without_providers(monkeypatch: pytest.MonkeyPatch) -> None
     assert run_doctor() == 1
 
 
+@pytest.mark.tier2
 def test_wheel_contains_packaged_assets(tmp_path: Path) -> None:
     out_dir = tmp_path / "wheel"
     out_dir.mkdir()

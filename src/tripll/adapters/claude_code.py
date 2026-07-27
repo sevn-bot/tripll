@@ -207,7 +207,8 @@ class ClaudeCodeAdapter(AgentAdapter):
             >>> argv[0] == "claude" and "--verbose" in argv
             True
         """
-        prompt = render_dispatch_prompt(brief)
+        override = brief.get("_prompt_override")
+        prompt = str(override) if override else render_dispatch_prompt(brief)
         agent = str(brief.get("agent") or "").strip() or self.agent
         argv = [
             "claude",

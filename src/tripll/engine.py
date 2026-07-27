@@ -888,6 +888,7 @@ def _orchestrator_agent_enabled() -> bool:
 #: worktree, misconfigured brief, etc.).  A second no-progress dispatch would
 #: almost certainly fail for the same reason; we escalate with a clear message.
 _MAX_NO_PROGRESS_DISPATCHES = 1
+_MAX_CONSECUTIVE_INFRA = 5
 
 _DEFAULT_MAX_PARALLEL = 3
 
@@ -2650,11 +2651,9 @@ class Engine:
         # in owned paths.  Once this counter reaches _MAX_NO_PROGRESS_DISPATCHES we
         # escalate immediately rather than burning all max_attempts slots.
         no_progress_dispatches: int = 0
-        provider, _fallback_used = self._pick_provider(node)
-        adapter = self._resolve_adapter(node, graph, provider=provider)
+        consecutive_infra: int = 0
         pools = self._pools
-        if pools is not None:
-            await pools.acquire(provider)
+        pool_provider: str | None = None
         try:
             while attempts_used < self.max_attempts:
                 if self._cost_budget_exceeded(lc, run_id):
@@ -2699,6 +2698,11 @@ class Engine:
                 attempt = attempts_used + 1
                 provider, fallback_used = self._pick_provider(node)
                 adapter = self._resolve_adapter(node, graph, provider=provider)
+                if pools is not None and pool_provider != provider:
+                    if pool_provider is not None:
+                        pools.release(pool_provider)
+                    await pools.acquire(provider)
+                    pool_provider = provider
                 brief = self._brief_for(
                     run_id, graph, node, worktree, prior_failures, attempt=attempt
                 )
@@ -2903,6 +2907,34 @@ class Engine:
                 wave_bag["failure_class"] = failure_class
                 wave_bag["state"] = result.outcome
                 if failure_class == "infra":
+                    consecutive_infra += 1
+                    if consecutive_infra >= _MAX_CONSECUTIVE_INFRA:
+                        failure_class = "failure"
+                        evidence = (
+                            f"infra streak cap ({_MAX_CONSECUTIVE_INFRA}) on {provider}: "
+                            f"{result.result_text or 'infra failure'}"
+                        )
+                        async with self._ledger_lock:
+                            self._end_attempt_with_usage(
+                                lc,
+                                attempt_id,
+                                outcome="failed",
+                                evidence=evidence,
+                                result=result,
+                            )
+                            append_event(
+                                lc,
+                                run_id=run_id,
+                                node_id=node.node_id,
+                                phase="failed",
+                                last_action=evidence[:120],
+                                attempt_n=attempt,
+                            )
+                        prior_failures.append(f"attempt {attempt}: {evidence}")
+                        if attempts_used < self.max_attempts:
+                            async with self._ledger_lock:
+                                transition_wave(lc, run_id, node.node_id, "queued")
+                        continue
                     if pools is not None:
                         pools.record_infra(provider)
                     async with self._ledger_lock:
@@ -2928,6 +2960,7 @@ class Engine:
                     if cooldown > 0:
                         await asyncio.sleep(float(cooldown))
                     continue
+                consecutive_infra = 0
                 if pools is not None:
                     pools.record_success(provider)
                 if result.cost_usd:
@@ -3155,8 +3188,8 @@ class Engine:
                 )
             return NodeResult(node.node_id, "blocked", attempts_used, evidence)
         finally:
-            if pools is not None:
-                pools.release(provider)
+            if pools is not None and pool_provider is not None:
+                pools.release(pool_provider)
             self._recover_worktree(worktree, run_id, node.node_id)
             try:
                 await self._shielded_finalize_wave_ledger(lc, run_id, node.node_id)

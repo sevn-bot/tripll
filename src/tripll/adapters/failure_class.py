@@ -8,6 +8,7 @@ Exports:
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from tripll.adapters.base import DispatchResult  # noqa: TC001 — runtime parameter type
@@ -19,16 +20,17 @@ _INFRA_MARKERS = (
     "Workspace Disconnected",
 )
 
-_AUTH_MARKERS = (
-    "not authenticated",
-    "authentication required",
-    "auth required",
-    "login required",
-    "please log in",
-    "sign in",
-    "api key",
-    "unauthorized",
-    "401",
+# Word-boundary patterns avoid classifying agent output that merely mentions auth tokens.
+_AUTH_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bnot authenticated\b", re.IGNORECASE),
+    re.compile(r"\bauthentication required\b", re.IGNORECASE),
+    re.compile(r"\bauth required\b", re.IGNORECASE),
+    re.compile(r"\blogin required\b", re.IGNORECASE),
+    re.compile(r"\bplease log in\b", re.IGNORECASE),
+    re.compile(r"\bsign in\b", re.IGNORECASE),
+    re.compile(r"\bapi key\b", re.IGNORECASE),
+    re.compile(r"\bunauthorized\b", re.IGNORECASE),
+    re.compile(r"\b401\b"),
 )
 
 
@@ -60,8 +62,7 @@ def is_auth_failure(text: str) -> bool:
         >>> is_auth_failure("Error: not authenticated — run claude login")
         True
     """
-    lower = text.lower()
-    return any(marker in lower for marker in _AUTH_MARKERS)
+    return any(pattern.search(text) for pattern in _AUTH_PATTERNS)
 
 
 def classify_dispatch(result: DispatchResult, *, output: str = "") -> FailureClass:

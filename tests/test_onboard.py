@@ -160,6 +160,7 @@ def test_greenfield_idempotent_preserves_operator_edits(
     assert toml.read_text(encoding="utf-8").count("operator edit") == 1
 
 
+@pytest.mark.tier2
 def test_greenfield_validate_plan_and_check(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

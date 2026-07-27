@@ -1559,16 +1559,34 @@ def graph_extract(
         bool,
         typer.Option("--semantic/--no-semantic", help="Run batched semantic pass."),
     ] = False,
+    backend: Annotated[
+        str,
+        typer.Option("--backend", help="Agent backend for --semantic (default: claude_code)."),
+    ] = "claude_code",
     repo_root: Annotated[
         Path | None,
         typer.Option("--repo-root", help="Target checkout root."),
     ] = None,
 ) -> None:
     """Extract deterministic (and optional semantic) code KG into SQLite."""
+    from tripll.adapters import get_adapter
     from tripll.extract.pipeline import extract_repo
     from tripll.graphstore import SqliteGraphStore
 
     root = repo_root or resolve_repo_root()
+    adapter = None
+    if semantic:
+        name, opts = _backend_options(backend=backend)
+        adapter = get_adapter(name, options=opts)
+        caps = adapter.capabilities()
+        if not caps.available:
+            typer.echo(
+                f"Semantic extraction requires an available backend; {name} unavailable: "
+                f"{caps.detail}",
+                err=True,
+            )
+            raise typer.Exit(1)
+
     store = SqliteGraphStore(str(db))
     try:
         counts = extract_repo(
@@ -1577,6 +1595,7 @@ def graph_extract(
             repo=repo,
             sha=sha,
             run_semantic=semantic,
+            adapter=adapter,
         )
     finally:
         store.close()
