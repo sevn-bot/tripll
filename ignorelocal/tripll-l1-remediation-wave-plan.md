@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Greenfield `tripll new`: packaged skeleton + shared brownfield emitters |
 | **Next action** | W12.1 — dispatch-status banner on `docs/agents/*.md` (ARCH-06) |
 | **Blocked on** | — |
-| **Last pushed sha** | `52cf10e` |
+| **Last pushed sha** | `1751ce4` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
@@ -1551,7 +1551,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W11 | `cursor_local` auto | `tomllib` for hide-keys; rebaseline 7 dependabot PRs | DX-03, Dependabot | [x] (2026-07-27 ✅: c9216d9 — tomllib hide-keys; ruff/mypy/pytest/typer/uvicorn rebaseline; checkout@v7; action-gh-release@v3; 7 dependabot PRs closed) |
 | W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [x] (2026-07-27 ✅: e1fb05d — config.py four-layer precedence; setup/doctor CLI; v3 template packaged; force-include removed; wheel guard test) |
 | W14 | `cursor_local` auto | **Brownfield `tripll init`**: specs, PRDs, plans, `tripll.toml` and a **repo evaluation**; cut the sevn import | ONB-02, ONB-03, ONB-05 | [x] (2026-07-27 ✅: 7001fbf — brownfield init, emitters, evaluate, onboarding runbook) |
-| W15 | `cursor_local` auto | **Greenfield `tripll new`**: scaffold a project with specs and config, sharing brownfield's emitters | ONB-04 | [x] (2026-07-27 ✅: 52cf10e — greenfield new, packaged skeleton, shared emitters, validate-plan + make check) |
+| W15 | `cursor_local` auto | **Greenfield `tripll new`**: scaffold a project with specs and config, sharing brownfield's emitters | ONB-04 | [x] (2026-07-27 ✅: 1751ce4 — greenfield new, packaged skeleton, shared emitters, validate-plan + make check) |
 | W12 | `cursor_local` auto | Roster honesty banner, a11y labels, PERF-02 note, **provider/model/effort in the dashboard**, **onboarding in the README + about-site**, docs | ARCH-06, FRONT-01, PERF-02, DASH-01 | [ ] |
 | Final | `cursor_local` claude-opus-5 | xfail sweep, `make ci` green, **green CI run on the branch**, change summary | — | [ ] |
 | Thermos | `cursor_local` claude-opus-5, **fresh session** | Branch review, **tamper audit**, merge request; commit+push each pass | — | [ ] |
