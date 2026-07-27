@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | Branch reviewed; critical/high pool+infra fixes pushed; CI billing still blocked |
 | **Next action** | **T.6 human merge** — operator merges PR #19; tripll never auto-merges (D15) |
 | **Blocked on** | GitHub Actions billing (P0.1 class) — jobs start then fail in ~2s with no steps |
-| **Last pushed sha** | `PENDING_COMMIT` |
+| **Last pushed sha** | `2878e45` |
 | **Last CI run id** | `30242186371` (PR #19 @ `3b5369c` — **billing-blocked**, 2s failure no steps; local `make ci` green post-T.3) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
