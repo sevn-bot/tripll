@@ -1546,7 +1546,7 @@ Each row is `[x]` only after that wave's **commit + push** *and* a green CI run 
 | W6 | `cursor_local` auto | Ledger + integrate correctness, **per-provider cost attribution** | BUG-cost, BUG-07, DEBT-02, BUG-10, COST-01 | [x] (2026-07-27 ✅: 43a0510 — cost derived from attempts; per-run breaker; integrate resume; status per-provider rollup) |
 | W7 | `cursor_local` auto | Exit closure — **wire or fail**: `pullfrog_success`, Engine `evaluate_exit`, exits 4/7/8 | BUG-06, ARCH-exits, DIR-01 | [x] (2026-07-27 ✅: 4079acb — evaluate_exit in engine; pullfrog_success setter; exit_firing tests green; design-note Engine-live ×8) |
 | W9 | `cursor_local` auto | Close **one** L1 loop end-to-end behind the `graph` extra | L1-scaffold | [x] (2026-07-27 ✅: 900cea9 — dispatch_bridge.py; l1_pr investigate/fix invoke adapter; test_pr_loop 10/10 green) |
-| W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [x] (2026-07-27 ✅: 2e455ba — cw_portability + corpus_replay green; empty default hotspots) |
+| W8 | `cursor_local` auto | Repo portability: CW hotspots, docstrings, runs-path docs | ARCH-CW, DEBT-parse, DX-runs | [x] (2026-07-27 ✅: 15d2028 — cw_portability + corpus_replay green; empty default hotspots) |
 | W10 | `cursor_local` auto | `tests/test_obs.py`, `make bench` + CI job, brief-packer double-compute | TEST-01, TEST-02, DX-04, PERF-01 | [ ] |
 | W11 | `cursor_local` auto | `tomllib` for hide-keys; rebaseline 7 dependabot PRs | DX-03, Dependabot | [ ] |
 | W13 | `cursor_local` auto | **Config spine**: `tripll.toml` + user config, `tripll setup`, `tripll doctor`, ship the v3 template in the wheel | ONB-01, ONB-06 | [ ] |
