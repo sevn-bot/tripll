@@ -6,7 +6,7 @@ import re
 from importlib.resources import files
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 
 def _ontology_path() -> str:
