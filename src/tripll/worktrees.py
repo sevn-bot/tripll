@@ -284,8 +284,8 @@ def stage_dispatch_context(
     """
     dest = worktree_path / "plan" / "tripll"
     dest.mkdir(parents=True, exist_ok=True)
+    plan_src = run_dir / plan_file
     plan_name = Path(plan_file).name
-    plan_src = run_dir / plan_name
     plan_stem = Path(plan_name).stem
     slice_name = f"{plan_stem}-wave-{wave_id}.md"
 

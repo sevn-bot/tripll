@@ -978,6 +978,13 @@ def _run_dry_run(
 # ---------------------------------------------------------------------------
 
 
+def _rewrite_run_inject_argv(argv: list[str]) -> list[str]:
+    """Map ``tripll run inject …`` to the hidden ``run-inject`` subcommand."""
+    if len(argv) >= 3 and argv[1] == "run" and argv[2] == "inject":
+        return [argv[0], "run-inject", *argv[3:]]
+    return argv
+
+
 @app.command()
 def run(
     input_path: Annotated[
@@ -1137,6 +1144,125 @@ def run(
         wait_for_hitl=wait_for_hitl,
         engine=engine,
     )
+
+
+@app.command("run-inject", hidden=True)
+def run_inject(
+    run_id: Annotated[str, typer.Argument(help="Run-id in processing/ (must be paused).")],
+    after: Annotated[
+        str,
+        typer.Option("--after", help="Insert hotfix after this wave (node id or wave label)."),
+    ],
+    brief: Annotated[
+        str,
+        typer.Option("--brief", help="Operator brief describing the hotfix."),
+    ] = "",
+    paths: Annotated[
+        list[str] | None,
+        typer.Option("--paths", help="Owned paths the hotfix may edit (repeatable)."),
+    ] = None,
+    verify_target: Annotated[
+        str | None,
+        typer.Option(
+            "--verify-target",
+            help="Override post-dispatch verify make target (default: make ci-affected).",
+        ),
+    ] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option("--provider", "-p", help="Provider override for hotfix dispatch."),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", "-m", help="Model override for hotfix dispatch."),
+    ] = None,
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Agent slug override for hotfix dispatch."),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate and write inject plan only; no ledger write."),
+    ] = False,
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Inject a one-shot hotfix into a paused run (L2-W5a).
+
+    Requires ``pause-requested.md`` and a completed ``--after`` wave. Resume the
+    run afterward to dispatch via the normal engine path.
+    """
+    from tripll.inject import InjectError, apply_hotfix_inject
+
+    if not after.strip():
+        typer.echo("--after is required", err=True)
+        raise typer.Exit(1)
+    if not brief.strip():
+        typer.echo("--brief is required", err=True)
+        raise typer.Exit(1)
+    if not paths:
+        typer.echo("--paths must declare at least one owned path", err=True)
+        raise typer.Exit(1)
+
+    rr = _resolve_runs_root(runs_root)
+    if rr.find_run_dir(run_id) is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    if (rr.processing_dir / run_id).is_dir() is False and rr.find_run_dir(run_id) is not None:
+        loc = rr.find_run_dir(run_id)
+        if loc is not None and loc.parent == rr.processed_dir:
+            typer.echo(f"Run already completed (processed/): {run_id}", err=True)
+            raise typer.Exit(1)
+
+    verify_targets = [verify_target or "make ci-affected"]
+    try:
+        task = apply_hotfix_inject(
+            rr,
+            run_id,
+            brief=brief,
+            owned_paths=list(paths),
+            after=after,
+            verify_targets=verify_targets,
+            provider=provider,
+            model=model,
+            agent=agent,
+            cost_budget_usd=_cost_budget_usd(),
+            dry_run=dry_run,
+            repo_root=resolve_repo_root(),
+        )
+    except InjectError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(exc.exit_code) from exc
+
+    if dry_run:
+        typer.echo(f"[dry-run] Hotfix plan valid — node {task.node_id}")
+        typer.echo(
+            f"[dry-run] Plan artefact: {rr.injects_dir(run_id) / (task.task_id + '.plan.json')}"
+        )
+        return
+
+    typer.echo(f"Inject applied: {task.node_id} (task {task.task_id})")
+    typer.echo(f"Audit: {rr.injects_dir(run_id) / (task.task_id + '.json')}")
+    typer.echo(f"Resume with: tripll resume {run_id}")
+
+
+@app.command()
+def pause(
+    run_id: Annotated[str, typer.Argument(help="Run-id to pause (processing/).")],
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Request a pause for an active run (writes ``pause-requested.md``)."""
+    rr = _resolve_runs_root(runs_root)
+    run_dir = rr.find_run_dir(run_id)
+    if run_dir is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    marker = run_dir / "pause-requested.md"
+    marker.write_text(
+        "# Pause requested\n\nWritten by `tripll pause`. "
+        "The engine stops dispatching new waves at the next safe checkpoint.\n",
+        encoding="utf-8",
+    )
+    typer.echo(f"Pause requested for {run_id} → {marker}")
 
 
 # ---------------------------------------------------------------------------
@@ -2135,6 +2261,7 @@ def main() -> None:
     logger.remove()
     logger.add(sys.stderr, level=log_level, format="<level>{level}</level>: {message}")
     configure_observability()
+    sys.argv = _rewrite_run_inject_argv(sys.argv)
     app()
 
 

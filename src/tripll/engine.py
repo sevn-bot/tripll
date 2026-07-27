@@ -1108,6 +1108,9 @@ class Engine:
         """
         run_dir = self.runs_root.run_dir(run_id)
         graph = build_graph_from_dir(run_dir, run_id=run_id)
+        from tripll.inject import merge_injected_hotfixes
+
+        graph = merge_injected_hotfixes(graph, run_dir)
         self._init_provider_fabric(graph)
         return await self._drive(run_id, graph)
 
