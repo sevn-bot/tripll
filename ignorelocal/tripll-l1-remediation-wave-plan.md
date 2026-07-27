@@ -24,7 +24,7 @@ its sha256 — Thermos re-verifies the hash)
 | **Stage** | HTML auth + CSRF enforced when token set; 6 xfailed remain (4 W3 auth-success + 2 W4) |
 | **Next action** | W4.1 — sanitize `run_id` in `find_run_dir` |
 | **Blocked on** | — |
-| **Last pushed sha** | `e69fa47` |
+| **Last pushed sha** | `75b4a60` |
 | **Last CI run id** | `30166223593` (pre-W2; W2 push pending green CI) |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `pre-0.0.1` (`3f5cf9b`) — both `main` and `pre-0.0.1` execute CI post-P0.1; prefer audit baseline per tie-break |
