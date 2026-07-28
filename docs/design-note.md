@@ -247,13 +247,16 @@ infra/sevn.schema.json           — CW-5
                      │  adapter confirms receipt
                      ▼
               ┌─────────────┐
-              │   running   │  ← agent is executing (wall-clock timer starts)
+              │  verifying  │  ← outcome contracts + make targets (+ wave-verifier)
+              └──────┬──────┘
+                     ▲
+              ┌──────┴──────┐
+              │ quality_loop│  ← optional reference gauntlet (D26–D28)
               └──────┬──────┘
                      │  agent reports done / adapter stream closes
                      ▼
               ┌─────────────┐
-              │  verifying  │  ← engine runs outcome contracts + make targets
-              └──────┬──────┘
+              │   running   │  ← agent is executing (wall-clock timer starts)
                      │
            ┌─────────┼──────────┐
            │         │          │

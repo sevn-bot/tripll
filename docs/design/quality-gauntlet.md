@@ -213,15 +213,19 @@ Sealed bench tasks (design placeholders — implement under `bench/tasks/` after
 
 ---
 
-## 9. Implementation waves (future)
+## 9. Implementation waves (follow-up)
 
-Not in scope for this design branch — tracked follow-up:
+Shipped on `feat/quality-gauntlet`:
 
-1. **Engine** — `quality_loop` node kind, artifact capture hooks, workbench writer
-2. **LangGraph** — optional sub-graph for inner cycle (§7.8)
-3. **Graders** — `harness/quality.py` blind A/B orchestration
-4. **Bench** — G1–G3 tasks + D24 metric gate
-5. **Prompt bodies** — skw briefs beyond contract stubs
+1. **Engine** — `quality_loop` ledger state, harness orchestration, workbench writer
+2. **Plan v3** — outcome contract on `WaveNode`, decomposition override (D28)
+
+Still pending:
+
+1. **LangGraph** — optional sub-graph for inner cycle (§7.8)
+2. **Agent dispatch** — isolated `quality-critic` adapter rounds (D27 live)
+3. **Bench** — G1–G3 tasks + D24 metric gate
+4. **Prompt bodies** — skw briefs beyond contract stubs
 
 ---
 

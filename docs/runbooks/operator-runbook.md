@@ -215,6 +215,10 @@ Two operator paths add work mid-flight without restarting the run. Both require
 - `tripll resume` runs reconcile automatically before dispatch (pause marker not
   required on resume).
 - Use `--dry-run` on inject/reconcile to validate without writing.
+- **Dashboard / API (L2-W5c):** pause first, then inject via the run-detail
+  **Inject hotfix** panel or `POST /api/runs/{id}/inject` with JSON body
+  (`brief`, `owned_paths`, `after`). `GET /api/runs/{id}/injects` lists audit
+  artefacts and inject ledger events. Returns **409** when `inject.lock` is held.
 
 See `ignorelocal/live-injection-design.md` for the full design.
 
@@ -325,6 +329,14 @@ state, and exit caps approaching limits (§12).
 Rejected findings export to `.pullfrog/learnings.md` (D13). Optional CI review:
 `.github/workflows/pullfrog.yml` (requires `CLAUDE_CODE_OAUTH_TOKEN` secret).
 Local advisory review: `make review`.
+
+### Quality gauntlet (optional, D26–D28)
+
+Waves with plan v3 `[waves.outcome.reference]` and `[waves.outcome.quality_gauntlet].enabled = true`
+enter ledger state `quality_loop` after the implementer finishes and before isolated verify.
+Each round writes `runs/<run-id>/workbench.html` and `quality-rounds.json`. Inspect those
+files when a wave stalls in `quality_loop` or lands in `unverified` because the critic could
+not run. Design: [`../design/quality-gauntlet.md`](../design/quality-gauntlet.md).
 
 See [`../harness-checks.md`](../harness-checks.md) and [`../graph-serving.md`](../graph-serving.md).
 

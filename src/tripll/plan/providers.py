@@ -117,6 +117,17 @@ def wave_node_from_v3(
     agent = str(agent_raw).strip() if agent_raw else None
     role = str(wave.get("role") or "impl")
     human = bool(wave.get("human"))
+    decomposition = str(wave.get("decomposition") or "")
+    from tripll.harness.quality import parse_wave_outcome
+
+    outcome_raw = wave.get("outcome")
+    outcome_contract: dict[str, object] | None = None
+    if isinstance(outcome_raw, dict):
+        outcome_contract = parse_wave_outcome(
+            outcome_raw,
+            owned_paths=targets or list(owned_paths),
+            wave_decomposition=decomposition,
+        )
     return WaveNode(
         node_id=node_id,
         plan_id=plan_id,
@@ -136,6 +147,8 @@ def wave_node_from_v3(
         fallback=fallback,
         reasoning_effort=reasoning,
         max_budget_usd=max_budget,
+        outcome_contract=outcome_contract,
+        decomposition=decomposition,
     )
 
 
