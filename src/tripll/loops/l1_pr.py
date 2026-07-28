@@ -234,6 +234,23 @@ def _dispatch_for_finding(finding: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _carry_loop_context(state: L1OuterState) -> dict[str, Any]:
+    """Preserve run metadata and findings across node partial updates."""
+    carried: dict[str, Any] = {}
+    for key in (
+        "run_id",
+        "thread_id",
+        "run_dir",
+        "findings",
+        "ci_green",
+        "review_clean",
+    ):
+        value = state.get(key)
+        if value is not None:
+            carried[key] = value
+    return carried
+
+
 def _node_push(state: L1OuterState) -> L1OuterState:
     from tripll.github import pr as github_pr
 
@@ -253,11 +270,18 @@ def _node_push(state: L1OuterState) -> L1OuterState:
         out["push_warning"] = (
             "TRIPLL_PR_DRY_RUN=1 — push recorded but no git remote mutation occurred"
         )
+    out.update(_carry_loop_context(state))
     return cast("L1OuterState", out)
 
 
 def _node_poll(state: L1OuterState) -> L1OuterState:
     findings = _state_findings(state)
+    run_dir = _state_run_dir(state)
+    run_id = str(state.get("run_id") or state.get("thread_id") or "")
+    if run_dir is not None and run_id:
+        run_graph_db = Path(run_dir) / ".tripll" / "graph.db"
+        if run_graph_db.is_file():
+            findings = load_open_findings(run_dir=Path(run_dir), run_id=run_id)
     open_count = len(_open_findings(findings))
     delta = graph_delta_hash({"node": "poll", "open": open_count})
     return cast(
@@ -267,6 +291,8 @@ def _node_poll(state: L1OuterState) -> L1OuterState:
             "history": ["poll"],
             "graph_delta_hash": delta,
             "turn_hashes": [delta],
+            **_carry_loop_context(state),
+            "findings": findings,
             "open_findings": open_count,
         },
     )
@@ -290,6 +316,7 @@ def _node_investigate(state: L1OuterState) -> L1OuterState:
             "turn_hashes": [delta],
             "dispatch": dispatch,
             "dispatch_results": dispatch_results_as_dicts(results),
+            **_carry_loop_context(state),
         },
     )
 
@@ -312,6 +339,7 @@ def _node_fix(state: L1OuterState) -> L1OuterState:
             "turn_hashes": [delta],
             "dispatch": dispatch,
             "dispatch_results": dispatch_results_as_dicts(results),
+            **_carry_loop_context(state),
         },
     )
 
@@ -325,6 +353,7 @@ def _node_re_verify(state: L1OuterState) -> L1OuterState:
             "history": ["re_verify"],
             "graph_delta_hash": delta,
             "turn_hashes": [delta],
+            **_carry_loop_context(state),
         },
     )
 
@@ -345,6 +374,7 @@ def _node_merge_gate(state: L1OuterState) -> L1OuterState:
             "turn_hashes": [delta],
             "merge_gate": gate,
             "paused": True,
+            **_carry_loop_context(state),
         },
     )
 
@@ -523,6 +553,16 @@ def _format_graph_result(
     }
 
 
+def _stream_graph(app: Any, cfg: dict[str, Any], seed: L1OuterState | None) -> None:
+    """Run the compiled graph via ``stream`` (``invoke(None)`` does not resume ``interrupt_after``)."""
+    if seed is not None:
+        for _ in app.stream(seed, cfg):
+            pass
+    else:
+        for _ in app.stream(None, cfg):
+            pass
+
+
 def _invoke_pr_graph(
     *,
     run_id: str,
@@ -546,7 +586,7 @@ def _invoke_pr_graph(
         }
         prior = app.get_state(cfg)
         if prior.next:
-            app.invoke(None, cfg)
+            _stream_graph(app, cfg, None)
         elif prior.values and prior.values.get("step"):
             values = dict(prior.values)
             return _format_graph_result(
@@ -562,7 +602,7 @@ def _invoke_pr_graph(
                 "findings": findings,
                 "history": [],
             }
-            app.invoke(seed, cfg)
+            _stream_graph(app, cfg, seed)
         snapshot = app.get_state(cfg)
         values = dict(snapshot.values or {})
         next_nodes = tuple(snapshot.next or ())
@@ -579,7 +619,7 @@ def compile_l1_pr_graph(
     interrupt_before: list[str] | None = None,
     interrupt_after: list[str] | None = None,
 ) -> Any:
-    """Compile the PR loop with durable checkpointing and merge-gate interrupt."""
+    """Compile the PR loop with durable checkpointing and optional interrupts."""
     from tripll.loops import require_graph
 
     require_graph(feature="L1 PR loop")
@@ -588,12 +628,9 @@ def compile_l1_pr_graph(
     sg = build_l1_pr_graph()
     default_retry = RetryPolicy(max_attempts=5, initial_interval=0.5)
     sg.set_node_defaults(retry_policy=default_retry)
-    gates = list(interrupt_before or [])
-    if "merge_gate" not in gates:
-        gates.append("merge_gate")
     return sg.compile(
         checkpointer=checkpointer,
-        interrupt_before=gates,
+        interrupt_before=list(interrupt_before or []),
         interrupt_after=list(interrupt_after or []),
     )
 

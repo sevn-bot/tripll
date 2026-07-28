@@ -1,0 +1,11 @@
+{
+  "finding_id": "finding:ci:ruff-f401",
+  "kind": "ci_check",
+  "state": "open",
+  "rule_id": "ruff:F401",
+  "file": "src/tripll/demo.py",
+  "message_normalized": "unused import",
+  "head_sha": "abc123def456",
+  "run_id": "delivery-e2e",
+  "extractor": "github.findings"
+}

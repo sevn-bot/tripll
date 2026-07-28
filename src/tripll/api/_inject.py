@@ -65,6 +65,7 @@ def run_hotfix_inject(
     cost_budget_usd: float = 0.0,
 ) -> HotfixTask:
     """Apply a hotfix inject using the same core path as tripll run inject."""
+    _ = injected_by
     verify_targets = [verify_target or "make ci-affected"]
     return apply_hotfix_inject(
         rr,
@@ -79,7 +80,6 @@ def run_hotfix_inject(
         cost_budget_usd=cost_budget_usd,
         dry_run=dry_run,
         repo_root=resolve_repo_root(),
-        injected_by=injected_by,
     )
 
 

@@ -133,6 +133,28 @@ def test_exit_8_abandons_when_pr_closed_externally() -> None:
 
 
 @pytest.mark.skipif(not graph_available(), reason="graph extra required")
+def test_shepherd_reaches_merge_gate_pending_in_one_invoke(
+    tmp_path: Path,
+) -> None:
+    """With no open findings, one shepherd invoke must write merge-gate-pending marker."""
+    from tripll.loops.l1_pr import MERGE_GATE_MARKER, pr_status, shepherd_run
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    result = shepherd_run(
+        run_id="run-test",
+        run_dir=run_dir,
+        findings=[],
+        phase="investigate_and_fix",
+    )
+    assert isinstance(result, dict)
+    assert result.get("step") == "merge_gate"
+    assert (run_dir / MERGE_GATE_MARKER).is_file()
+    status = pr_status(run_dir=run_dir)
+    assert status["state"] == "merge_gate_pending"
+
+
+@pytest.mark.skipif(not graph_available(), reason="graph extra required")
 def test_shepherd_investigate_dispatches_adapters(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
