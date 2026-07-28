@@ -1,4 +1,4 @@
-"""Bench tasks G1-G3 for quality gauntlet (design section 9.4 extension)."""
+"""Bench tasks G1-G10 for quality gauntlet (design section 9.4 extension)."""
 
 from __future__ import annotations
 
@@ -16,23 +16,27 @@ from tripll.harness.quality import (
 from tripll.harness.quality_dispatch import parse_quality_verdict
 
 _BENCH_DIR = Path(__file__).resolve().parents[1] / "bench"
-_G1 = _BENCH_DIR / "tasks" / "g1-menu-section.json"
-_G2 = _BENCH_DIR / "tasks" / "g2-skill-exemplar.json"
-_G3 = _BENCH_DIR / "tasks" / "g3-changelog-rubric.json"
 
-
-@pytest.mark.parametrize(
-    ("task_path", "reference_kind"),
-    [
-        (_G1, "html_crop"),
-        (_G2, "skill_exemplar"),
-        (_G3, "rubric_only"),
-    ],
+_QUALITY_GAUNTLET_TASKS: tuple[tuple[str, str], ...] = (
+    ("g1-menu-section", "html_crop"),
+    ("g2-skill-exemplar", "skill_exemplar"),
+    ("g3-changelog-rubric", "rubric_only"),
+    ("g4-runbook-section", "spec_section"),
+    ("g5-error-panel", "html_crop"),
+    ("g6-commit-skill", "skill_exemplar"),
+    ("g7-readme-rubric", "rubric_only"),
+    ("g8-outcome-spec", "spec_section"),
+    ("g9-merge-gate", "html_crop"),
+    ("g10-benchmark-bundle", "benchmark_task"),
 )
+
+
+@pytest.mark.parametrize(("task_id", "reference_kind"), _QUALITY_GAUNTLET_TASKS)
 def test_g_bench_tasks_load_and_enable_quality_gauntlet(
-    task_path: Path,
+    task_id: str,
     reference_kind: str,
 ) -> None:
+    task_path = _BENCH_DIR / "tasks" / f"{task_id}.json"
     payload = json.loads(task_path.read_text(encoding="utf-8"))
     outcome = payload["outcome_contract"]
     assert outcome["reference"]["kind"] == reference_kind
@@ -41,13 +45,16 @@ def test_g_bench_tasks_load_and_enable_quality_gauntlet(
     assert (_BENCH_DIR.parent / ref_path).is_file()
 
 
-def test_load_tasks_includes_g1_g2_g3() -> None:
+def test_load_tasks_includes_g1_through_g10() -> None:
     ids = {task["task_id"] for task in load_tasks(_BENCH_DIR)}
-    assert {"g1-menu-section", "g2-skill-exemplar", "g3-changelog-rubric"}.issubset(ids)
+    expected = {task_id for task_id, _ in _QUALITY_GAUNTLET_TASKS}
+    assert expected.issubset(ids)
+    assert len(expected) == 10
 
 
 def test_g1_fixture_runs_quality_loop_with_stub_critic(tmp_path: Path) -> None:
-    payload = json.loads(_G1.read_text(encoding="utf-8"))
+    task_path = _BENCH_DIR / "tasks" / "g1-menu-section.json"
+    payload = json.loads(task_path.read_text(encoding="utf-8"))
     outcome = parse_wave_outcome(
         payload["outcome_contract"],
         owned_paths=payload["owned_paths"],
@@ -93,6 +100,22 @@ def test_g1_fixture_runs_quality_loop_with_stub_critic(tmp_path: Path) -> None:
     assert (run_dir / "workbench.html").is_file()
 
 
+def test_g4_spec_section_reference_exists() -> None:
+    task_path = _BENCH_DIR / "tasks" / "g4-runbook-section.json"
+    payload = json.loads(task_path.read_text(encoding="utf-8"))
+    ref_path = payload["outcome_contract"]["reference"]["path"].split("#", 1)[0]
+    ref = _BENCH_DIR.parent / ref_path
+    text = ref.read_text(encoding="utf-8")
+    assert "Stuck wave" in text
+    assert "git clean -x" in text
+
+
+def test_g10_benchmark_bundle_has_multiple_reference_files() -> None:
+    bundle_dir = _BENCH_DIR / "tasks" / "g10-benchmark-bundle" / "reference"
+    names = {path.name for path in bundle_dir.iterdir() if path.is_file()}
+    assert {"README.md", "style.css"}.issubset(names)
+
+
 def test_g3_rubric_verdict_parses_rubric_winner() -> None:
     text = json.dumps(
         {
@@ -119,7 +142,8 @@ def test_g3_rubric_verdict_parses_rubric_winner() -> None:
 
 @pytest.mark.asyncio
 async def test_g2_bench_reference_bundle_exists() -> None:
-    payload = json.loads(_G2.read_text(encoding="utf-8"))
+    task_path = _BENCH_DIR / "tasks" / "g2-skill-exemplar.json"
+    payload = json.loads(task_path.read_text(encoding="utf-8"))
     ref = _BENCH_DIR.parent / payload["outcome_contract"]["reference"]["path"]
     assert ref.is_file()
     assert "Procedure" in ref.read_text(encoding="utf-8")

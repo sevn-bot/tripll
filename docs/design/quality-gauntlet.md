@@ -194,11 +194,21 @@ Proposed metrics (require human approval before editing `bench/METRICS.md` on ma
 | 11 | `quality_rounds_to_pass` | Mean inner-loop rounds before stop condition |
 | 12 | `quality_delta_finding_density` | Finding density with vs without quality gauntlet on sealed tasks |
 
-Sealed bench tasks (design placeholders — implement under `bench/tasks/` after D24 gate):
+Sealed bench tasks under `bench/tasks/` (G1–G10 shipped; D24 metric gate unchanged):
 
-- **G1** — one menu section keyboard vs HTML crop (sevn Telegram menu)
-- **G2** — one `SKILL.md` vs bundled exemplar
-- **G3** — one changelog Unreleased block vs `changelog-eval` rubric
+- **G1** — one menu section keyboard vs HTML crop (`html_crop`, blind A/B)
+- **G2** — one `SKILL.md` vs bundled exemplar (`skill_exemplar`, side-by-side)
+- **G3** — one changelog Unreleased block vs `changelog-eval` rubric (`rubric_only`)
+- **G4** — operator runbook stuck-wave section vs reference spec (`spec_section`)
+- **G5** — API error banner HTML vs reference crop (`html_crop`, blind A/B)
+- **G6** — conventional-commit `SKILL.md` vs exemplar (`skill_exemplar`, blind A/B)
+- **G7** — README operator blurb vs readme rubric (`rubric_only`)
+- **G8** — wave outcome contract prose vs reference spec (`spec_section`, rubric)
+- **G9** — dashboard merge-gate card vs HTML crop (`html_crop`, smoothing enabled)
+- **G10** — multi-file reference bundle vs build output (`benchmark_task`)
+
+Adding tasks does **not** update `bench/METRICS.md` or `bench/baselines/l1-v1.json` without a
+separate D24 operator gate.
 
 ---
 
@@ -229,7 +239,7 @@ Shipped in quality-gauntlet §9 follow-up:
 
 1. **Agent dispatch** — isolated `quality-critic` adapter rounds (D27 live)
 2. **Smoothing-pass** — post-gauntlet consistency dispatch when `smoothing = true`
-3. **Bench** — G1–G3 sealed tasks under `bench/tasks/` (D24 metric gate unchanged)
+3. **Bench** — G1–G10 sealed tasks under `bench/tasks/` (D24 metric gate unchanged)
 4. **Prompt bodies** — `skw/prompts/quality-critic.md`, `skw/prompts/smoothing-pass.md`
 
 ---
