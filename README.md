@@ -103,6 +103,339 @@ Local advisory review: `make review`.
 
 ---
 
+## CLI readiness
+
+The `tripll` console script ships with this repo. After `make setup`:
+
+```bash
+uv run tripll --help          # top-level command groups
+uv run tripll --version       # tripll 0.0.1
+make help                     # operator Make targets (preferred day-to-day)
+```
+
+**Status:** production-ready for operator workflows — init, validate, plan, run, pause/resume,
+Pre-0 HITL, hotfix inject, graph reconcile, dashboard (`serve`), code KG (`graph`), findings
+sync, integrate/deliver, PR shepherd, doc gates (`spec` / `prd` / `changelog`), and bench
+replay. Backend auth lives in your toolchain (`claude`, `cursor-agent`), not in tripll.
+
+### Command groups (`tripll --help`)
+
+| Group | Subcommands | Purpose |
+|-------|-------------|---------|
+| **Run lifecycle** | `init`, `run`, `plan`, `validate`, `validate-plan`, `status`, `list-runs`, `pause`, `resume`, `approve`, `pre0-interview`, `reset-run`, `delete-run`, `run inject`, `run reconcile-graph` | Parse input sets, start/pause/resume runs, Pre-0 gates, hotfix inject, plan reconcile |
+| **Control plane** | `serve` | FastAPI dashboard + HTTP API (`--extra api`) |
+| **Code KG** | `graph extract`, `graph fuse`, `graph gate`, `graph query` | Build `.tripll/graph.db`, pack wave briefs |
+| **Findings** | `findings sync`, `findings list`, `findings triage` | CI + review → Finding graph |
+| **PR phase** | `pr shepherd`, `pr status`, `pr approve-merge` | Push/open/fix loop + human merge gate |
+| **Doc gates** | `spec validate\|score`, `prd …`, `changelog check\|eval`, `doc-score` | Absorbed spec-kit-wave (`skw`) validators |
+| **Bench** | `bench run` | Frozen L1 task replay + D23 metric deltas |
+| **Legacy alias** | `skw` | Deprecated entry; use `tripll spec` / `tripll run` instead |
+
+Copy-paste introspection:
+
+```bash
+uv run tripll run --help
+uv run tripll graph --help
+uv run tripll pr --help
+uv run tripll spec --help
+uv run tripll findings --help
+```
+
+---
+
+## Entry points
+
+| Entry point | When to use | Example |
+|-------------|-------------|---------|
+| **`make` targets** | Day-to-day operator flow; sets `TRIPLL_RUNS`, backend flags | `make run-set SET=my-set` |
+| **`tripll` CLI** | Scripting, CI, passthrough | `uv run tripll run runs/input/my-set` |
+| **Dashboard** | HITL wizards, live wave table, L1 panels | `make serve` → `http://localhost:8765` |
+| **HTTP API** | Automation against the control plane | `POST /api/runs`, SSE `/api/runs/{id}/events/stream` |
+| **Python modules** | Turn-bundle plan builder, tests | `python -m tripll.build_plan_from_errors` |
+| **Doc gates** | Spec/PRD/CHANGELOG CI parity | `make spec-check`, `make changelog-check` |
+
+**Runs root:** defaults to `./runs` in the tripll checkout (absolute path via Makefile).
+Onboarded **target repos** default to `.tripll/runs/`; legacy top-level `runs/` is kept when
+it already exists. Override with `TRIPLL_RUNS=/path/to/runs` or `tripll --runs-root /path/to/runs`.
+
+**Target repo:** wave dispatches run against the git checkout tripll orchestrates. Set
+`TRIPLL_REPO_ROOT=/path/to/checkout` or run from inside the target repo; tripll walks up to
+find `.git`.
+
+**Backend passthrough:** `PROVIDER=cursor_local MODEL=auto make run-set SET=…` is equivalent to
+`tripll run … --backend cursor_local --model auto`.
+
+---
+
+## Build and run a pipeline
+
+End-to-end flow from a blank plan to a merged PR:
+
+```
+Author plan (v3) → validate → plan (dry-run) → run → Pre-0 approve → waves dispatch
+    → integrate (optional) → deliver (push/open PR) → PR shepherd (fix loop) → approve-merge (human)
+```
+
+### 1. Author a wave plan (format v3)
+
+Copy [`docs/wave-plan-template.md`](docs/wave-plan-template.md). Required: TOML front matter with
+`waveorch_format = 3`, typed `[[waves.depends_on]]`, per-wave `targets`, and optional
+`[waves.outcome]` contracts. Use agent [`docs/agents/plan-author.md`](docs/agents/plan-author.md)
+(or legacy [`wave-plan-author.md`](docs/agents/wave-plan-author.md) for v1→v3 conversion).
+
+Place the file under `runs/input/<set>/`:
+
+```
+runs/input/my-feature/
+  my-feature-wave-plan.md
+  review-hints.yaml          # optional CW seams
+```
+
+Legacy v1 (`## tripll execution graph`) and v2 (`waveorch_format = 2`) still compile; prefer v3
+for new work. See [Mode B-v3](#mode-b-v3--wave-plan-with-execution-graph-recommended) below.
+
+### 2. Validate
+
+Two complementary gates:
+
+```bash
+# Execution graph + shape checks (compiler)
+make validate-set SET=my-feature
+# or: uv run tripll validate runs/input/my-feature/
+
+# In-repo path refs (hard-fail before dispatch)
+uv run tripll validate-plan runs/input/my-feature/my-feature-wave-plan.md
+```
+
+`make plan-set` always runs `validate` first.
+
+### 3. Plan (dry-run)
+
+Print batch order, lanes, and Pre-0 gates without dispatching:
+
+```bash
+make plan-set SET=my-feature              # validate + write parallel-wave.md
+make dry-run-set SET=my-feature           # sample dispatch argv + brief preview
+
+# CLI equivalents:
+uv run tripll plan runs/input/my-feature --dry-run
+uv run tripll plan runs/input/my-feature --dry-run --write-manifest
+uv run tripll run runs/input/my-feature --dry-run
+```
+
+### 4. Run
+
+```bash
+make run-set SET=my-feature
+# Block until Pre-0 HITL completes (dashboard or CLI interview):
+WAIT_FOR_HITL=1 make run-set SET=my-feature
+
+# CLI:
+uv run tripll run runs/input/my-feature --wait-for-hitl
+uv run tripll run runs/input/my-feature --backend cursor_local --model auto
+```
+
+Run claims `runs/input/<set>/` into `runs/processing/<run-id>/` and stops at Pre-0 unless the
+plan has no W0 review items.
+
+### 5. Pre-0 approve and resume
+
+```bash
+make pre0-interview RUN=<run-id>    # terminal questionnaire
+make finish-pre0 RUN=<run-id>       # interview + approve + resume
+# or dashboard: Open HITL → Submit & approve → Resume
+```
+
+### 6. Monitor, pause, and resume
+
+```bash
+make status RUN=<run-id>
+make status-watch RUN=<run-id>
+uv run tripll pause <run-id>                    # request graceful pause
+uv run tripll resume <run-id>
+make resume-run RUN=<run-id> PROVIDER=cursor_local MODEL=auto
+```
+
+### 7. Hotfix inject and graph reconcile (paused runs)
+
+While a run is paused, apply mid-run course corrections:
+
+**Mode A — one-line hotfix** (narrow path scope; no plan edit):
+
+```bash
+uv run tripll pause <run-id>
+uv run tripll run inject <run-id> --after <wave-id> --brief "…" --paths src/foo.py
+uv run tripll resume <run-id>
+```
+
+**Mode B — plan edit + reconcile** (full wave section with verify targets):
+
+```bash
+uv run tripll pause <run-id>
+# edit *-wave-plan.md under runs/processing/<run-id>/
+uv run tripll run reconcile-graph <run-id>
+uv run tripll resume <run-id>
+```
+
+See [`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md) §6.
+
+### 8. Integrate and deliver (optional)
+
+Dispatch-only is the default (worktree branches + `report.md`, no merges). To merge batches
+locally and open a PR:
+
+```bash
+make tripll ARGS='run runs/input/my-feature --integrate --dry-run'
+make tripll ARGS='run runs/input/my-feature --integrate --deliver --dry-run'
+make tripll ARGS='run runs/input/my-feature --integrate --deliver'
+```
+
+Integration branch: `tripll/integrate/<run-id>` (push target for `--deliver`).
+
+### 9. PR phase (after impl waves)
+
+tripll never auto-merges. After waves complete, the PR loop pushes the branch, opens a PR,
+syncs findings, and dispatches fix agents until required checks pass:
+
+```bash
+uv run tripll pr shepherd --run <run-id> --phase deliver
+uv run tripll pr shepherd --run <run-id> --phase investigate_and_fix
+uv run tripll findings sync --pr <n> --run-id <run-id>
+uv run tripll pr status <run-id>
+uv run tripll pr approve-merge <run-id>    # human merge gate only
+```
+
+Dashboard run detail shows **Code factory L1** panels (subgraph, findings, exit caps). Full
+operator guide: [`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md) §8.
+
+### Graph-packed briefs (default dispatch context)
+
+Before or during a run, build the code KG so wave briefs include a 2-hop subgraph:
+
+```bash
+uv run tripll graph extract --repo . --repo-root /path/to/target
+uv run tripll graph query src/tripll/engine.py --hops 2
+```
+
+Use `--grep-brief` on `run`/`resume` for legacy A/B comparison. See [`docs/graph-serving.md`](docs/graph-serving.md).
+
+---
+
+## Examples cookbook
+
+Thirteen copy-paste workflows covering the main entry points:
+
+**1. Validate an input set before planning**
+
+```bash
+make init
+make validate-set SET=my-set
+uv run tripll validate runs/input/my-set/
+```
+
+**2. Plan + inspect graph (no dispatch)**
+
+```bash
+make plan-set SET=my-set
+uv run tripll plan runs/input/my-set --dry-run --write-manifest
+```
+
+**3. Dry-run dispatch argv**
+
+```bash
+make dry-run-set SET=my-set PROVIDER=claude_code
+uv run tripll run runs/input/my-set --dry-run --backend cursor_local --model auto
+```
+
+**4. Start a run with HITL auto-resume**
+
+```bash
+make serve                                    # terminal 1
+WAIT_FOR_HITL=1 make run-set SET=my-set       # terminal 2
+```
+
+**5. Orchestrator-mode serial smoke**
+
+```bash
+make seed-orchestrator-smoke-set
+make validate-set SET=orchestrator-mode-smoke
+make run-set SET=orchestrator-mode-smoke PROVIDER=cursor_local MODEL=auto
+make finish-pre0 RUN=<run-id> PROVIDER=cursor_local MODEL=auto
+```
+
+**6. Build a plan from gateway turn-bundle errors**
+
+```bash
+make dry-run-build-plan-from-errors FOLDER=/path/to/workspace/.sevn/turns
+make build-plan-from-errors FOLDER=/path/to/workspace/.sevn/turns
+make validate-set SET=from-errors-<run_id>
+make run-set SET=from-errors-<run_id>
+```
+
+**7. Code KG extract + query (graph-packed briefs)**
+
+```bash
+uv run tripll graph extract --repo . --repo-root .
+uv run tripll graph fuse
+uv run tripll graph query src/tripll/cli.py --hops 2 --db .tripll/graph.db
+```
+
+**8. Sync PR findings into the graph**
+
+```bash
+uv run tripll findings sync --pr 42 --run-id <run-id>
+uv run tripll findings list --state open
+uv run tripll findings triage F-abc123 --state rejected --rationale "noise"
+```
+
+**9. L1 bench replay (D23 metrics)**
+
+```bash
+uv run tripll bench run
+uv run tripll bench run --bench-dir bench/ --db .tripll/graph.db
+```
+
+**10. Doc gates (absorbed skw / spec-kit-wave)**
+
+```bash
+make spec-check                    # tripll spec validate docs/
+make prd-check                     # tripll prd validate docs/prd/
+make changelog-check               # tripll changelog check
+uv run tripll spec score docs/ --repo-root .
+uv run tripll changelog eval --repo-root . --base origin/main   # advisory LLM score
+```
+
+**11. PR shepherd one-liners**
+
+```bash
+uv run tripll pr shepherd --run <run-id> --phase deliver
+uv run tripll pr shepherd --run <run-id> --phase investigate_and_fix
+uv run tripll pr status <run-id>
+uv run tripll pr approve-merge <run-id>
+```
+
+**12. Dashboard + API launch**
+
+```bash
+make serve
+tripll serve --host 0.0.0.0 --port 9000
+curl -s http://localhost:8765/health
+curl -s http://localhost:8765/api/runs | jq .
+```
+
+**13. Passthrough any subcommand via Make**
+
+```bash
+make tripll ARGS='status'
+make tripll ARGS='run runs/input/dev-eval --integrate --deliver --dry-run'
+make tripll ARGS='run inject <run-id> --after W3 --brief "hotfix" --paths src/foo.py'
+make tripll ARGS='resume <run-id> --wait-for-hitl'
+```
+
+More input-set layouts: [Input shapes](#input-shapes), [Orchestrator mode](#orchestrator-mode-cursor-multitask-parity).
+
+---
+
 ## Quick run
 
 Minimal path from zero to a started run:
@@ -178,32 +511,40 @@ make run-set SET=dev-eval
 Mode A batch order comes from `parallel-wave.md` (Pre-0 → coordination batches →
 lane batches → Final).
 
-### Mode B-v1 — wave-plan with execution graph (recommended)
+### Mode B-v3 — wave plan with execution graph (recommended)
 
 For **execution-order awareness** (W0 → R1 → … → Final inside one plan file),
-use **tripll format v1**:
+use **tripll format v3** (`waveorch_format = 3` in TOML front matter):
 
-1. Copy [`docs/wave-plan-template.md`](docs/wave-plan-template.md) or the
-   [telegram example graph](docs/examples/telegram-rich-inline-miniapps-wave-plan.v1.md).
-2. Add **`## tripll execution graph`** (and optional **`## tripll batches`**) to
-   your `*-wave-plan.md`.
+1. Copy [`docs/wave-plan-template.md`](docs/wave-plan-template.md) or convert a legacy example
+   with [`docs/agents/plan-author.md`](docs/agents/plan-author.md).
+2. Fill TOML: `[[waves]]` rows with `targets`, typed `[[waves.depends_on]]`, optional
+   `[waves.outcome]` contracts, run-level `[pipeline]` deadline/budget.
 3. Validate and generate a deterministic manifest:
 
 ```bash
 make validate-set SET=my-set          # must pass before plan
+uv run tripll validate-plan runs/input/my-set/*-wave-plan.md
 make plan-set SET=my-set              # validates + writes parallel-wave.md + prints graph
 make run-set SET=my-set
 ```
 
-Use agent [`docs/agents/wave-plan-author.md`](docs/agents/wave-plan-author.md) to
-convert legacy plans (narrative “Execution order & parallelism” only) into v1.
+Use agent [`docs/agents/plan-author.md`](docs/agents/plan-author.md) for new v3 plans, or
+[`docs/agents/wave-plan-author.md`](docs/agents/wave-plan-author.md) to convert legacy v1 narrative
+plans.
 
-**Machine-readable tables:**
+**Machine-readable schema (v3):**
 
-| Section | Purpose |
-|---------|---------|
-| `## tripll execution graph` | `wave_id`, `depends_on`, `review_gate`, `verify_targets`, `role` |
-| `## tripll batches` (optional) | Explicit batch membership; overrides auto layers |
+| Field | Purpose |
+|-------|---------|
+| `waveorch_format = 3` | Canonical plan version |
+| `[[waves]]` + `id`, `role`, `targets`, `verify` | Wave nodes and one-writer paths |
+| `[[waves.depends_on]]` + `reason` | Typed edges (`artifact`, `contract`, `gate`) |
+| `[waves.outcome]` | Required/forbidden/evidence contracts (graders decide done) |
+| `[pipeline]` | Run deadline, budget, turn caps |
+
+Legacy v1 (`## tripll execution graph` table) and v2 (`waveorch_format = 2`) compile via
+`tripll.plan.compat_v1_v2` with a one-time warning — prefer v3 for new plans.
 
 **Tests-first model (design-note §9):** the optional `role` column (`impl` \| `test-author`, default
 `impl`) drives a tests-first flow — `W0 (gate) → W1 test-creator (full RED suite) → impl waves
@@ -216,8 +557,8 @@ escalation. See [`docs/agents/test-creator.md`](docs/agents/test-creator.md).
 
 ### Mode B-legacy — plain wave files without execution graph
 
-Legacy Mode B (no v1 section) clusters files into lanes by path overlap only —
-**one node per plan file**, not per `## Wave R*` section. Prefer v1 for
+Legacy Mode B (no v3/v1 section) clusters files into lanes by path overlap only —
+**one node per plan file**, not per `## Wave R*` section. Prefer v3 for
 single-plan serial/parallel schedules.
 
 **Expected files**:
@@ -234,7 +575,7 @@ runs/input/telemetry-only/
 mkdir -p runs/input/telemetry-only
 cp ../plan/dev_eval_14062026/provider-runtime-telemetry-wave-plan.md \
    runs/input/telemetry-only/
-make plan-set SET=telemetry-only   # fails validate until v1 graph added
+make plan-set SET=telemetry-only   # fails validate until v3 (or v1) graph added
 ```
 
 **Multiple wave files** — lane clustering by path overlap (legacy):
@@ -275,7 +616,7 @@ Place **both** files under `runs/input/<set>/`:
 
 ```
 runs/input/orchestrator-mode-smoke/
-  tripll-orchestrator-mode-wave-plan.md          # v1 execution graph (+ optional orchestrator_mode: serial)
+  tripll-orchestrator-mode-wave-plan.md          # v3 execution graph (+ optional orchestrator_mode: serial)
   tripll-orchestrator-mode-orchestrator-prompt.md   # serial order, verify, REPORTING FORMAT
 ```
 
@@ -329,7 +670,7 @@ Example input set source: [`docs/examples/orchestrator-mode-input-set/`](docs/ex
 
 ## Makefile reference
 
-All targets run from **`wave-orchestrator/`**. Variables:
+All targets run from **this directory** (the `tripll` checkout). Variables:
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
@@ -348,8 +689,10 @@ All targets run from **`wave-orchestrator/`**. Variables:
 | `make list-input` | Show pending sets in `runs/input/` |
 | `make build-plan-from-errors FOLDER=<dir>` | Walk unprocessed turn-bundles → one wave plan (W5) |
 | `make dry-run-build-plan-from-errors FOLDER=<dir>` | Preview dispatch argv without executing (same `PROVIDER`/`MODEL`/`AGENT`) |
-| `make validate-set SET=<name>` | Validate v1 execution graph in `runs/input/<name>/` |
+| `make validate-set SET=<name>` | Validate wave-plan(s) in `runs/input/<name>/` |
 | `make validate-input` | Validate every input subdirectory |
+| `make spec-check` | Validate specs in `docs/` (doc gate) |
+| `make changelog-check` | Deterministic CHANGELOG gate vs `origin/main` |
 | `make plan-set SET=<name>` | validate + graph + **write** `parallel-wave.md` |
 | `make dry-run-set SET=<name>` | Engine dry-run: sample argv / integrate preview |
 | `make run-set SET=<name>` | Start one run (`BACKEND=` optional) |
@@ -369,9 +712,8 @@ All targets run from **`wave-orchestrator/`**. Variables:
 | `make smoke-orchestrator-w0` | Orchestrator W0 smoke — validate + plan + pytest |
 | `make orchestrator-watch RUN=<id>` | Tail `orchestrator-status.md` only (orchestrator mode, D12) |
 
-From **repo root**, CI only: `make wave-orchestrator-check` → delegates here.
-
 ---
+
 
 ## Turn-bundle error plans (`build-plan-from-errors`)
 
@@ -542,10 +884,12 @@ Full operator guide: [`docs/control-plane-design.md`](docs/control-plane-design.
 | `cursor_cloud` | `uv sync --extra cloud` + sevn workspace | Live dispatch deferred; manual smoke. |
 
 Dispatch-only default: changes stay staged on worktree branches + `report.md`.
-Add `--integrate` via passthrough:
+Add `--integrate` and `--deliver` via passthrough:
 
 ```bash
 make tripll ARGS='run runs/input/dev-eval --integrate --dry-run'
+make tripll ARGS='run runs/input/dev-eval --integrate --deliver --dry-run'
+make tripll ARGS='run runs/input/dev-eval --integrate --deliver'
 ```
 
 ---
@@ -553,7 +897,7 @@ make tripll ARGS='run runs/input/dev-eval --integrate --dry-run'
 ## Folder layout
 
 ```
-runs/
+runs/                        # tripll checkout default (also .tripll/runs/ on target repos)
   input/<set>/               # you drop wave sets here (Mode A or B)
   processing/<run-id>/       # active run
     ledger.db
@@ -566,7 +910,8 @@ runs/
   failed/<run-id>/
 ```
 
-Override root: `TRIPLL_RUNS=/path/to/runs` or `tripll --runs-root …`.
+Onboarded target repos default to `.tripll/runs/`; legacy top-level `runs/` is kept when it
+already exists. Override root: `TRIPLL_RUNS=/path/to/runs` or `tripll --runs-root …`.
 
 ---
 
