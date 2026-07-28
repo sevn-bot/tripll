@@ -3,7 +3,8 @@
 **Status:** Code factory L1 — post-remediation (2026-07-27)
 **Date:** 2026-06-15 (W0) · updated 2026-07-25 (L1 task graph)
 **Author:** wave-runner W0 pass · L1 executor W12
-**Design:** `.ignorelocal/design/plan/tripll-code-factory-design.md` (§7–§13)
+**Design:** `.ignorelocal/design/plan/tripll-code-factory-design.md` (§7–§13) ·
+[`docs/design/quality-gauntlet.md`](design/quality-gauntlet.md) (D26–D28, quality inner loop)
 
 ---
 

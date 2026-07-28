@@ -31,6 +31,11 @@ mirror skw briefs for IDE dispatch, but graph-node digests always come from trac
 | review-comment-triager | triaging | [`review-comment-triager.md`](review-comment-triager.md) |
 | review-comment-fixer | executing | [`review-comment-fixer.md`](review-comment-fixer.md) |
 | pr-shepherd | infra/executing | [`pr-shepherd.md`](pr-shepherd.md) |
+| quality-critic | reviewing | [`quality-critic.md`](quality-critic.md) |
+| smoothing-pass | reviewing | [`smoothing-pass.md`](smoothing-pass.md) |
+| reference-picker | authoring | [`reference-picker.md`](reference-picker.md) |
+
+Design extension: [`docs/design/quality-gauntlet.md`](../../../docs/design/quality-gauntlet.md).
 
 ## Ported front-end agents (§11.15)
 

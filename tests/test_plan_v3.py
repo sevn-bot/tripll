@@ -44,3 +44,23 @@ def test_target_repo_deadline_budget_targets_outcome_parse() -> None:
     wave = plan["waves"][0]
     assert wave["targets"] == ["src/tripll/graphstore/sqlite_store.py"]
     assert wave["outcome"]["required"]
+
+
+def test_v3_quality_gauntlet_reference_and_outcome_parse() -> None:
+    parse_plan_v3 = require_module("tripll.plan.format_v3", attr="parse_plan_v3")
+    emit_plan_v3 = require_module("tripll.plan.format_v3", attr="emit_plan_v3")
+    parse_outcome_contract = require_module(
+        "tripll.harness.contracts", attr="parse_outcome_contract"
+    )
+    raw = (_FIXTURES / "v3_quality_gauntlet.md").read_text()
+    plan = parse_plan_v3(raw)
+    wave = plan["waves"][0]
+    assert wave["decomposition"] == "gauntlet"
+    outcome = parse_outcome_contract(wave["outcome"])
+    assert outcome["reference"]["kind"] == "html_crop"
+    assert outcome["reference"]["comparison"] == "blind_ab"
+    assert outcome["quality_gauntlet"]["enabled"] is True
+    assert outcome["quality_gauntlet"]["smoothing"] is True
+    out = emit_plan_v3(plan)
+    assert "[waves.outcome.reference]" in out
+    assert "[waves.outcome.quality_gauntlet]" in out

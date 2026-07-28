@@ -30,6 +30,15 @@ def test_completion_message_renders_grader_output() -> None:
     assert "perfectly" not in msg
 
 
+def test_parse_outcome_contract_defaults_quality_fields() -> None:
+    from tripll.harness.contracts import parse_outcome_contract
+
+    outcome = parse_outcome_contract(None)
+    assert outcome["required"] == []
+    assert outcome["reference"]["kind"] == ""
+    assert outcome["quality_gauntlet"]["enabled"] is False
+
+
 def test_plausible_artifact_broken_outcome_fails() -> None:
     result = evaluate_outcome(
         required=["tests pass"],

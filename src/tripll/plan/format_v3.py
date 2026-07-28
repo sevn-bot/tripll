@@ -7,6 +7,49 @@ import tomllib
 from typing import Any
 
 VALID_DEPENDS_REASONS = frozenset({"artifact", "contract", "gate"})
+VALID_REFERENCE_KINDS = frozenset(
+    {"screenshot", "html_crop", "spec_section", "skill_exemplar", "benchmark_task", "rubric_only"}
+)
+VALID_REFERENCE_COMPARISONS = frozenset({"blind_ab", "side_by_side", "rubric"})
+VALID_REFERENCE_STOP_WHEN = frozenset({"reference_wins", "max_rounds", "operator"})
+VALID_QUALITY_DECOMPOSITION = frozenset({"prescribed", "gauntlet"})
+
+
+def _validate_reference_table(reference: dict[str, Any]) -> None:
+    kind = reference.get("kind")
+    if kind is not None and kind not in VALID_REFERENCE_KINDS:
+        raise ValueError(
+            f"waves.outcome.reference.kind must be one of {sorted(VALID_REFERENCE_KINDS)}"
+        )
+    comparison = reference.get("comparison")
+    if comparison is not None and comparison not in VALID_REFERENCE_COMPARISONS:
+        raise ValueError(
+            "waves.outcome.reference.comparison must be one of "
+            f"{sorted(VALID_REFERENCE_COMPARISONS)}"
+        )
+    stop_when = reference.get("stop_when")
+    if stop_when is not None and stop_when not in VALID_REFERENCE_STOP_WHEN:
+        raise ValueError(
+            f"waves.outcome.reference.stop_when must be one of {sorted(VALID_REFERENCE_STOP_WHEN)}"
+        )
+    path = reference.get("path")
+    if path is not None and not isinstance(path, str):
+        raise ValueError("waves.outcome.reference.path must be a string")
+
+
+def _validate_quality_gauntlet_table(quality: dict[str, Any]) -> None:
+    decomposition = quality.get("decomposition")
+    if decomposition is not None and decomposition not in VALID_QUALITY_DECOMPOSITION:
+        raise ValueError(
+            "waves.outcome.quality_gauntlet.decomposition must be one of "
+            f"{sorted(VALID_QUALITY_DECOMPOSITION)}"
+        )
+    max_rounds = quality.get("max_rounds")
+    if max_rounds is not None and not isinstance(max_rounds, int):
+        raise ValueError("waves.outcome.quality_gauntlet.max_rounds must be an integer")
+    sub_budget = quality.get("sub_budget_usd")
+    if sub_budget is not None and not isinstance(sub_budget, (int, float)):
+        raise ValueError("waves.outcome.quality_gauntlet.sub_budget_usd must be a number")
 
 
 def parse_plan_v3(text: str) -> dict[str, Any]:
@@ -43,6 +86,22 @@ def parse_plan_v3(text: str) -> dict[str, Any]:
         outcome = entry.get("outcome")
         if outcome is not None and not isinstance(outcome, dict):
             raise ValueError("waves.outcome must be a table")
+        if isinstance(outcome, dict):
+            reference = outcome.get("reference")
+            if reference is not None:
+                if not isinstance(reference, dict):
+                    raise ValueError("waves.outcome.reference must be a table")
+                _validate_reference_table(reference)
+            quality_gauntlet = outcome.get("quality_gauntlet")
+            if quality_gauntlet is not None:
+                if not isinstance(quality_gauntlet, dict):
+                    raise ValueError("waves.outcome.quality_gauntlet must be a table")
+                _validate_quality_gauntlet_table(quality_gauntlet)
+        decomposition = entry.get("decomposition")
+        if decomposition is not None and decomposition not in VALID_QUALITY_DECOMPOSITION:
+            raise ValueError(
+                f"waves.decomposition must be one of {sorted(VALID_QUALITY_DECOMPOSITION)}"
+            )
         normalised_waves.append(entry)
     raw["waves"] = normalised_waves
     raw["waveorch_format"] = 3
@@ -90,7 +149,7 @@ def emit_plan_v3(plan: dict[str, Any]) -> str:
         if not isinstance(wave, dict):
             continue
         lines.append("[[waves]]")
-        for key in ("id", "title", "role", "effort"):
+        for key in ("id", "title", "role", "effort", "decomposition"):
             if key in wave and wave[key] is not None:
                 lines.append(f"{key} = {_toml_quote(str(wave[key]))}")
         for list_key in ("targets", "verify"):
@@ -120,6 +179,28 @@ def emit_plan_v3(plan: dict[str, Any]) -> str:
                     lines.append(f"  {key} = [")
                     lines.extend(_emit_string_list(values, indent="    "))
                     lines.append("  ]")
+            reference = outcome.get("reference")
+            if isinstance(reference, dict) and reference:
+                lines.append("")
+                lines.append("  [waves.outcome.reference]")
+                for key in ("kind", "path", "comparison", "stop_when"):
+                    if key in reference and reference[key] is not None:
+                        lines.append(f"  {key} = {_toml_quote(str(reference[key]))}")
+            quality_gauntlet = outcome.get("quality_gauntlet")
+            if isinstance(quality_gauntlet, dict) and quality_gauntlet:
+                lines.append("")
+                lines.append("  [waves.outcome.quality_gauntlet]")
+                if "enabled" in quality_gauntlet:
+                    lines.append(f"  enabled = {bool(quality_gauntlet['enabled'])}")
+                for key in ("max_rounds", "sub_budget_usd"):
+                    if key in quality_gauntlet and quality_gauntlet[key] is not None:
+                        lines.append(f"  {key} = {quality_gauntlet[key]}")
+                if quality_gauntlet.get("decomposition") is not None:
+                    lines.append(
+                        f"  decomposition = {_toml_quote(str(quality_gauntlet['decomposition']))}"
+                    )
+                if "smoothing" in quality_gauntlet:
+                    lines.append(f"  smoothing = {bool(quality_gauntlet['smoothing'])}")
         lines.append("")
     while lines and lines[-1] == "":
         lines.pop()

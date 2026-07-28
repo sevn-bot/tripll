@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Quality gauntlet design (D26–D28): `docs/design/quality-gauntlet.md`, plan v3
+  `[waves.outcome.reference]` + `[waves.outcome.quality_gauntlet]` schema, agent contracts
+  (`quality-critic`, `smoothing-pass`, `reference-picker`), and harness contract parsers.
 - W13 config spine: `tripll.toml` + user config (`~/.config/tripll/config.toml`), `tripll setup`,
   `tripll doctor`, four-layer config precedence, packaged v3 wave-plan template, and wheel
   packaging guard for templates/rules/prompts.

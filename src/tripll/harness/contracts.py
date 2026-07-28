@@ -9,6 +9,8 @@ __all__ = [
     "OutcomeResult",
     "evaluate_outcome",
     "parse_outcome_contract",
+    "parse_quality_gauntlet_config",
+    "parse_reference_contract",
     "render_completion",
 ]
 
@@ -25,21 +27,98 @@ class OutcomeResult:
     reasons: list[str]
 
 
-def parse_outcome_contract(raw: dict[str, Any] | None) -> dict[str, list[str]]:
+def parse_reference_contract(raw: dict[str, Any] | None) -> dict[str, str]:
+    """Normalise ``[waves.outcome.reference]`` from plan v3.
+
+    Args:
+        raw (dict[str, Any] | None): Reference section from outcome dict.
+
+    Returns:
+        dict[str, str]: Normalised reference fields (empty strings when absent).
+    """
+    if not raw:
+        return {
+            "kind": "",
+            "path": "",
+            "comparison": "",
+            "stop_when": "",
+        }
+    return {
+        "kind": str(raw.get("kind") or ""),
+        "path": str(raw.get("path") or ""),
+        "comparison": str(raw.get("comparison") or ""),
+        "stop_when": str(raw.get("stop_when") or ""),
+    }
+
+
+def parse_quality_gauntlet_config(
+    raw: dict[str, Any] | None,
+    *,
+    wave_decomposition: str = "",
+) -> dict[str, str | int | float | bool]:
+    """Normalise ``[waves.outcome.quality_gauntlet]`` from plan v3.
+
+    Args:
+        raw (dict[str, Any] | None): Quality gauntlet section from outcome dict.
+        wave_decomposition (str): Optional ``waves.decomposition`` override.
+
+    Returns:
+        dict[str, str | int | float | bool]: Normalised quality-loop settings.
+    """
+    if not raw:
+        return {
+            "enabled": False,
+            "max_rounds": 5,
+            "sub_budget_usd": 0.0,
+            "decomposition": wave_decomposition or "prescribed",
+            "smoothing": False,
+        }
+    decomposition = str(raw.get("decomposition") or wave_decomposition or "prescribed")
+    return {
+        "enabled": bool(raw.get("enabled", False)),
+        "max_rounds": int(raw.get("max_rounds") or 5),
+        "sub_budget_usd": float(raw.get("sub_budget_usd") or 0.0),
+        "decomposition": decomposition,
+        "smoothing": bool(raw.get("smoothing", False)),
+    }
+
+
+def parse_outcome_contract(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Normalise a ``[waves.outcome]`` table from plan v3.
 
     Args:
         raw (dict[str, Any] | None): Outcome section from a wave dict.
 
     Returns:
-        dict[str, list[str]]: ``required``, ``forbidden``, and ``evidence`` lists.
+        dict[str, Any]: ``required``, ``forbidden``, ``evidence``, ``reference``, and
+        ``quality_gauntlet`` normalised sub-tables.
     """
     if not raw:
-        return {"required": [], "forbidden": [], "evidence": []}
+        return {
+            "required": [],
+            "forbidden": [],
+            "evidence": [],
+            "reference": parse_reference_contract(None),
+            "quality_gauntlet": parse_quality_gauntlet_config(None),
+        }
+    reference_raw = raw.get("reference")
+    reference = (
+        parse_reference_contract(reference_raw)
+        if isinstance(reference_raw, dict)
+        else parse_reference_contract(None)
+    )
+    quality_raw = raw.get("quality_gauntlet")
+    quality_gauntlet = (
+        parse_quality_gauntlet_config(quality_raw)
+        if isinstance(quality_raw, dict)
+        else parse_quality_gauntlet_config(None)
+    )
     return {
         "required": [str(x) for x in raw.get("required") or []],
         "forbidden": [str(x) for x in raw.get("forbidden") or []],
         "evidence": [str(x) for x in raw.get("evidence") or []],
+        "reference": reference,
+        "quality_gauntlet": quality_gauntlet,
     }
 
 
