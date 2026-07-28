@@ -15,6 +15,7 @@ from tripll.config import (
     resolve_agent_model,
     wave_plan_template_path,
 )
+from tripll.onboard.setup import write_user_config
 
 runner = CliRunner()
 
@@ -88,6 +89,37 @@ def test_setup_non_interactive_writes_user_config(
     assert 'default_provider = "cursor_local"' in text
     assert "[tracing]" in text
     assert "[credentials]" not in text
+
+
+def test_setup_second_run_preserves_operator_edited_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M1: re-running setup must not drop operator-added config keys."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    cfg_path = home / ".config" / "tripll" / "config.toml"
+
+    first = runner.invoke(app, ["setup", "--non-interactive", "--provider", "cursor_local"])
+    assert first.exit_code == 0, first.output
+
+    write_user_config(
+        {
+            "operator_flag": True,
+            "operator": {"note": "keep me"},
+            "providers": {"cursor_local": {"custom_timeout": 99}},
+        },
+        path=cfg_path,
+    )
+
+    second = runner.invoke(app, ["setup", "--non-interactive", "--provider", "claude_code"])
+    assert second.exit_code == 0, second.output
+
+    text = cfg_path.read_text(encoding="utf-8")
+    assert 'default_provider = "claude_code"' in text
+    assert "operator_flag = true" in text
+    assert 'note = "keep me"' in text
+    assert "custom_timeout = 99" in text
 
 
 def test_doctor_exits_zero_when_provider_available() -> None:

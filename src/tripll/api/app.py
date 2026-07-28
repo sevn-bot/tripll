@@ -325,11 +325,14 @@ def create_app(
 
     register_html_exception_handlers(app)
 
+    from tripll.api._auth import apply_auth_cookie
+
     @app.middleware("http")
     async def csrf_cookie_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
-        """Mirror ``request.state.csrf_token`` into the ``tripll_csrf`` cookie (W3, R5)."""
+        """Mirror CSRF + auth cookies after HTML GETs (W3, R5, H3)."""
         response = await call_next(request)
         apply_csrf_cookie(request, response)
+        apply_auth_cookie(request, response)
         return response
 
     # ---------------------------------------------------------------------------
