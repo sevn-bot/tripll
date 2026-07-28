@@ -10,7 +10,7 @@ with no ordering dependency are tagged `[P]` (parallel), and behavioral change u
 ordering via the single `role = test-author` wave. The plan must satisfy every principle in
 `constitution.md`.
 
-**Self-contained:** all paths are relative to this kit directory (`spec-kit-wave/`). Use
+**Self-contained:** all paths are relative to this kit directory (`src/tripll/skw/`). Use
 repo-root-relative paths when referencing project code (`src/…`, `tests/…`). Never parent-directory
 refs, dot-slash refs, or absolute paths for in-repo refs.
 

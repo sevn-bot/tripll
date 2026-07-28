@@ -13,6 +13,7 @@ from pathlib import Path
 
 from tripll.config import TripllConfig, load_config
 from tripll.extract.pipeline import extract_repo
+from tripll.github.learnings import ensure_learnings_template
 from tripll.graphstore import SqliteGraphStore
 from tripll.onboard.detect import RepoLayout, detect_repo_layout
 from tripll.onboard.doctor import build_doctor_report
@@ -104,6 +105,7 @@ def run_brownfield_init(
     docs_result = emit_doc_skeletons(root, cfg.repo, layout, force=force)
 
     graph_counts = _refresh_code_graph(root, repo_name=layout.repo_name)
+    learnings_path = ensure_learnings_template(root / ".pullfrog" / "learnings.md", force=force)
     doctor = build_doctor_report()
     evaluation_path = write_evaluation(
         root,
@@ -125,6 +127,8 @@ def run_brownfield_init(
         f"Graph nodes : {graph_counts.get('nodes', 0)}",
         f"Evaluation  : {evaluation_path}",
     ]
+    if learnings_path is not None:
+        messages.append(f"Learnings   : {learnings_path}")
     messages.extend(docs_result.drift)
     messages.extend(toml_result.drift)
 

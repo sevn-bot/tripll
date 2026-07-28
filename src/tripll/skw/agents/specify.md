@@ -8,7 +8,7 @@ Author one feature specification (`spec/<slug>/spec.md`) from operator context, 
 
 1. Read the operator brief and explore the referenced repo paths.
 2. Write user stories (prioritized, independently testable), functional requirements,
-   key entities, success criteria, and assumptions per `spec-kit-wave/spec-templates/spec-template.md`.
+   key entities, success criteria, and assumptions per `src/tripll/skw/spec-templates/spec-template.md`.
 3. Tag unknowns `[NEEDS CLARIFICATION: …]` for the `clarify` phase.
 
 ## Guardrails
