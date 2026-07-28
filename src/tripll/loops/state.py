@@ -49,6 +49,10 @@ class L1OuterState(TypedDict, total=False):
     dispatch: list[dict[str, Any]]
     dispatch_results: list[dict[str, Any]]
     wave_dispatch: dict[str, Any]
+    outer_verify: dict[str, Any]
+    outer_commit: dict[str, Any]
+    outer_review: dict[str, Any]
+    outer_generate: dict[str, Any]
     merge_gate: dict[str, Any]
     ci_green: bool
     review_clean: bool

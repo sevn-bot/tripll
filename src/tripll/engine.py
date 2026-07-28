@@ -1693,6 +1693,7 @@ class Engine:
         *,
         run_bag: dict[str, Any] | None = None,
         record_validate_snapshot: bool = True,
+        finalize_run: bool = True,
     ) -> RunResult:
         """Dispatch all wave batches — shared Engine seam for linear and outer-loop paths.
 
@@ -1701,6 +1702,9 @@ class Engine:
             graph (RunGraph): Parsed execution graph.
             run_bag (dict[str, Any] | None): Optional trace span bag from ``_drive``.
             record_validate_snapshot (bool): Write validate ``loop_snapshot`` when True.
+            finalize_run (bool): When True, move the run dir to ``processed/`` or
+                ``failed/`` after batch dispatch. Outer-loop ``waves`` passes False
+                so post-wave nodes can run in ``processing/``.
 
         Returns:
             RunResult: Terminal or paused outcome after batch dispatch.
@@ -1763,12 +1767,14 @@ class Engine:
         self._sync_report(run_id, graph, partial_results=results)
 
         if blocked:
-            self.runs_root.fail_run(run_id)
+            if finalize_run:
+                self.runs_root.fail_run(run_id)
             if run_bag is not None:
                 run_bag["exit_id"] = "failed"
                 run_bag["waves_done"] = len(done)
             return RunResult(run_id=run_id, state="failed", nodes=results)
-        self.runs_root.complete_run(run_id)
+        if finalize_run:
+            self.runs_root.complete_run(run_id)
         if run_bag is not None:
             run_bag["exit_id"] = "done"
             run_bag["waves_done"] = len(done)
@@ -1871,7 +1877,6 @@ class Engine:
                 cp,
                 run_dir=run_dir,
                 engine=self,
-                interrupt_before=["verify"],
             )
             cfg: dict[str, Any] = {
                 "configurable": {"thread_id": run_id},
@@ -1888,7 +1893,6 @@ class Engine:
             final = await app.aget_state(cfg)
             values = dict(final.values)
             wave_payload = values.get("wave_dispatch") or {}
-            state = str(wave_payload.get("state") or "failed")
             node_details = wave_payload.get("node_details") or {}
             nodes = {
                 str(node_id): NodeResult(
@@ -1899,6 +1903,33 @@ class Engine:
                 )
                 for node_id, detail in node_details.items()
             }
+
+            wave_state = str(wave_payload.get("state") or "failed")
+            paused = bool(
+                wave_payload.get("paused")
+                or wave_payload.get("hitl_pending")
+                or wave_payload.get("quota_pending")
+                or wave_payload.get("cost_pending")
+                or values.get("paused")
+            )
+            if paused:
+                state = wave_state if wave_state != "done" else "paused"
+            elif wave_state != "done":
+                state = wave_state
+            elif (
+                not values.get("ci_green", True)
+                or values.get("review_clean") is False
+                or values.get("outer_generate", {}).get("ok") is False
+            ):
+                state = "failed"
+            else:
+                state = "done"
+
+            if state == "done":
+                self.runs_root.complete_run(run_id)
+            elif state == "failed":
+                self.runs_root.fail_run(run_id)
+
             if run_bag is not None:
                 run_bag["exit_id"] = state
                 run_bag["waves_done"] = int(wave_payload.get("waves_done") or 0)

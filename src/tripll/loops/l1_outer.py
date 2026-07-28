@@ -3,7 +3,8 @@
 Compiles a durable ``AsyncSqliteSaver`` graph keyed ``thread_id == run_id`` with
 ``durability="sync"`` on gate-bearing invocations. The ``waves`` node delegates
 batch dispatch to :class:`~tripll.engine.Engine` via ``dispatch_bridge`` (L2-W4);
-remaining outer nodes record step markers and ledger snapshots. PR investigate/fix
+remaining outer nodes run post-wave verify, commit manifest, review audit, and
+optional generate dispatch via ``outer_post_wave``. PR investigate/fix
 wiring lives in ``l1_pr`` + ``dispatch_bridge`` (W9).
 
 Exports:
@@ -304,6 +305,123 @@ def _node_waves(
     return _fn
 
 
+def _apply_outer_node_result(
+    state: L1OuterState,
+    *,
+    name: str,
+    result: Any,
+    run_dir: Path | None,
+    next_node: str | None,
+) -> L1OuterState:
+    """Build a LangGraph partial update from an :class:`OuterNodeResult`."""
+    from tripll.loops.outer_post_wave import OuterNodeResult, outer_result_as_dict
+
+    assert isinstance(result, OuterNodeResult)
+    payload = outer_result_as_dict(result)
+    delta = graph_delta_hash({"node": name, "ok": result.ok, **result.extra})
+    update: L1OuterState = {
+        "step": name,
+        "history": [name],
+        "graph_delta_hash": delta,
+        "turn_hashes": [delta],
+        "turn": int(state.get("turn") or 0) + 1,
+    }
+    if name == "verify":
+        update["outer_verify"] = payload
+        update["ci_green"] = result.ok
+        if result.extra.get("paused"):
+            update["paused"] = True
+    elif name == "commit":
+        update["outer_commit"] = payload
+    elif name == "review":
+        update["outer_review"] = payload
+        update["review_clean"] = bool(result.extra.get("review_clean"))
+    elif name == "generate":
+        update["outer_generate"] = payload
+
+    run_id = str(state.get("run_id") or state.get("thread_id") or "")
+    if run_dir is not None and run_id:
+        ledger_path = run_dir / "ledger.db"
+        if ledger_path.is_file():
+            from tripll.ledger import open_ledger
+
+            with open_ledger(ledger_path) as lc:
+                sync_loop_snapshot_from_state(
+                    lc,
+                    run_id=run_id,
+                    state={**state, **update},
+                    next_node=next_node,
+                )
+    if run_dir is not None:
+        note = f"{name}@{datetime.now(UTC).isoformat()} ok={result.ok}"
+        update.update(spill_large_field(state, field="notes", value=note, run_dir=run_dir))
+    return update
+
+
+def _node_verify(
+    *,
+    run_dir: Path | None = None,
+    engine: Engine | None = None,
+) -> Callable[[L1OuterState], Awaitable[L1OuterState]]:
+    async def _fn(state: L1OuterState) -> L1OuterState:
+        from tripll.loops.outer_post_wave import invoke_outer_verify_async
+
+        result = await invoke_outer_verify_async(state, engine=engine)
+        return _apply_outer_node_result(
+            state, name="verify", result=result, run_dir=run_dir, next_node="commit"
+        )
+
+    return _fn
+
+
+def _node_commit(
+    *,
+    run_dir: Path | None = None,
+    engine: Engine | None = None,
+) -> Callable[[L1OuterState], Awaitable[L1OuterState]]:
+    async def _fn(state: L1OuterState) -> L1OuterState:
+        from tripll.loops.outer_post_wave import invoke_outer_commit_async
+
+        result = await invoke_outer_commit_async(state, engine=engine)
+        return _apply_outer_node_result(
+            state, name="commit", result=result, run_dir=run_dir, next_node="review"
+        )
+
+    return _fn
+
+
+def _node_review(
+    *,
+    run_dir: Path | None = None,
+    engine: Engine | None = None,
+) -> Callable[[L1OuterState], Awaitable[L1OuterState]]:
+    async def _fn(state: L1OuterState) -> L1OuterState:
+        from tripll.loops.outer_post_wave import invoke_outer_review_async
+
+        result = await invoke_outer_review_async(state, engine=engine)
+        return _apply_outer_node_result(
+            state, name="review", result=result, run_dir=run_dir, next_node="generate"
+        )
+
+    return _fn
+
+
+def _node_generate(
+    *,
+    run_dir: Path | None = None,
+    engine: Engine | None = None,
+) -> Callable[[L1OuterState], Awaitable[L1OuterState]]:
+    async def _fn(state: L1OuterState) -> L1OuterState:
+        from tripll.loops.outer_post_wave import invoke_outer_generate_async
+
+        result = await invoke_outer_generate_async(state, engine=engine)
+        return _apply_outer_node_result(
+            state, name="generate", result=result, run_dir=run_dir, next_node=None
+        )
+
+    return _fn
+
+
 def build_l1_outer_graph(*, run_dir: Path | None = None, engine: Engine | None = None) -> Any:
     """Build the outer-loop ``StateGraph`` (uncompiled).
 
@@ -324,12 +442,13 @@ def build_l1_outer_graph(*, run_dir: Path | None = None, engine: Engine | None =
     node_builders: dict[str, Any] = {
         "validate": _node_validate(run_dir=run_dir),
         "waves": _node_waves(run_dir=run_dir, engine=engine),
+        "verify": _node_verify(run_dir=run_dir, engine=engine),
+        "commit": _node_commit(run_dir=run_dir, engine=engine),
+        "review": _node_review(run_dir=run_dir, engine=engine),
+        "generate": _node_generate(run_dir=run_dir, engine=engine),
     }
     for name in OUTER_NODES:
-        if name in node_builders:
-            graph.add_node(name, cast("Any", node_builders[name]))
-        else:
-            graph.add_node(name, cast("Any", _node_writer(name, run_dir=run_dir)))
+        graph.add_node(name, cast("Any", node_builders[name]))
     graph.add_edge(START, OUTER_NODES[0])
     for left, right in pairwise(OUTER_NODES):
         graph.add_edge(left, right)

@@ -188,6 +188,8 @@ class OrchestratorConfig:
         agent_wave (str): Subagent for wave dispatch (default ``wave-runner``).
         agent_orchestrator (str): Subagent for review gates (default ``wave-orchestrator``).
         role_dispatch (bool): Enable per-role agent injection (design-note §10.4).
+        review_generate_cycle (bool): When True, outer ``generate`` may dispatch
+            ``post-review-wave-generator`` on a dirty review.
     """
 
     enabled: bool
@@ -205,6 +207,7 @@ class OrchestratorConfig:
     agent_orchestrator: str = "wave-orchestrator"
     agent_test: str = "test-creator"
     role_dispatch: bool = False
+    review_generate_cycle: bool = False
 
 
 @dataclass
