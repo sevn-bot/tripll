@@ -145,6 +145,8 @@ class WaveNode:
     fallback: list[str] = field(default_factory=list)
     reasoning_effort: str | None = None
     max_budget_usd: float | None = None
+    outcome_contract: dict[str, object] | None = None
+    decomposition: str = ""
 
 
 @dataclass

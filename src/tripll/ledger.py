@@ -60,6 +60,7 @@ WaveState = Literal[
     "gate_pending",
     "dispatched",
     "running",
+    "quality_loop",
     "verifying",
     "unverified",
     "done",
@@ -244,7 +245,7 @@ CREATE TABLE IF NOT EXISTS waves (
     state         TEXT NOT NULL DEFAULT 'queued'
                       CHECK (state IN (
                           'queued', 'gate_pending', 'dispatched',
-                          'running', 'verifying', 'unverified',
+                          'running', 'quality_loop', 'verifying', 'unverified',
                           'done', 'failed', 'blocked', 'deferred'
                       )),
     attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -353,6 +354,7 @@ def open_ledger(path: object) -> LedgerConnection:
     _migrate_event_attempt_n(conn)
     _migrate_event_metadata(conn)
     _migrate_unverified_wave_state(conn)
+    _migrate_quality_loop_wave_state(conn)
     _migrate_attempt_env_fingerprint(conn)
     conn.commit()
     logger.debug("ledger: opened {}", path)
@@ -419,6 +421,40 @@ def _migrate_event_metadata(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE events ADD COLUMN metadata TEXT")
 
 
+def _migrate_quality_loop_wave_state(conn: sqlite3.Connection) -> None:
+    """Rebuild ``waves`` when the state CHECK lacks ``quality_loop``."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='waves'"
+    ).fetchone()
+    if not row or not row[0] or "quality_loop" in row[0]:
+        return
+    conn.executescript(
+        """
+        CREATE TABLE waves_new (
+            node_id       TEXT NOT NULL,
+            run_id        TEXT NOT NULL REFERENCES runs(run_id),
+            plan_id       TEXT NOT NULL,
+            wave_id       TEXT NOT NULL,
+            lane          TEXT NOT NULL,
+            state         TEXT NOT NULL DEFAULT 'queued'
+                              CHECK (state IN (
+                                  'queued', 'gate_pending', 'dispatched',
+                                  'running', 'quality_loop', 'verifying', 'unverified',
+                                  'done', 'failed', 'blocked', 'deferred'
+                              )),
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL,
+            PRIMARY KEY (run_id, node_id)
+        );
+        INSERT INTO waves_new SELECT * FROM waves;
+        DROP TABLE waves;
+        ALTER TABLE waves_new RENAME TO waves;
+        CREATE INDEX IF NOT EXISTS idx_waves_run_state ON waves (run_id, state);
+        """
+    )
+
+
 def _migrate_unverified_wave_state(conn: sqlite3.Connection) -> None:
     """Rebuild ``waves`` when the state CHECK lacks ``unverified`` (W7)."""
     row = conn.execute(
@@ -437,7 +473,7 @@ def _migrate_unverified_wave_state(conn: sqlite3.Connection) -> None:
             state         TEXT NOT NULL DEFAULT 'queued'
                               CHECK (state IN (
                                   'queued', 'gate_pending', 'dispatched',
-                                  'running', 'verifying', 'unverified',
+                                  'running', 'quality_loop', 'verifying', 'unverified',
                                   'done', 'failed', 'blocked', 'deferred'
                               )),
             attempt_count INTEGER NOT NULL DEFAULT 0,
