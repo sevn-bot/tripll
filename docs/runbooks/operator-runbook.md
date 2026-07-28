@@ -401,7 +401,7 @@ tripll run runs/input/delivery-smoke --integrate --deliver --dry-run
 export TRIPLL_PR_DRY_RUN=1   # default in pytest; skip real gh/git push
 ```
 
-Evidence log: [`docs/evidence/live-fixture-e2e-evidence.md`](../evidence/live-fixture-e2e-evidence.md).
+Evidence log: [`tests/fixtures/delivery/EVIDENCE.md`](../../tests/fixtures/delivery/EVIDENCE.md).
 
 **Manual fixture-repo checklist** (requires `[graph]` extra + real remote):
 

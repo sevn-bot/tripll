@@ -253,13 +253,23 @@ def _finalize_run_result(
         _run_integration(rr, result.run_id, deliver=deliver)
 
 
+def _require_run_dir(rr: RunsRoot, run_id: str) -> Path:
+    """Locate a run directory under processing, processed, or failed."""
+    run_dir = rr.find_run_dir(run_id)
+    if run_dir is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    return run_dir
+
+
 def _run_integration(rr: RunsRoot, run_id: str, *, deliver: bool = False) -> None:
     """Execute autonomous per-batch integration for a completed run."""
     from tripll.integrate import GitMakeRunner, execute_integration, plan_integration
     from tripll.parse import build_graph_from_dir
     from tripll.worktrees import branch_name
 
-    graph = build_graph_from_dir(rr.run_dir(run_id), run_id=run_id)
+    run_dir = _require_run_dir(rr, run_id)
+    graph = build_graph_from_dir(run_dir, run_id=run_id)
     plan = plan_integration(graph, run_id=run_id)
     branch_for_lane = {
         lane_id: branch_name(run_id, lane.waves[0].plan_id, lane.waves[0].wave_id)
@@ -279,7 +289,7 @@ def _run_deliver(rr: RunsRoot, run_id: str) -> None:
     """Push integration branch and open PR after successful integrate (D15: no auto-merge)."""
     from tripll.loops.l1_pr import shepherd_run
 
-    run_dir = rr.run_dir(run_id)
+    run_dir = _require_run_dir(rr, run_id)
     typer.echo("")
     typer.echo("[deliver] Pushing integration branch and opening PR…")
     result = shepherd_run(run_id=run_id, run_dir=run_dir, phase="deliver")

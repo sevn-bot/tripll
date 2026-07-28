@@ -1,0 +1,7 @@
+# Minimal tripll config for delivery fixture-repo walkthrough (Gap 1 manual AC).
+
+[project]
+name = "delivery-fixture"
+
+[integrate]
+base_ref = "main"
