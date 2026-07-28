@@ -339,6 +339,7 @@ RUN_LIVE=1 make test -- tests/live/test_adapters_live.py -k cursor_local -v
 | Variable | Purpose |
 |----------|---------|
 | `TRIPLL_LIVE_ADAPTER_BACKENDS` | Comma-separated subset (e.g. `claude_code,cursor_local`) |
+| `TRIPLL_LIVE_ADAPTER_AGENT` | Claude `--agent` slug for the probe (default **general-purpose**) |
 | `TRIPLL_LIVE_ADAPTER_MODEL` | Override model for the probe brief |
 | `TRIPLL_LIVE_ADAPTER_TIMEOUT_S` | Wall-clock timeout per probe (default **120**) |
 

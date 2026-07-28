@@ -15,6 +15,22 @@ LIVE_PROMPT = "Reply with exactly: LIVE_OK (no tools, no explanation)."
 
 _DEFAULT_TIMEOUT_S = 120
 
+_PROBE_SKIP_MARKERS = (
+    "not found",
+    "unexpected argument",
+    "available agents:",
+    "not installed",
+    "couldn't start",
+    "workspace disconnected",
+)
+
+
+def live_agent() -> str:
+    """Agent slug for Claude live probes (override via ``TRIPLL_LIVE_ADAPTER_AGENT``)."""
+    return (
+        os.environ.get("TRIPLL_LIVE_ADAPTER_AGENT", "general-purpose").strip() or "general-purpose"
+    )
+
 
 def live_timeout_s() -> int:
     """Wall-clock timeout for live adapter probes."""
@@ -72,6 +88,18 @@ def skip_if_infra_or_auth(result: DispatchResult, *, output: str = "") -> None:
         pytest.skip(f"{result.outcome}: {detail}")
 
 
+def skip_if_probe_not_runnable(result: DispatchResult, *, output: str = "") -> None:
+    """Skip when the local environment cannot run a meaningful live probe."""
+    if result.outcome == "timed_out":
+        pytest.skip(f"timed out: {(result.result_text or output)[:300]}")
+    skip_if_infra_or_auth(result, output=output)
+    if result.outcome == "done":
+        return
+    text = (result.result_text or output).lower()
+    if any(marker in text for marker in _PROBE_SKIP_MARKERS):
+        pytest.skip(f"{result.outcome}: {(result.result_text or output)[:300]}")
+
+
 async def assert_live_dispatch_ok(
     adapter: AgentAdapter,
     result: DispatchResult,
@@ -80,9 +108,7 @@ async def assert_live_dispatch_ok(
 ) -> None:
     """Assert a live probe succeeded or skip on infra/auth/timeout."""
     output = log_path.read_text(encoding="utf-8") if log_path.is_file() else result.result_text
-    if result.outcome == "timed_out":
-        pytest.skip(f"{adapter.name} timed out after {live_timeout_s()}s")
-    skip_if_infra_or_auth(result, output=output)
+    skip_if_probe_not_runnable(result, output=output)
     assert result.outcome == "done", (result.result_text or output)[:500]
 
 

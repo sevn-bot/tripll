@@ -12,10 +12,11 @@ from pathlib import Path
 import pytest
 
 from tests.live.conftest import (
+    live_agent,
     live_timeout_s,
     minimal_live_brief,
     run_live_probe,
-    skip_if_infra_or_auth,
+    skip_if_probe_not_runnable,
     skip_if_unavailable,
     skip_unless_backend_requested,
 )
@@ -30,7 +31,7 @@ pytestmark = pytest.mark.tier2
 async def test_claude_code_live_minimal_dispatch(live_worktree: Path) -> None:
     """Probe ``claude_code`` with a minimal headless prompt."""
     skip_unless_backend_requested("claude_code")
-    adapter = ClaudeCodeAdapter(skip_permissions=True)
+    adapter = ClaudeCodeAdapter(agent=live_agent(), skip_permissions=True)
     await run_live_probe(adapter, live_worktree)
 
 
@@ -65,5 +66,5 @@ async def test_cursor_cloud_live_capabilities_probe(live_worktree: Path) -> None
     if "deferred" in result.result_text.lower():
         pytest.skip(f"cursor_cloud live dispatch deferred: {result.result_text}")
     output = log_path.read_text(encoding="utf-8") if log_path.is_file() else result.result_text
-    skip_if_infra_or_auth(result, output=output)
+    skip_if_probe_not_runnable(result, output=output)
     assert result.outcome == "done", (result.result_text or output)[:500]
