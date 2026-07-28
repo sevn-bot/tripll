@@ -437,6 +437,16 @@ def render_dispatch_prompt(brief: dict[str, object]) -> str:
             lines.append("Required: " + "; ".join(str(x) for x in req_items))
         if forbid_items:
             lines.append("Forbidden: " + "; ".join(str(x) for x in forbid_items))
+        reference = outcome.get("reference") or {}
+        quality = outcome.get("quality_gauntlet") or {}
+        if quality.get("enabled") and reference:
+            lines += [
+                "",
+                "## Quality gauntlet",
+                f"Reference: {reference.get('kind', '')} @ {reference.get('path', '')}",
+                f"Comparison: {reference.get('comparison', '')}; "
+                f"stop_when: {reference.get('stop_when', '')}",
+            ]
     if isinstance(orch_ctx, dict):
         lines += [
             "",

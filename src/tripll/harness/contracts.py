@@ -199,19 +199,19 @@ def render_completion(
     *,
     grader_output: dict[str, str],
     agent_claim: str = "",
+    quality_rounds: list[dict[str, object]] | None = None,
 ) -> str:
-    """Render the completion message from grader output, not the agent claim.
-
-    Args:
-        grader_output (dict[str, str]): Code-based grader results.
-        agent_claim (str): Ignored agent self-report (included only when empty output).
-
-    Returns:
-        str: Operator-facing completion summary.
-    """
-    if not grader_output:
+    """Render the completion message from grader output, not the agent claim."""
+    if not grader_output and not quality_rounds:
         return agent_claim or "no grader output"
     lines = ["## Verification (grader output)", ""]
     for key, value in sorted(grader_output.items()):
         lines.append(f"- **{key}**: {value}")
+    if quality_rounds:
+        lines += ["", "## Quality gauntlet", ""]
+        for row in quality_rounds:
+            rnd = row.get("round", "?")
+            winner = row.get("winner", "?")
+            gap = row.get("gap") or "—"
+            lines.append(f"- Round {rnd}: winner={winner}; gap={gap}")
     return "\n".join(lines)
