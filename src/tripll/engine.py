@@ -79,8 +79,15 @@ from tripll.brief import (
     render_json_brief,
     write_brief,
 )
+from tripll.engine_scheduling import (
+    can_run_concurrently,
+    human_gate_node_ids,
+    nodes_for_batch,
+    orchestrator_serial_nodes,
+    ready_nodes,
+    select_concurrent_set,
+)
 from tripll.git_commit import commit_and_push_wave
-from tripll.graph import Batch, OrchestratorConfig, RunGraph, WaveNode, paths_overlap
 from tripll.harness.boundary import (
     assert_verify_isolation,
     build_verify_dispatch,
@@ -133,11 +140,29 @@ from tripll.worktrees import (
     staged_wave_plan_path,
 )
 
+__all__ = [
+    "Engine",
+    "GitWorktreeManager",
+    "MakeVerifier",
+    "NodeResult",
+    "RunResult",
+    "SingleBranchWorktreeManager",
+    "Verifier",
+    "WorktreeManager",
+    "can_run_concurrently",
+    "complete_human_gate_waves",
+    "human_gate_node_ids",
+    "nodes_for_batch",
+    "orchestrator_serial_nodes",
+    "ready_nodes",
+    "select_concurrent_set",
+]
+
 if TYPE_CHECKING:
-    from collections.abc import Iterable
     from pathlib import Path
 
     from tripll.adapters.base import AgentAdapter, DispatchResult
+    from tripll.graph import OrchestratorConfig, RunGraph, WaveNode
     from tripll.ledger import AttemptOutcome, RunState
     from tripll.pipeline import RunsRoot
 
@@ -149,80 +174,6 @@ def _resolve_grep_brief(grep_brief: bool | None) -> bool:
     from tripll.plan.code_graph import kg_extra_available
 
     return not kg_extra_available()
-
-
-def _late_cw_paths() -> frozenset[str]:
-    import tripll.graph as graph_mod
-
-    hotspots = graph_mod.CW_HOTSPOTS
-    return frozenset(hotspots.get("CW-4", []) + hotspots.get("CW-5", []))
-
-
-def human_gate_node_ids(graph: RunGraph) -> set[str]:
-    """Return node ids for waves in human-gate batches (Pre-0 / review gate only).
-
-    Args:
-        graph (RunGraph): Parsed execution graph.
-
-    Returns:
-        set[str]: Node ids that are human gates (no agent dispatch).
-
-    Examples:
-        >>> from tripll.graph import Batch, Lane, RunGraph, WaveNode
-        >>> n = WaveNode("l:W0", "l", "p.md", "W0", "lane")
-        >>> g = RunGraph(
-        ...     run_id="r", nodes={"l:W0": n},
-        ...     lanes={"l": Lane("l", "lane", [n])},
-        ...     batches=[Batch("pre0", ["l"], is_human_gate=True, wave_ids=["W0"])],
-        ... )
-        >>> human_gate_node_ids(g)
-        {'l:W0'}
-    """
-    ids: set[str] = set()
-    for batch in graph.batches:
-        if not batch.is_human_gate or not batch.wave_ids:
-            continue
-        for lane_id in batch.lanes:
-            for wave_id in batch.wave_ids:
-                node_id = f"{lane_id}:{wave_id}"
-                if node_id in graph.nodes:
-                    ids.add(node_id)
-    return ids
-
-
-def nodes_for_batch(graph: RunGraph, batch: Batch) -> list[WaveNode]:
-    """Return wave nodes belonging to *batch* (respects ``batch.wave_ids`` when set).
-
-    Args:
-        graph (RunGraph): Parsed execution graph.
-        batch (Batch): One batch row from the graph.
-
-    Returns:
-        list[WaveNode]: Nodes in *batch* lanes (filtered by ``wave_ids`` when set).
-
-    Examples:
-        >>> from tripll.graph import Batch, Lane, RunGraph, WaveNode
-        >>> n = WaveNode("l:W1", "l", "p.md", "W1", "lane")
-        >>> g = RunGraph(
-        ...     run_id="r", nodes={"l:W1": n},
-        ...     lanes={"l": Lane("l", "lane", [n])},
-        ...     batches=[Batch("a", ["l"], wave_ids=["W1"])],
-        ... )
-        >>> [x.wave_id for x in nodes_for_batch(g, g.batches[0])]
-        ['W1']
-    """
-    out: list[WaveNode] = []
-    for lane_id in batch.lanes:
-        lane = graph.lanes.get(lane_id)
-        if lane is None:
-            continue
-        for wave in lane.waves:
-            if wave.node_id not in graph.nodes:
-                continue
-            if batch.wave_ids and wave.wave_id not in batch.wave_ids:
-                continue
-            out.append(graph.nodes[wave.node_id])
-    return out
 
 
 def complete_human_gate_waves(
@@ -319,116 +270,10 @@ class RunResult:
 
 
 # ---------------------------------------------------------------------------
-# Pure scheduling helpers (W5.1 / W5.2)
-# ---------------------------------------------------------------------------
-
-
-def ready_nodes(nodes: Iterable[WaveNode], done: set[str]) -> list[WaveNode]:
-    """Return nodes whose dependencies are all satisfied and not yet done.
-
-    Args:
-        nodes (Iterable[WaveNode]): Candidate nodes.
-        done (set[str]): node_ids already completed.
-
-    Returns:
-        list[WaveNode]: Nodes ready to dispatch.
-
-    Examples:
-        >>> from tripll.graph import WaveNode
-        >>> a = WaveNode("a", "a", "p", "W0", "a")
-        >>> b = WaveNode("b", "b", "p", "W1", "b", depends_on=["a"])
-        >>> [n.node_id for n in ready_nodes([a, b], set())]
-        ['a']
-    """
-    out: list[WaveNode] = []
-    for node in nodes:
-        if node.node_id in done:
-            continue
-        if all(dep in done for dep in node.depends_on):
-            out.append(node)
-    return out
-
-
-def _touches_late_cw(node: WaveNode) -> bool:
-    """Return True when *node* owns a CW-4/CW-5 hotspot path.
-
-    Args:
-        node (WaveNode): Candidate wave node.
-
-    Returns:
-        bool: True when owned paths overlap late coordination hotspots.
-
-    Examples:
-        >>> from tripll.graph import WaveNode
-        >>> n = WaveNode("a", "a", "p", "W0", "a", owned_paths=["infra/sevn.schema.json"])
-        >>> _touches_late_cw(n)
-        True
-    """
-    for owned in node.owned_paths:
-        o = owned.rstrip("/")
-        for cw in _late_cw_paths():
-            c = cw.rstrip("/")
-            if o == c or o.startswith(c + "/") or c.startswith(o + "/"):
-                return True
-    return False
-
-
-def can_run_concurrently(a: WaveNode, b: WaveNode) -> bool:
-    """Return True when two nodes may run in parallel within a phase (W5.2).
-
-    Parallel only when owned paths are disjoint **and** the two do not both
-    touch CW-4/CW-5 hotspots in the same phase.
-
-    Args:
-        a (WaveNode): First node.
-        b (WaveNode): Second node.
-
-    Returns:
-        bool: True if the pair may run concurrently.
-
-    Examples:
-        >>> from tripll.graph import WaveNode
-        >>> a = WaveNode("a", "a", "p", "W0", "a", owned_paths=["src/sevn/a/"])
-        >>> b = WaveNode("b", "b", "p", "W0", "b", owned_paths=["src/sevn/b/"])
-        >>> can_run_concurrently(a, b)
-        True
-    """
-    if paths_overlap(a.owned_paths, b.owned_paths):
-        return False
-    return not (_touches_late_cw(a) and _touches_late_cw(b))
-
-
-def select_concurrent_set(candidates: list[WaveNode]) -> list[WaveNode]:
-    """Greedily select a maximal pairwise-disjoint subset from *candidates*.
-
-    Iterates *candidates* in order and adds each node to the running set
-    only if it is ``can_run_concurrently`` with every node already selected.
-    Nodes that fail the pairwise check are skipped for this round; they will
-    be reconsidered after the selected nodes finish.
-
-    Args:
-        candidates (list[WaveNode]): Ready nodes to choose from.
-
-    Returns:
-        list[WaveNode]: The largest prefix-consistent concurrent set.
-
-    Examples:
-        >>> from tripll.graph import WaveNode
-        >>> a = WaveNode("a", "a", "p", "W0", "a", owned_paths=["src/a/"])
-        >>> b = WaveNode("b", "b", "p", "W0", "b", owned_paths=["src/b/"])
-        >>> c = WaveNode("c", "c", "p", "W0", "c", owned_paths=["src/a/x.py"])
-        >>> [n.node_id for n in select_concurrent_set([a, b, c])]
-        ['a', 'b']
-    """
-    selected: list[WaveNode] = []
-    for node in candidates:
-        if all(can_run_concurrently(node, s) for s in selected):
-            selected.append(node)
-    return selected
-
-
-# ---------------------------------------------------------------------------
 # Worktree / verify injection points
+# ---------------------------------------------------------------------------
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -797,54 +642,6 @@ class SingleBranchWorktreeManager(GitWorktreeManager):
     def cleanup(self, worktree: Worktree) -> None:
         """No-op — integration worktree persists across orchestrator waves."""
         return None
-
-
-def _topological_sort_nodes(graph: RunGraph) -> list[WaveNode]:
-    """Return *graph* nodes in dependency order (best-effort when cycles exist)."""
-    nodes = list(graph.nodes.values())
-    done: set[str] = set()
-    ordered: list[WaveNode] = []
-    while len(ordered) < len(nodes):
-        progressed = False
-        for node in nodes:
-            if node.node_id in done:
-                continue
-            if all(dep in done for dep in node.depends_on):
-                ordered.append(node)
-                done.add(node.node_id)
-                progressed = True
-        if not progressed:
-            break
-    return ordered
-
-
-def orchestrator_serial_nodes(graph: RunGraph) -> list[WaveNode]:
-    """Order nodes for orchestrator serial execution (W2.1).
-
-    Args:
-        graph (RunGraph): Parsed execution graph.
-
-    Returns:
-        list[WaveNode]: Nodes ordered by ``orchestrator.serial_waves`` then topo sort.
-
-    Examples:
-        >>> orchestrator_serial_nodes.__name__
-        'orchestrator_serial_nodes'
-    """
-    cfg = graph.orchestrator
-    if cfg is None:
-        return _topological_sort_nodes(graph)
-    by_wave: dict[str, list[WaveNode]] = {}
-    for node in graph.nodes.values():
-        by_wave.setdefault(node.wave_id, []).append(node)
-    ordered: list[WaveNode] = []
-    for wid in cfg.serial_waves:
-        ordered.extend(by_wave.get(wid, []))
-    seen = {n.node_id for n in ordered}
-    for node in _topological_sort_nodes(graph):
-        if node.node_id not in seen:
-            ordered.append(node)
-    return ordered
 
 
 def _initial_orchestrator_rows(cfg: OrchestratorConfig) -> list[StatusRow]:
