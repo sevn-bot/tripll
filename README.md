@@ -1,5 +1,9 @@
 # tripll
 
+<p align="center">
+  <img src="about-tripll/assets/logo.svg" alt="tripll" width="128" height="128" />
+</p>
+
 Headless parallel wave-plan execution pipeline. Parse wave plans into a **RunGraph**,
 dispatch each wave to an agent backend, stop at human gates, retry failures, and optionally
 integrate batches on one branch.
