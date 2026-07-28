@@ -15,7 +15,7 @@ acceptance criteria.
 3. Write product prose only — stable IDs (`UJ-`, `FR-`, `KPI-`, `RISK-`, `OQ-`), no
    module paths or EARS **shall** statements in the PRD body.
 4. Set `prd_profile: standard` or `ai-native` (agent/eval/self-improvement PRDs).
-5. Run `make prd-validate PRD=…` from this kit and fix **errors** before finishing.
+5. Run `uv run python -m tripll.skw.prd_validate … --kit-root src/tripll/skw` from the repo root and fix **errors** before finishing.
 
 ## Guardrails
 
@@ -34,7 +34,7 @@ Print prompt: `make prd-author PRD=about-sevn.bot/prd/05-cost-and-providers.md [
 
 Headless: `make prd-author-run PRD=…` (renders `src/tripll/skw/prompts/prd-author.md`).
 
-Validate: `make prd-validate PRD=…` · batch: `make prd-check`.
+Validate: `uv run python -m tripll.skw.prd_validate … --kit-root src/tripll/skw` · batch: `make prd-check`.
 
 Machine contract: [`src/tripll/skw/agents/prd-author.md`](prd-author.md).
 

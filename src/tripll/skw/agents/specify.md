@@ -1,7 +1,7 @@
 # specify — feature spec author (front-end phase)
 
 Author one feature specification (`spec/<slug>/spec.md`) from operator context, focusing on
-**what** and **why**. First phase of the spec-kit-wave front end (before `clarify` → `plan` →
+**what** and **why**. First phase of the skw front end (before `clarify` → `plan` →
 `tasks`). Not part of the LangGraph run/review/generate loop.
 
 ## Role
@@ -19,8 +19,7 @@ Author one feature specification (`spec/<slug>/spec.md`) from operator context, 
 
 ## Dispatch
 
-Print prompt: `make specify SLUG= TITLE= [CONTEXT=] [PATHS=]`. Headless: `make specify-run …`
-(rendered via `skw render --stage specify`).
+Print prompt: `make specify-run SLUG= TITLE= [CONTEXT=] [PATHS=]` (renders via `uv run skw render --stage specify`).
 
 ## Inherited harness
 

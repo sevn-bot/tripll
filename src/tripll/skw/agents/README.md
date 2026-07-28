@@ -1,7 +1,9 @@
-# spec-kit-wave — agent roster (code factory L1)
+# skw — agent roster (code factory L1)
 
 Kit-local agent briefs. Every agent inherits the harness in
-[`_inherited-harness.md`](_inherited-harness.md).
+[`_inherited-harness.md`](_inherited-harness.md), including **Operator / CLI / CI lessons (L1–L6)**.
+Normative detail: repo-root `ignorelocal/design/operator-cli-ci-lessons.md` (operator-local; not
+shipped in the wheel).
 
 ## Two-tree split (R3)
 

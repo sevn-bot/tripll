@@ -1,7 +1,7 @@
 # clarify — spec disambiguation (front-end phase)
 
 Reduce ambiguity in an existing `spec/<slug>/spec.md` before the `plan` phase. Second phase of
-the spec-kit-wave front end. Not part of the LangGraph run/review/generate loop.
+the skw front end. Not part of the LangGraph run/review/generate loop.
 
 ## Role
 
@@ -18,8 +18,7 @@ the spec-kit-wave front end. Not part of the LangGraph run/review/generate loop.
 
 ## Dispatch
 
-Print prompt: `make clarify SLUG= TITLE= [CONTEXT=] [PATHS=]`. Headless: `make clarify-run …`
-(renders `src/tripll/skw/prompts/clarify.md` via `skw render --stage clarify`).
+Print prompt: `uv run skw render --stage clarify --slug … --title … [CONTEXT=] [PATHS=]`.
 
 ## Inherited harness
 

@@ -3,7 +3,7 @@
 **Status:** Throwaway (Final wave loop smoke only)
 **Date:** 2026-06-24
 
-Single-wave plan for ``make loop`` convergence smoke. Uses ``scripts/smoke-agent.sh`` (auto-selected
+Single-wave plan for `uv run skw run --wave …` convergence smoke. Uses ``scripts/smoke-agent.sh`` (auto-selected
 when slug is ``smoke-loop``). Review writes ``verdict: pass`` with no new wave-file.
 
 ```toml
@@ -11,7 +11,7 @@ waveorch_format = 2
 title  = "Smoke loop self-test"
 slug   = "smoke-loop"
 base   = "test-pre"
-branch = "feature/spec-kit-wave-kit"
+branch = "feature/skw-smoke-loop"
 
 [pipeline]
 max_turns = 1

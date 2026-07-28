@@ -3,7 +3,7 @@ name: github-issue-triage
 description: >-
   Maintainer-safe GitHub issue triage for sevn.bot: fetch open issues, classify
   and prioritize, detect duplicates, draft comments, apply label/assignee updates
-  (dry-run first), and route actionable work into new or existing spec-kit-wave
+  (dry-run first), and route actionable work into new or existing skw
   wave plans. Use when asked to triage issues, clean the issue queue, respond to
   a new bug report, or turn an issue into a wave plan. Based on JSONbored
   awesome-claude community issue triage agent and mergisi/openclaw Sentry triager.
@@ -43,7 +43,7 @@ diff → `review-result.json`). Use this skill for GitHub **Issues** queue manag
 Read repo policy paths from `src/tripll/skw/skw.toml` `[github]` when present:
 
 ```bash
-python3 src/tripll/skw/scripts/context_paths.py --kit-root spec-kit-wave | rg '^github_'
+python3 src/tripll/skw/scripts/context_paths.py --kit-root src/tripll/skw | rg '^github_'
 ```
 
 | Key | Default | Purpose |

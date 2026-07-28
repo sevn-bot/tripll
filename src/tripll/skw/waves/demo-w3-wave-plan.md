@@ -3,7 +3,7 @@
 Copy to `waves/<slug>-wave-plan.md` and fill in. The **first fenced `toml` block** is the machine
 contract; the markdown body below carries human `## Wave <id>` checklists.
 
-**Self-contained:** all paths are relative to this kit directory (`spec-kit-wave/`). Use
+**Self-contained:** all paths are relative to kit paths are under `src/tripll/skw/`. Use
 repo-root-relative paths when referencing project code (`src/…`, `tests/…`). Never parent-directory
 refs, dot-slash refs, or absolute paths for in-repo refs.
 

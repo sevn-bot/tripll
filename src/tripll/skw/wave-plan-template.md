@@ -182,7 +182,7 @@ node runs after each wave's agent state **and** verify pass: it stages tracked c
 test-creator reconcile checkboxes only. The node resolves the branch's worktree via `git worktree list`
 and never switches the current branch. Use `SKW_DRYRUN=1` to print git argv without executing.
 
-The headless driver is **`uv run skw run`** (`make loop`), not a markdown orchestrator subagent.
+The headless driver is **`uv run skw run --wave …`**, not a markdown orchestrator subagent.
 Legacy [`scripts/orchestrate.sh`](scripts/orchestrate.sh) is retained for reference only.
 
 ### Graph rules (validator)

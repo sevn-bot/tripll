@@ -6,7 +6,7 @@
 
 ## Context
 
-tripll reads wave plans via `parse/wave_plan_v1.py`; spec-kit-wave uses `waveorch_format = 2`.
+tripll reads wave plans via `parse/wave_plan_v1.py`; skw (under `src/tripll/skw/`) uses `waveorch_format = 2`.
 Neither enforces typed dependency reasons, the stop rule, or one-writer-per-file constraints.
 `CW_HOTSPOTS` in `graph.py` hardcodes coordination-wave path maps that should be derived from the
 graph.

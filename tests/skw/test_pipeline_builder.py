@@ -60,5 +60,5 @@ def test_verify_targets_from_wave_file() -> None:
     builder = PipelineBuilder.from_wave_file(PIPELINE_FIXTURE, kit_root=KIT_ROOT)
     payload = builder.to_json()
     by_id = {state["id"]: state for state in payload["states"]}
-    assert by_id["W1"]["verify"] == ["make -C spec-kit-wave test"]
+    assert by_id["W1"]["verify"] == ["make test"]
     assert by_id["W2"]["verify"] == ["make validate-selftest"]

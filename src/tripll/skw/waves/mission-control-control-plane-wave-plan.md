@@ -11,23 +11,21 @@ Traces, Chat), then sweep editability across tabs that already have PUT/POST API
 
 ## How to run this plan
 
-Run all commands from the **`spec-kit-wave/`** directory (kit root). Paths below are relative to
-that directory unless noted.
+Run all commands from the **repo root**. Paths below use `src/tripll/skw/` for kit-local
+artifacts unless noted.
 
 ### 0. Preflight
 
 ```bash
-cd spec-kit-wave
 make setup
-make check-deps
-make validate WAVE=waves/mission-control-control-plane-wave-plan.md
-make pipeline-build WAVE=waves/mission-control-control-plane-wave-plan.md
+make validate WAVE=src/tripll/skw/waves/mission-control-control-plane-wave-plan.md
+uv run skw pipeline-build --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md
 ```
 
-`make pipeline-build` writes gitignored local pipeline artifacts:
+`uv run skw pipeline-build` writes gitignored local pipeline artifacts:
 
-- `waves/mission-control-control-plane.pipeline.json`
-- `waves/mission-control-control-plane.pipeline.html` (agent order + model params)
+- `src/tripll/skw/waves/mission-control-control-plane.pipeline.json`
+- `src/tripll/skw/waves/mission-control-control-plane.pipeline.html` (agent order + model params)
 
 Open the HTML in a browser to inspect which model each pipeline agent uses before driving waves.
 
@@ -40,61 +38,61 @@ Runs validate → each wave (wave-runner / test-creator) → verify → commit �
 generate, until review passes or `max_turns` is exhausted:
 
 ```bash
-make loop WAVE=waves/mission-control-control-plane-wave-plan.md
+uv run skw run --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md
 ```
 
 Useful env overrides:
 
 ```bash
-SKW_DRYRUN=1 make loop WAVE=waves/mission-control-control-plane-wave-plan.md   # print argv, no agent/git
-SKW_AUTO_APPROVE=1 make loop WAVE=...                                          # skip W0 review_gate interrupt
+SKW_DRYRUN=1 uv run skw run --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md   # print argv, no agent/git
+SKW_AUTO_APPROVE=1 uv run skw run --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md   # skip W0 review_gate interrupt
 ```
 
 ### 2. Cursor Multitask — one wave at a time (interactive)
 
-Print a rendered prompt, paste into a **Multitask** agent on the feature branch, then follow the
-`Next:` footer after each headless `-run` variant:
+Print a rendered prompt, paste into a **Multitask** agent on the feature branch, then follow
+`uv run skw next-step --wave …` after each headless dispatch:
 
 ```bash
 # W0 design (review gate — operator sign-off before tests/impl)
-make wave-runner WAVE=waves/mission-control-control-plane-wave-plan.md WAVE_ID=W0
+uv run skw render --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage run --wave-id W0
 
 # W1 tests-first (only agent that may edit tests/)
-make test-creator WAVE=waves/mission-control-control-plane-wave-plan.md
+uv run skw render --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage run --wave-id W1
 
 # W2 … W6 impl waves
-make wave-runner WAVE=waves/mission-control-control-plane-wave-plan.md WAVE_ID=W2
+uv run skw render --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage run --wave-id W2
 
 # Branch review after all waves
-make reviewer WAVE=waves/mission-control-control-plane-wave-plan.md
+uv run skw render --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage review
 ```
 
 Headless single-wave dispatch (same prompts, runs `cursor-agent` via `scripts/agent.sh`):
 
 ```bash
-make wave-runner-run WAVE=waves/mission-control-control-plane-wave-plan.md WAVE_ID=W2
-make test-creator-run WAVE=waves/mission-control-control-plane-wave-plan.md
-make reviewer-run WAVE=waves/mission-control-control-plane-wave-plan.md
+uv run skw agent-run --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage run --wave-id W2
+uv run skw agent-run --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage run --wave-id W1
+uv run skw agent-run --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage review
 ```
 
 Preview prompts without running:
 
 ```bash
-make render WAVE=waves/mission-control-control-plane-wave-plan.md STAGE=run WAVE_ID=W3
-make render-all WAVE=waves/mission-control-control-plane-wave-plan.md
+uv run skw render --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage run --wave-id W3
+uv run skw render --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --stage review
 ```
 
 ### 3. Manual stepping with `next-step`
 
-After any `*-run` target, the Makefile prints **`Next: make …`**. You can also query it:
+After any `agent-run`, query the next command:
 
 ```bash
-uv run skw next-step --wave waves/mission-control-control-plane-wave-plan.md --wave-id W2
+uv run skw next-step --wave src/tripll/skw/waves/mission-control-control-plane-wave-plan.md --wave-id W2
 ```
 
 ### 4. W0 review gate
 
-W0 sets `review_gate = true`. In `make loop`, the graph **interrupts** until you approve (unless
+W0 sets `review_gate = true`. In `uv run skw run`, the graph **interrupts** until you approve (unless
 `SKW_AUTO_APPROVE=1`). Confirm locked decisions D1–D6 before letting W1 (test-author) run.
 
 ---

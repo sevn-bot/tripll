@@ -1,7 +1,7 @@
 # plan — technical implementation plan (front-end phase)
 
 Author one implementation plan (`spec/<slug>/plan.md`) from the spec and the constitution.
-Third phase of the spec-kit-wave front end (before `tasks`/wave-generator). Not part of the
+Third phase of the skw front end (before `tasks`/wave-generator). Not part of the
 LangGraph run/review/generate loop.
 
 ## Role
@@ -20,8 +20,7 @@ LangGraph run/review/generate loop.
 
 ## Dispatch
 
-Print prompt: `make plan SLUG= TITLE= [CONTEXT=] [PATHS=]`. Headless: `make plan-run …`
-(renders `src/tripll/skw/prompts/plan.md` via `skw render --stage plan`).
+Print prompt: `uv run skw render --stage plan --slug … --title … [CONTEXT=] [PATHS=]`.
 
 ## Inherited harness
 

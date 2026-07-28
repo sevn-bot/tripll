@@ -21,7 +21,7 @@ for the user first.
 - User wants draft inline comments on GitHub before sending.
 - User wants a thorough review with verification, not a skim.
 
-**Not the same as** spec-kit-wave **reviewer** agent (branch diff →
+**Not the same as** skw **reviewer** agent (branch diff →
 `review-result.json` for wave loops). Use this skill for human-facing GitHub PR
 review on any repo.
 

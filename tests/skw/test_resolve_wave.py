@@ -41,4 +41,4 @@ class TestResolveWave:
         rc = resolve_main([str(FIXTURES / "bad-double-test-author.md"), "--validate-impl", "W0"])
         captured = capsys.readouterr()
         assert rc == 1
-        assert "test-creator" in captured.err
+        assert "test-author" in captured.err

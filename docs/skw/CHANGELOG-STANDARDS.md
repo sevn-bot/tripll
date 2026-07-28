@@ -1,4 +1,4 @@
-# Changelog standards (spec-kit-wave)
+# Changelog standards (skw)
 
 The user-facing history for sevn.bot lives in `CHANGELOG.md` at the repo root. This kit owns
 the **template**, **authoring rules**, and the **quality bar** (deterministic row rules plus an
@@ -13,8 +13,8 @@ authors how to write entries that pass it.
 | [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) | Six ordered categories, `## [Unreleased]` staging block, human-first prose | `changelog-templates/changelog-template.md`; §Categories |
 | [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) | Version headings `## [X.Y.Z] - DATE`; category → bump mapping | §Cutting a release |
 | [inancgumus/skills/git-pr](https://github.com/inancgumus/skills/tree/main/git-pr) | Impact-first voice: describe the outcome for the reader, not the mechanism | §Voice; `skills/changelog-author` |
-| [pydantic-evals](https://ai.pydantic.dev/evals/) `LLMJudge` | Rubric-scored LLM judging; structured per-dimension scores | §LLM double-score; `src/skw/changelog_eval.py` |
-| about-sevn.bot golden_llm eval | Structured judge model + on-request (never-in-CI) live eval discipline | `src/skw/changelog_eval.py` |
+| [pydantic-evals](https://ai.pydantic.dev/evals/) `LLMJudge` | Rubric-scored LLM judging; structured per-dimension scores | §LLM double-score; `src/tripll/skw/changelog_eval.py` |
+| about-sevn.bot golden_llm eval | Structured judge model + on-request (never-in-CI) live eval discipline | `src/tripll/skw/changelog_eval.py` |
 
 ### Keep a Changelog — fit for sevn
 
@@ -214,5 +214,5 @@ uv run python -m skw.changelog_eval --repo .. --base origin/main --json
 | `skills/changelog-review/SKILL.md` | Evaluation skill — run both gates and interpret the scores |
 | `agents/changelog-author.md` | Agent reference for authoring |
 | `agents/changelog-reviewer.md` | Agent reference for gating + double-score |
-| `src/skw/changelog_eval.py` | LLM double-score implementation (pydantic-ai + pydantic-evals) |
+| `src/tripll/skw/changelog_eval.py` | LLM double-score implementation (pydantic-ai + pydantic-evals) |
 | `changelog-rules.toml` | Machine-readable rules + `[eval]` thresholds (owned by enforcement) |

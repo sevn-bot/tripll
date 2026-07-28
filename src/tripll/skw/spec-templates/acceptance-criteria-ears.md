@@ -64,6 +64,6 @@ Archive merges MODIFIED/ADDED/REMOVED into the canonical spec body after the wav
 
 ## Validation
 
-- PRD files: `make prd-validate PRD=…`
+- PRD files: `uv run python -m tripll.skw.prd_validate … --kit-root src/tripll/skw`
 - Spec EARS lint (optional): adopt [vale-ears](https://github.com/tbhb/vale-ears) in docs CI
   when specs gain formal shall-statements at scale.

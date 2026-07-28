@@ -13,9 +13,9 @@ description: >-
 A discipline for hard bugs. Skip phases only when explicitly justified.
 
 When exploring the codebase, resolve this repo's glossary and ADR paths with
-`python3 scripts/context_paths.py --slug <slug>` (run from the `spec-kit-wave`
-kit root — find it by walking up to the directory containing `skw.toml`; the
-script prints `glossary=` and `decisions_dir=` as absolute paths). Read the
+`python3 src/tripll/skw/scripts/context_paths.py --slug <slug>` (run from the repo root;
+`--kit-root src/tripll/skw` when needed — find it by walking up to the directory containing
+`skw.toml`; the script prints `glossary=` and `decisions_dir=` as absolute paths). Read the
 glossary to get a clear mental model of the relevant modules, and check ADRs
 in the area you're touching. Never hardcode `CONTEXT.md` or `docs/adr/` —
 those paths are configured per-repo in `skw.toml`'s `[context]` table.

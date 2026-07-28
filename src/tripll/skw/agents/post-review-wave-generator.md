@@ -36,7 +36,7 @@ Follow `wave-plan-template.md`:
 
 Every post-review wave-file **must** include a tests-first wave graph so **test-creator** can run:
 
-1. **Exactly one** `role = "test-author"` wave (e.g. `W1` or `T1`) — orchestrator and `make test-creator-run` dispatch here.
+1. **Exactly one** `role = "test-author"` wave (e.g. `W1` or `T1`) — orchestrator and `uv run skw agent-run --wave … --stage run --wave-id <test-author-id>` dispatch here.
 2. Bullets in that wave describe **NEW or CHANGED** tests covering the remediation: paths under `tests/`, what to assert, expected RED before impl waves (RED OK).
 3. **All subsequent** `role = "impl"` waves **must** list the test-author wave in `depends_on` (directly or transitively via an earlier wave such as W0).
 4. Optional W0 design wave (`role = "impl"`, `review_gate = true`) may precede test-author when scaffolding is needed; if W0 exists before test-author, later impl waves still depend on test-author (not only on W0).

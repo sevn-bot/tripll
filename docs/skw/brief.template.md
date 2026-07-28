@@ -1,7 +1,7 @@
 # Operator brief — <plan title>
 
 <!--
-  This is the CONTEXT file for `make plan-generate ... CONTEXT=brief.md`.
+  This is the CONTEXT file for `make wave-generator-run ... CONTEXT=brief.md`.
   Its **entire content is injected verbatim** into the wave-generator prompt as
   "Operator context" — the agent reads it to design the wave graph, pick verify
   targets, and record locked decisions. Write prose, not TOML: the agent authors
