@@ -187,6 +187,37 @@ Resume rebuilds the graph from the run directory and seeds completed waves from
 the ledger, so it dispatches only the waves that had not finished. It re-stops at
 the Pre-0 gate if it was never approved.
 
+### 5a. Live injection — Mode A (hotfix) vs Mode B (plan edit)
+
+Two operator paths add work mid-flight without restarting the run. Both require
+**pause first** (no in-flight waves) so graph/ledger mutation is safe.
+
+| Mode | When to use | Steps |
+|------|-------------|-------|
+| **A — hotfix inject** | One-line bug fix; narrow path scope; no new plan section | `tripll pause <run-id>` → `tripll run inject <run-id> --after <wave> --brief … --paths …` → `tripll resume <run-id>` |
+| **B — plan edit + reconcile** | Full wave section with verify targets, roles, effort | `tripll pause <run-id>` → edit `*-wave-plan.md` under `processing/<run-id>/` → `tripll run reconcile-graph <run-id>` → `tripll resume <run-id>` |
+
+**Mode B parse behaviour:**
+
+- **Mode A set** (hand-written `parallel-wave.md`): edit the manifest or individual
+  plan files referenced by it; reconcile re-parses from disk.
+- **Mode B folder** (plain `*-wave-plan.md` only): adding/removing plan files
+  regenerates `parallel-wave.md` on parse. Each plan file becomes one lane-level
+  node (`<lane>:all-waves`).
+
+**Reconcile rules (L2-W5b):**
+
+- New graph nodes → `queued` ledger rows inserted.
+- `done` / `blocked` waves **must** still appear in the parsed graph — removing or
+  renaming them is **refused**.
+- Orphan ledger rows (wave removed from plan but still `queued`) are **logged and
+  kept**, not deleted.
+- `tripll resume` runs reconcile automatically before dispatch (pause marker not
+  required on resume).
+- Use `--dry-run` on inject/reconcile to validate without writing.
+
+See `ignorelocal/live-injection-design.md` for the full design.
+
 ## 6. Switching backends
 
 Pass `--backend` to `run`/`resume`:
@@ -254,7 +285,11 @@ Dispatch-only is the default (branches + `report.md`, no merges). To integrate:
 ```bash
 make tripll ARGS='run <set> --integrate --dry-run'   # preview merges/gates/commits
 make tripll ARGS='run <set> --integrate'             # merge → docs → make ci → 1 commit
+make tripll ARGS='run <set> --integrate --deliver --dry-run'  # + push/open PR plan
+make tripll ARGS='run <set> --integrate --deliver'   # integrate then push + open PR
 ```
+
+Integration branch: `tripll/integrate/<run-id>` (push target for `--deliver`).
 
 Pre-0 / review-gate batches never auto-commit; a failing gate aborts the batch
 before committing.
@@ -265,12 +300,14 @@ After implementation waves, the **PR phase** pushes the branch, opens a pull req
 ingests CI failures and review comments as `Finding` nodes, and dispatches fix agents until
 required checks pass. The loop **stops at the human merge gate** — tripll never auto-merges.
 
-``tripll pr shepherd`` compiles and invokes the LangGraph PR loop (``[graph]`` extra required
-for ``investigate_and_fix``). Investigate/fix nodes dispatch real adapters; deliver runs
-idempotent push/open actions.
+``tripll run … --integrate --deliver`` chains local integration with idempotent push/open
+(D15: never auto-merge). ``tripll pr shepherd`` compiles and invokes the LangGraph PR loop
+(``[graph]`` extra required for ``investigate_and_fix``). Investigate/fix nodes dispatch
+real adapters; deliver runs idempotent push/open actions.
 
 ```bash
-tripll pr shepherd --run <run-id> --phase deliver
+tripll run <set> --integrate --deliver          # integrate → push → open PR
+tripll pr shepherd --run <run-id> --phase deliver   # manual deliver (same push/open)
 tripll findings sync --pr <n> --run-id <run-id>
 tripll pr shepherd --run <run-id> --phase investigate_and_fix
 tripll findings list [--state open]
@@ -290,6 +327,12 @@ Rejected findings export to `.pullfrog/learnings.md` (D13). Optional CI review:
 Local advisory review: `make review`.
 
 See [`../harness-checks.md`](../harness-checks.md) and [`../graph-serving.md`](../graph-serving.md).
+
+**Graph-packed briefs:** with the `[kg]` extra, wave dispatch defaults to graph-packed
+briefs. A cold or empty `.tripll/graph.db` sets `graph_pack_insufficient` and allows
+scoped exploration within `workspace_scope` only — see
+[`../graph-serving.md`](../graph-serving.md#cold-or-empty-graph-store). Pass
+`--grep-brief` to force the legacy grep-style directive.
 
 ## 9. Orchestrator mode (headless Multitask parity)
 

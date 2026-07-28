@@ -1106,8 +1106,18 @@ class Engine:
             >>> inspect.iscoroutinefunction(Engine.resume)
             True
         """
-        run_dir = self.runs_root.run_dir(run_id)
-        graph = build_graph_from_dir(run_dir, run_id=run_id)
+        from tripll.inject import reconcile_run_graph
+
+        with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+            result = reconcile_run_graph(
+                self.runs_root,
+                run_id,
+                lc=lc,
+                dry_run=False,
+                require_pause=False,
+                source="resume",
+            )
+        graph = result.graph
         self._init_provider_fabric(graph)
         return await self._drive(run_id, graph)
 

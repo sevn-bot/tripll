@@ -208,6 +208,7 @@ def _finalize_run_result(
     result: RunResult,
     *,
     integrate: bool = False,
+    deliver: bool = False,
     wait_for_hitl: bool = False,
     engine: Engine | None = None,
 ) -> None:
@@ -249,10 +250,10 @@ def _finalize_run_result(
     if result.state == "failed":
         raise typer.Exit(1)
     if integrate and result.state == "done":
-        _run_integration(rr, result.run_id)
+        _run_integration(rr, result.run_id, deliver=deliver)
 
 
-def _run_integration(rr: RunsRoot, run_id: str) -> None:
+def _run_integration(rr: RunsRoot, run_id: str, *, deliver: bool = False) -> None:
     """Execute autonomous per-batch integration for a completed run."""
     from tripll.integrate import GitMakeRunner, execute_integration, plan_integration
     from tripll.parse import build_graph_from_dir
@@ -270,6 +271,39 @@ def _run_integration(rr: RunsRoot, run_id: str) -> None:
     typer.echo("[integrate] Running per-batch integration…")
     for line in execute_integration(plan, runner):
         typer.echo(f"  {line}")
+    if deliver:
+        _run_deliver(rr, run_id)
+
+
+def _run_deliver(rr: RunsRoot, run_id: str) -> None:
+    """Push integration branch and open PR after successful integrate (D15: no auto-merge)."""
+    from tripll.loops.l1_pr import shepherd_run
+
+    run_dir = rr.run_dir(run_id)
+    typer.echo("")
+    typer.echo("[deliver] Pushing integration branch and opening PR…")
+    result = shepherd_run(run_id=run_id, run_dir=run_dir, phase="deliver")
+    if not isinstance(result, dict):
+        typer.echo("[deliver] Unexpected shepherd result.", err=True)
+        raise typer.Exit(1)
+    for action in result.get("actions") or []:
+        name = action.get("action", "?")
+        replayed = action.get("replayed")
+        dry = action.get("dry_run")
+        suffix = ""
+        if replayed:
+            suffix = " (replayed — no side effect)"
+        elif dry:
+            suffix = " (dry-run — no side effect)"
+        typer.echo(f"  {name}: ok{suffix}")
+        payload = action.get("result") or {}
+        if url := payload.get("url"):
+            typer.echo(f"    PR: {url}")
+    typer.echo("")
+    typer.echo(
+        "[deliver] Next: tripll findings sync, tripll pr shepherd --phase investigate_and_fix"
+    )
+    typer.echo("[deliver] Merge gate: tripll pr approve-merge (never auto-merge)")
 
 
 def _refresh_report(rr: RunsRoot, run_id: str, *, current_node_id: str | None = None) -> None:
@@ -832,6 +866,7 @@ def _run_dry_run(
     *,
     backend: str,
     integrate: bool,
+    deliver: bool = False,
     model: str | None = None,
     agent: str | None = None,
 ) -> None:
@@ -841,6 +876,7 @@ def _run_dry_run(
         input_path (Path): Input directory (parallel-wave set or plain folder).
         backend (str): Backend name.
         integrate (bool): Whether ``--integrate`` was requested.
+        deliver (bool): Whether ``--deliver`` was requested (requires integrate).
     """
     from tripll.adapters import get_adapter
     from tripll.brief import render_json_brief
@@ -852,6 +888,7 @@ def _run_dry_run(
     typer.echo(f"[dry-run] Run-id      : {run_id}")
     typer.echo(f"[dry-run] Backend     : {backend}")
     typer.echo(f"[dry-run] Integrate   : {integrate}")
+    typer.echo(f"[dry-run] Deliver     : {deliver}")
 
     adapter = get_adapter(
         backend, options=_backend_options(backend=backend, model=model, agent=agent)[1]
@@ -902,6 +939,14 @@ def _run_dry_run(
         plan = plan_integration(graph, run_id=run_id)
         for line in render_dry_run(plan):
             typer.echo(line)
+        if deliver:
+            from tripll.loops.l1_pr import render_deliver_dry_run
+
+            for line in render_deliver_dry_run(
+                run_id=run_id,
+                integration_branch=plan.integration_branch,
+            ):
+                typer.echo(line)
 
     trace_env = os.environ.get("TRIPLL_TRACE", "1").strip().lower()
     if trace_env not in {"0", "false", "no", "off"}:
@@ -931,6 +976,15 @@ def _run_dry_run(
 # ---------------------------------------------------------------------------
 # run  — start or dry-run a wave-orchestrator pipeline
 # ---------------------------------------------------------------------------
+
+
+def _rewrite_run_inject_argv(argv: list[str]) -> list[str]:
+    """Map ``tripll run inject …`` / ``reconcile-graph`` to hidden subcommands."""
+    if len(argv) >= 3 and argv[1] == "run" and argv[2] == "inject":
+        return [argv[0], "run-inject", *argv[3:]]
+    if len(argv) >= 4 and argv[1] == "run" and argv[2] == "reconcile-graph":
+        return [argv[0], "run-reconcile-graph", *argv[3:]]
+    return argv
 
 
 @app.command()
@@ -975,6 +1029,13 @@ def run(
         typer.Option(
             "--integrate/--no-integrate",
             help="Enable autonomous per-batch merge + make ci + commit (default OFF).",
+        ),
+    ] = False,
+    deliver: Annotated[
+        bool,
+        typer.Option(
+            "--deliver/--no-deliver",
+            help="After --integrate, push integration branch and open PR (default OFF).",
         ),
     ] = False,
     dry_run: Annotated[
@@ -1029,8 +1090,21 @@ def run(
         typer.echo(f"Input path not found: {input_path}", err=True)
         raise typer.Exit(1)
 
+    if deliver and not integrate:
+        typer.echo(
+            "--deliver requires --integrate (local integration before push/open PR).", err=True
+        )
+        raise typer.Exit(1)
+
     if dry_run:
-        _run_dry_run(input_path, backend=backend, integrate=integrate, model=model, agent=agent)
+        _run_dry_run(
+            input_path,
+            backend=backend,
+            integrate=integrate,
+            deliver=deliver,
+            model=model,
+            agent=agent,
+        )
         return
 
     import asyncio
@@ -1068,9 +1142,182 @@ def run(
         rr,
         result,
         integrate=integrate,
+        deliver=deliver,
         wait_for_hitl=wait_for_hitl,
         engine=engine,
     )
+
+
+@app.command("run-inject", hidden=True)
+def run_inject(
+    run_id: Annotated[str, typer.Argument(help="Run-id in processing/ (must be paused).")],
+    after: Annotated[
+        str,
+        typer.Option("--after", help="Insert hotfix after this wave (node id or wave label)."),
+    ],
+    brief: Annotated[
+        str,
+        typer.Option("--brief", help="Operator brief describing the hotfix."),
+    ] = "",
+    paths: Annotated[
+        list[str] | None,
+        typer.Option("--paths", help="Owned paths the hotfix may edit (repeatable)."),
+    ] = None,
+    verify_target: Annotated[
+        str | None,
+        typer.Option(
+            "--verify-target",
+            help="Override post-dispatch verify make target (default: make ci-affected).",
+        ),
+    ] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option("--provider", "-p", help="Provider override for hotfix dispatch."),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", "-m", help="Model override for hotfix dispatch."),
+    ] = None,
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Agent slug override for hotfix dispatch."),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate and write inject plan only; no ledger write."),
+    ] = False,
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Inject a one-shot hotfix into a paused run (L2-W5a).
+
+    Requires ``pause-requested.md`` and a completed ``--after`` wave. Resume the
+    run afterward to dispatch via the normal engine path.
+    """
+    from tripll.inject import InjectError, apply_hotfix_inject
+
+    if not after.strip():
+        typer.echo("--after is required", err=True)
+        raise typer.Exit(1)
+    if not brief.strip():
+        typer.echo("--brief is required", err=True)
+        raise typer.Exit(1)
+    if not paths:
+        typer.echo("--paths must declare at least one owned path", err=True)
+        raise typer.Exit(1)
+
+    rr = _resolve_runs_root(runs_root)
+    if rr.find_run_dir(run_id) is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    if (rr.processing_dir / run_id).is_dir() is False and rr.find_run_dir(run_id) is not None:
+        loc = rr.find_run_dir(run_id)
+        if loc is not None and loc.parent == rr.processed_dir:
+            typer.echo(f"Run already completed (processed/): {run_id}", err=True)
+            raise typer.Exit(1)
+
+    verify_targets = [verify_target or "make ci-affected"]
+    try:
+        task = apply_hotfix_inject(
+            rr,
+            run_id,
+            brief=brief,
+            owned_paths=list(paths),
+            after=after,
+            verify_targets=verify_targets,
+            provider=provider,
+            model=model,
+            agent=agent,
+            cost_budget_usd=_cost_budget_usd(),
+            dry_run=dry_run,
+            repo_root=resolve_repo_root(),
+        )
+    except InjectError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(exc.exit_code) from exc
+
+    if dry_run:
+        typer.echo(f"[dry-run] Hotfix plan valid — node {task.node_id}")
+        typer.echo(
+            f"[dry-run] Plan artefact: {rr.injects_dir(run_id) / (task.task_id + '.plan.json')}"
+        )
+        return
+
+    typer.echo(f"Inject applied: {task.node_id} (task {task.task_id})")
+    typer.echo(f"Audit: {rr.injects_dir(run_id) / (task.task_id + '.json')}")
+    typer.echo(f"Resume with: tripll resume {run_id}")
+
+
+@app.command("run-reconcile-graph", hidden=True)
+def run_reconcile_graph(
+    run_id: Annotated[str, typer.Argument(help="Run-id in processing/ (must be paused).")],
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate only; no ledger or graph.json write."),
+    ] = False,
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Reconcile parsed plan files with ledger waves after a plan edit (L2-W5b).
+
+    Requires ``pause-requested.md`` and no in-flight waves. Resume also reconciles
+    automatically before dispatch.
+    """
+    from tripll.inject import InjectError, reconcile_run_graph
+    from tripll.ledger import open_ledger
+
+    rr = _resolve_runs_root(runs_root)
+    if rr.find_run_dir(run_id) is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    loc = rr.find_run_dir(run_id)
+    if loc is not None and loc.parent == rr.processed_dir:
+        typer.echo(f"Run already completed (processed/): {run_id}", err=True)
+        raise typer.Exit(1)
+
+    try:
+        with open_ledger(rr.ledger_path(run_id)) as lc:
+            result = reconcile_run_graph(
+                rr,
+                run_id,
+                lc=lc,
+                dry_run=dry_run,
+                require_pause=True,
+                source="cli",
+            )
+    except InjectError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(exc.exit_code) from exc
+
+    if dry_run:
+        typer.echo(
+            f"[dry-run] Reconcile valid — would insert {list(result.inserted)} "
+            f"orphan {list(result.orphans)}"
+        )
+        return
+
+    typer.echo(f"Reconcile applied: inserted {list(result.inserted)}")
+    if result.orphans:
+        typer.echo(f"Orphan ledger rows (kept): {list(result.orphans)}")
+    typer.echo(f"Resume with: tripll resume {run_id}")
+
+
+@app.command()
+def pause(
+    run_id: Annotated[str, typer.Argument(help="Run-id to pause (processing/).")],
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Request a pause for an active run (writes ``pause-requested.md``)."""
+    rr = _resolve_runs_root(runs_root)
+    run_dir = rr.find_run_dir(run_id)
+    if run_dir is None:
+        typer.echo(f"Run not found: {run_id}", err=True)
+        raise typer.Exit(1)
+    marker = run_dir / "pause-requested.md"
+    marker.write_text(
+        "# Pause requested\n\nWritten by `tripll pause`. "
+        "The engine stops dispatching new waves at the next safe checkpoint.\n",
+        encoding="utf-8",
+    )
+    typer.echo(f"Pause requested for {run_id} → {marker}")
 
 
 # ---------------------------------------------------------------------------
@@ -2069,6 +2316,7 @@ def main() -> None:
     logger.remove()
     logger.add(sys.stderr, level=log_level, format="<level>{level}</level>: {message}")
     configure_observability()
+    sys.argv = _rewrite_run_inject_argv(sys.argv)
     app()
 
 

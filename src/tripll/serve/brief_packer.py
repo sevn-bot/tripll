@@ -12,7 +12,15 @@ from tripll.graphstore import GraphStore, SqliteGraphStore
 if TYPE_CHECKING:
     from tripll.graphstore import Edge, Node, Subgraph
 
-__all__ = ["FINDING_PATH_PREDICATES", "SUBGRAPH_PREDICATES", "pack_brief"]
+PACK_NODE_THRESHOLD = 1
+
+__all__ = [
+    "FINDING_PATH_PREDICATES",
+    "PACK_NODE_THRESHOLD",
+    "SUBGRAPH_PREDICATES",
+    "is_pack_insufficient",
+    "pack_brief",
+]
 
 SUBGRAPH_PREDICATES = [
     "DECLARES",
@@ -183,6 +191,12 @@ def _apply_token_cap(
         spill_files.append(str(spill_path))
         out[key] = f"(spilled to {spill_path.name}; id={spill_id})"
     return out, spill_files, spilled_fields
+
+
+def is_pack_insufficient(packed: dict[str, Any]) -> bool:
+    """Return True when the packed subgraph is too thin to rely on alone."""
+    node_count = int(packed.get("subgraph_nodes") or 0)
+    return node_count < PACK_NODE_THRESHOLD
 
 
 def pack_brief(
