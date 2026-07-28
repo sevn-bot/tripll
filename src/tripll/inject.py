@@ -528,6 +528,7 @@ def plan_hotfix_inject(
     agent: str | None = None,
     cost_budget_usd: float = 0.0,
     repo_root: Path | None = None,
+    injected_by: str = "cli",
 ) -> tuple[HotfixTask, RunGraph]:
     """Validate and build a hotfix task + merged graph without persisting."""
     from tripll.parse import build_graph_from_dir
@@ -586,7 +587,7 @@ def plan_hotfix_inject(
         agent=agent or _DEFAULT_AGENT,
         verify_targets=verify,
         injected_at=_now_iso(),
-        injected_by="cli",
+        injected_by=injected_by,
     )
     merged = merge_hotfix_task(graph, task)
     _ = repo_root  # reserved for future brief pack paths
@@ -624,6 +625,7 @@ def apply_hotfix_inject(
     cost_budget_usd: float = 0.0,
     dry_run: bool = False,
     repo_root: Path | None = None,
+    injected_by: str = "cli",
 ) -> HotfixTask:
     """Validate, persist inject artefact, ledger row, and updated ``graph.json``."""
     task, graph = plan_hotfix_inject(
@@ -638,6 +640,7 @@ def apply_hotfix_inject(
         agent=agent,
         cost_budget_usd=cost_budget_usd,
         repo_root=repo_root,
+        injected_by=injected_by,
     )
     run_dir = rr.run_dir(run_id)
     inject_root = injects_dir(run_dir)
