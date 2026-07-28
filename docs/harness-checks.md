@@ -34,6 +34,15 @@ Wave completion is gated by `harness/contracts.py`, not agent self-report:
 
 The isolated verifier (`wave-verifier`) never receives the implementer transcript.
 
+## Quality gauntlet (D26–D28)
+
+Optional inner loop for reference-driven polish before correctness verify. Declared in plan v3 via
+`[waves.outcome.reference]` and `[waves.outcome.quality_gauntlet]`. `quality-critic` uses the same
+isolation rules as D17; rounds are recorded as `Verdict`/`Finding` nodes and in
+`runs/<run_id>/workbench.html`.
+
+See [`docs/design/quality-gauntlet.md`](design/quality-gauntlet.md).
+
 ## Loop exits (§7.10)
 
 Eight targeted exits live in `src/tripll/loops/exits.py`. Three are mandatory caps:

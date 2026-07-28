@@ -94,6 +94,26 @@ The compiler **refuses** plans that parallelise sequential work:
 Every impl wave should declare `[waves.outcome]` with `required`, `forbidden`, and `evidence`.
 Graders decide completion — agents do not self-report done.
 
+Optional **quality gauntlet** (D26–D28) — for subjective artifacts where tests are necessary but
+not sufficient:
+
+```toml
+  [waves.outcome.reference]
+  kind = "skill_exemplar"                # screenshot | html_crop | spec_section | …
+  path = "src/tripll/data/bundled_skills/core/gh-pr/SKILL.md"
+  comparison = "blind_ab"                # blind_ab | side_by_side | rubric
+  stop_when = "reference_wins"           # reference_wins | max_rounds | operator
+
+  [waves.outcome.quality_gauntlet]
+  enabled = true
+  max_rounds = 5
+  sub_budget_usd = 2.0
+  decomposition = "prescribed"           # prescribed | gauntlet
+  smoothing = false                        # run smoothing-pass before wave-verifier
+```
+
+Normative design: [`docs/design/quality-gauntlet.md`](design/quality-gauntlet.md).
+
 ## Checklist body (optional markdown)
 
 After the TOML block, add human checklist sections:
