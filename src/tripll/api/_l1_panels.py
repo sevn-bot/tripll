@@ -89,15 +89,7 @@ def resolve_graph_db(*, run_dir: Path | None, repo_root: Path | None = None) -> 
 
 
 def _pick_focus_wave(waves: list[WaveRow]) -> WaveRow | None:
-    priority = (
-        "running",
-        "quality_loop",
-        "verifying",
-        "dispatched",
-        "unverified",
-        "failed",
-        "blocked",
-    )
+    priority = ("running", "verifying", "dispatched", "unverified", "failed", "blocked")
     by_state = {w.node_id: w for w in waves}
     for state in priority:
         for wave in waves:

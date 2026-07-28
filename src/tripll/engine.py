@@ -92,11 +92,6 @@ from tripll.harness.fingerprint import (
     fingerprint_hash,
     fingerprint_to_json,
 )
-from tripll.harness.quality import (
-    QualityVerdict,
-    quality_gauntlet_enabled,
-    run_quality_gauntlet,
-)
 from tripll.hitl import GateKind, write_form_for_run
 from tripll.ledger import (
     ORCHESTRATOR_NODE_ID,
@@ -1767,67 +1762,6 @@ class Engine:
             if verify_path is not None:
                 remove_verify_worktree(self.repo_root, verify_path)
 
-    async def _run_quality_gauntlet(
-        self,
-        *,
-        run_id: str,
-        node: WaveNode,
-        worktree: Worktree,
-        outcome: dict[str, object],
-    ) -> tuple[bool, str]:
-        """Run optional quality inner loop before isolated verify (D26-D28)."""
-        run_dir = self.runs_root.run_dir(run_id)
-        quality_raw = outcome.get("quality_gauntlet")
-        quality = quality_raw if isinstance(quality_raw, dict) else {}
-        if bool(quality.get("smoothing")):
-            logger.info(
-                "engine: {} {} — smoothing-pass agent dispatch pending",
-                run_id,
-                node.node_id,
-            )
-
-        def _critic_verdict(
-            round_num: int,
-            artifacts: list[str],
-            reference: dict[str, str],
-        ) -> QualityVerdict:
-            comparison = str(reference.get("comparison") or "blind_ab")
-            ref_path = str(reference.get("path") or "")
-            if not artifacts:
-                return QualityVerdict(
-                    round_num=round_num,
-                    comparison=comparison,
-                    winner="reference",
-                    gap="no captured artifacts in owned paths",
-                    artifact_paths=tuple(artifacts),
-                    reference_path=ref_path,
-                )
-            return QualityVerdict(
-                round_num=round_num,
-                comparison=comparison,
-                winner="build",
-                gap="",
-                artifact_paths=tuple(artifacts),
-                reference_path=ref_path,
-            )
-
-        result = run_quality_gauntlet(
-            repo_root=self.repo_root,
-            run_dir=run_dir,
-            worktree=worktree.path,
-            node_id=node.node_id,
-            outcome=dict(outcome),
-            wave_decomposition=node.decomposition,
-            critic_verdict=_critic_verdict,
-        )
-        if result.state == "skipped":
-            return True, ""
-        if result.state == "unverified":
-            return False, "; ".join(result.reasons) or "quality gauntlet unverified"
-        if not result.passed:
-            return False, "; ".join(result.reasons) or "quality gauntlet failed"
-        return True, f"quality gauntlet passed ({len(result.rounds)} round(s))"
-
     def _end_attempt_with_usage(
         self,
         lc: LedgerConnection,
@@ -3120,51 +3054,6 @@ class Engine:
                         self._checkpoint_attempt(worktree, run_id, node.node_id, attempt)
                     else:
                         self._checkpoint_attempt(worktree, run_id, node.node_id, attempt)
-                        outcome_contract = node.outcome_contract
-                        if isinstance(outcome_contract, dict) and quality_gauntlet_enabled(
-                            outcome_contract
-                        ):
-                            async with self._ledger_lock:
-                                transition_wave(lc, run_id, node.node_id, "quality_loop")
-                                append_event(
-                                    lc,
-                                    run_id=run_id,
-                                    node_id=node.node_id,
-                                    phase="quality_loop",
-                                )
-                            q_ok, quality_evidence = await self._run_quality_gauntlet(
-                                run_id=run_id,
-                                node=node,
-                                worktree=worktree,
-                                outcome=outcome_contract,
-                            )
-                            if not q_ok:
-                                from tripll.ledger import WaveState
-
-                                new_state: WaveState = (
-                                    "unverified"
-                                    if "unverified" in quality_evidence.lower()
-                                    else "failed"
-                                )
-                                async with self._ledger_lock:
-                                    self._end_attempt_with_usage(
-                                        lc,
-                                        attempt_id,
-                                        outcome="failed",
-                                        evidence=quality_evidence,
-                                        result=result,
-                                    )
-                                    transition_wave(lc, run_id, node.node_id, new_state)
-                                    append_event(
-                                        lc,
-                                        run_id=run_id,
-                                        node_id=node.node_id,
-                                        phase=new_state,
-                                        last_action=f"quality gauntlet: {quality_evidence[:120]}",
-                                    )
-                                return NodeResult(
-                                    node.node_id, new_state, attempt, quality_evidence
-                                )
                         async with self._ledger_lock:
                             transition_wave(lc, run_id, node.node_id, "verifying")
                             append_event(lc, run_id=run_id, node_id=node.node_id, phase="verifying")
@@ -3467,7 +3356,6 @@ class Engine:
             model=node.model,
             orchestrator=graph.orchestrator,
             role_dispatch=self._role_dispatch_effective,
-            outcome_contract=node.outcome_contract,
         )
         if node.reasoning_effort:
             brief["reasoning_effort"] = node.reasoning_effort
