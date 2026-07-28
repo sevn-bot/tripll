@@ -20,8 +20,8 @@ run once, and it wires up everything the per-task `/verify` loop needs.
 
 You are **setting up** — not verifying anything yourself right now. The `/verify`
 template lives at `assets/verify.template.md` (next to this skill). Canonical
-home for this skill is **`spec-kit-wave/skills/verifier-setup/`**; install into
-IDE hosts with `make -C spec-kit-wave install-skills` (symlinks into
+home for this skill is **`src/tripll/skw/skills/verifier-setup/`**; install into
+IDE hosts with `make install-skills` (symlinks into
 `.cursor/skills/` and `.claude/skills/`).
 
 ## What this produces (the outputs)
@@ -112,7 +112,7 @@ If `.claude/skills/verify/SKILL.md` or `.cursor/skills/verify/SKILL.md` already 
 **update in place** — refresh repo-specific placeholders; preserve team hand-edits.
 
 Otherwise copy `assets/verify.template.md` → both skill dirs (or generate once under
-`spec-kit-wave/skills/verify/SKILL.md` and run `make install-skills` with `COPY=1` for
+`src/tripll/skw/skills/verify/SKILL.md` and run `make install-skills` with `COPY=1` for
 verify only). Fill every `{{...}}` placeholder from Steps 1–4:
 
 `STACK_UP`, `APP_URL`, `RUN_MODE` (+ `RUN_MODE_NOTE`), `DRIVER` (+ `DRIVER_INSTRUCTION`),
@@ -125,8 +125,8 @@ Tell the user:
 
 - Run **`/verify`** (or load the `verify` skill) before opening a PR on a branch with
   changes committed.
-- Re-run **`make -C spec-kit-wave install-skills`** after adding kit skills.
-- Headless dispatch: **`make -C spec-kit-wave verifier-setup-run`** (renders the agent
+- Re-run **`make install-skills`** after adding kit skills.
+- Headless dispatch: **`make verifier-setup-run`** (renders the agent
   prompt; same contract as this skill).
 - Prerequisites: Docker for `compose-up`, `gh auth` for evidence upload, Playwright for
   Telegram E2E when that driver is selected.

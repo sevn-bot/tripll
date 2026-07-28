@@ -11,21 +11,21 @@ tree.
 1. Confirm **folder**, **kind** (`spec` | `prd`), and **mode** (`validate` |
    `update` | `create`).
 2. Run **`make spec-sync`** / **`make prd-sync`** (from repo root) or
-   `make -C spec-kit-wave spec-sync` / `prd-sync` to refresh frontmatter and
+   `make spec-sync` / `prd-sync` to refresh frontmatter and
    scaffold missing files — sync never fabricates prose (D8).
 3. For each `*.md` (except `README.md`): read
-   `spec-kit-wave/spec-templates/spec-rules.toml` or
-   `spec-kit-wave/prd-templates/prd-rules.toml`, verify
+   `src/tripll/skw/spec-templates/spec-rules.toml` or
+   `src/tripll/skw/prd-templates/prd-rules.toml`, verify
    code via `sevn about-docs extract DOC_ID=…` + `graphify query`, author or
    fix prose to be code-true.
 4. Set **honest status** (D5): `done`/`ready` only when score ≥ 80 and no
    scaffold phrase; otherwise `scaffold` or `draft`. Gaps ⇒ `## Human-input needed`.
-5. Loop **`make -C spec-kit-wave spec-check`** or **`prd-check`** until every
+5. Loop **`make spec-check`** or **`prd-check`** until every
    file passes and terminal statuses meet the score gate.
 
 ## Guardrails
 
-- **Docs-only** — never edit `tests/`, `spec-kit-wave/tests/`, or `src/sevn/`
+- **Docs-only** — never edit `tests/`, `src/tripll/skw/tests/`, or `src/sevn/`
   product code.
 - **No fabrication (D8)** — unverifiable claims stay scaffold + human-input note.
 - **Frontmatter SSOT** — `sevn about-docs extract` / sync; do not hand-roll
@@ -41,9 +41,9 @@ From repo root:
 |------|---------|
 | Sync spec frontmatter | `make spec-sync` |
 | Sync PRD frontmatter | `make prd-sync` |
-| Validate+score specs | `make -C spec-kit-wave spec-check` |
-| Validate+score PRDs | `make -C spec-kit-wave prd-check` |
-| Score rollup only | `make -C spec-kit-wave docs-score KIND=spec DIR=about-sevn.bot/specs` |
+| Validate+score specs | `make spec-check` |
+| Validate+score PRDs | `make prd-check` |
+| Score rollup only | `make docs-score KIND=spec DIR=about-sevn.bot/specs` |
 | About-docs gate | `make about-docs-check` |
 | Regenerate spec index | `make about-docs-index` |
 

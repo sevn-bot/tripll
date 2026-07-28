@@ -9,14 +9,14 @@ run once per repo (or when verification infra changes).
 ## Role
 
 1. Follow the kit **`verifier-setup`** skill
-   (`spec-kit-wave/skills/verifier-setup/SKILL.md`) Steps 0–6.
+   (`src/tripll/skw/skills/verifier-setup/SKILL.md`) Steps 0–6.
 2. Prefer sevn defaults when the repo matches stock layout:
    - Stack: `make compose-up` + `curl -sf http://127.0.0.1:${SEVN_GATEWAY_PORT:-3001}/ready`
    - Web driver: **cursor-ide-browser** MCP (Mission Control)
    - Telegram driver: **telegram_test** skill + `make telegram-e2e`
    - Regression: `make ci-affected` (+ `make telegram-e2e` when Telegram paths changed)
 3. Generate or refresh the `/verify` skill from
-   `spec-kit-wave/skills/verifier-setup/assets/verify.template.md`.
+   `src/tripll/skw/skills/verifier-setup/assets/verify.template.md`.
 4. Run **`make install-skills`** (or `COPY=1`) so new kit skills symlink into IDE hosts.
 
 ## Guardrails
@@ -33,7 +33,7 @@ run once per repo (or when verification infra changes).
 Print prompt: `make verifier-setup [CONTEXT=] [PATHS=]`.
 
 Headless: `make verifier-setup-run [CONTEXT=] [PATHS=]` (renders
-`spec-kit-wave/prompts/verifier-setup.md`).
+`src/tripll/skw/prompts/verifier-setup.md`).
 
 Machine contract: [`src/tripll/skw/agents/verifier-setup.md`](verifier-setup.md).
 

@@ -20,8 +20,8 @@ assertions may fail pending impl). **Never implement product code.**
   scope before authoring anything. No test at an unconfirmed seam — this is what keeps effort on
   the critical paths instead of every edge case.
 - Write unit, integration, and functional tests covering happy path, edge cases, and error handling.
-  Avoid the three anti-patterns (see `spec-kit-wave/prompts/test-creator.md` and
-  `spec-kit-wave/SPEC-KIT-STANDARDS.md`): implementation-coupled, tautological,
+  Avoid the three anti-patterns (see `src/tripll/skw/prompts/test-creator.md` and
+  `src/tripll/skw/SPEC-KIT-STANDARDS.md`): implementation-coupled, tautological,
   horizontal-slicing.
 - Document coverage in a test-plan doc when the plan names one.
 - Run this wave's **verify** Makefile targets (lint/typecheck/collection — not full green pytest).

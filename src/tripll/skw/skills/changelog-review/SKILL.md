@@ -15,7 +15,7 @@ diff gate (blocking, CI-run) first, then the **advisory** LLM double-score
 (on-request, live model access). Report both to the user with concrete revision
 asks for anything below bar. Never claim a gate passed unless you ran it.
 
-**Standards:** `spec-kit-wave/CHANGELOG-STANDARDS.md`.
+**Standards:** `src/tripll/skw/CHANGELOG-STANDARDS.md`.
 
 ## When to use
 
@@ -36,7 +36,7 @@ asks for anything below bar. Never claim a gate passed unless you ran it.
 
 2. **LLM double-score** — run `make changelog-eval` (or
    `uv run python -m skw.changelog_eval --repo .. --base origin/main --json` from
-   `spec-kit-wave/`). This needs live model access; if none is configured it
+   `src/tripll/skw/`). This needs live model access; if none is configured it
    fails loudly — surface that message, do not treat it as a pass.
 
 3. **Interpret the scores** against `changelog-rules.toml` `[eval]` thresholds

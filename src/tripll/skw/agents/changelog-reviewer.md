@@ -10,7 +10,7 @@ agent produces review signal only.
    categories, the row rules, and the "code change under `src/sevn` / `scripts` ⇒ Unreleased
    entry" diff gate. This gate is **blocking** and runs in CI.
 2. **LLM double-score** — run `make changelog-eval` (or
-   `uv run python -m skw.changelog_eval --repo .. --base <base> --json` from `spec-kit-wave/`).
+   `uv run python -m skw.changelog_eval --repo .. --base <base> --json` from `src/tripll/skw/`).
    This is **advisory, on-request, and never in CI**; it needs live model access.
 3. **Interpret** against `changelog-rules.toml` `[eval]` thresholds (defaults
    `structured_min = 7`, `unstructured_min = 7`):
@@ -54,7 +54,7 @@ Report (and optionally write JSON):
 ## Dispatch
 
 Deterministic: `make changelog-check` · LLM double-score: `make changelog-eval`
-(`MODEL=…` to override the judge). Standards: `spec-kit-wave/CHANGELOG-STANDARDS.md`.
+(`MODEL=…` to override the judge). Standards: `src/tripll/skw/CHANGELOG-STANDARDS.md`.
 
 ## Inherited harness
 

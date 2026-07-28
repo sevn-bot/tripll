@@ -108,7 +108,7 @@ python3 scripts/post_pending_review.py <owner/repo> <pr_number> comments.json [-
 
 Anchor each comment to a diff line or GitHub returns 422. If code is not in the
 diff, anchor to the nearest changed line and say so. Mechanics:
-`spec-kit-wave/skills/git-pr-review/references/pending-review.md`.
+`src/tripll/skw/skills/git-pr-review/references/pending-review.md`.
 
 **Edit drafts:** delete and repost —
 `gh api -X DELETE repos/{owner}/{repo}/pulls/reviews/{review_id}` — then rerun the script.

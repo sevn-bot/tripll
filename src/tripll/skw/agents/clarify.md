@@ -19,7 +19,7 @@ the spec-kit-wave front end. Not part of the LangGraph run/review/generate loop.
 ## Dispatch
 
 Print prompt: `make clarify SLUG= TITLE= [CONTEXT=] [PATHS=]`. Headless: `make clarify-run …`
-(renders `spec-kit-wave/prompts/clarify.md` via `skw render --stage clarify`).
+(renders `src/tripll/skw/prompts/clarify.md` via `skw render --stage clarify`).
 
 ## Inherited harness
 
