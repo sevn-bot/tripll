@@ -1,8 +1,7 @@
 # quality-critic
 
-> **Dispatch status:** **Engine spine shipped** — inner loop runs in `engine._run_quality_gauntlet`
-> with harness orchestration (`harness/quality.py`); isolated `quality-critic` agent dispatch
-> and LangGraph sub-graph remain follow-up.
+> **Dispatch status:** **Contract + design** — inner quality-gauntlet loop (D27); engine dispatch
+> pending implementation wave.
 
 Reference-driven critic for the quality gauntlet inner loop (design §11.17, D27).
 
