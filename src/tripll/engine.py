@@ -92,11 +92,7 @@ from tripll.harness.fingerprint import (
     fingerprint_hash,
     fingerprint_to_json,
 )
-from tripll.harness.quality import (
-    QualityVerdict,
-    quality_gauntlet_enabled,
-    run_quality_gauntlet,
-)
+from tripll.harness.quality import quality_gauntlet_enabled
 from tripll.hitl import GateKind, write_form_for_run
 from tripll.ledger import (
     ORCHESTRATOR_NODE_ID,
@@ -1777,49 +1773,28 @@ class Engine:
         outcome: dict[str, object],
     ) -> tuple[bool, str]:
         """Run optional quality inner loop before isolated verify (D26-D28)."""
+        from tripll.harness.quality_dispatch import (
+            build_smoothing_brief,
+            dispatch_smoothing_pass,
+            resolve_quality_adapter,
+            run_quality_gauntlet_live,
+        )
+
         run_dir = self.runs_root.run_dir(run_id)
         quality_raw = outcome.get("quality_gauntlet")
         quality = quality_raw if isinstance(quality_raw, dict) else {}
-        if bool(quality.get("smoothing")):
-            logger.info(
-                "engine: {} {} — smoothing-pass agent dispatch pending",
-                run_id,
-                node.node_id,
-            )
+        reference_raw = outcome.get("reference")
+        reference = reference_raw if isinstance(reference_raw, dict) else {}
 
-        def _critic_verdict(
-            round_num: int,
-            artifacts: list[str],
-            reference: dict[str, str],
-        ) -> QualityVerdict:
-            comparison = str(reference.get("comparison") or "blind_ab")
-            ref_path = str(reference.get("path") or "")
-            if not artifacts:
-                return QualityVerdict(
-                    round_num=round_num,
-                    comparison=comparison,
-                    winner="reference",
-                    gap="no captured artifacts in owned paths",
-                    artifact_paths=tuple(artifacts),
-                    reference_path=ref_path,
-                )
-            return QualityVerdict(
-                round_num=round_num,
-                comparison=comparison,
-                winner="build",
-                gap="",
-                artifact_paths=tuple(artifacts),
-                reference_path=ref_path,
-            )
-
-        result = run_quality_gauntlet(
+        result = await run_quality_gauntlet_live(
             repo_root=self.repo_root,
             run_dir=run_dir,
+            run_id=run_id,
             worktree=worktree.path,
-            node_id=node.node_id,
+            node=node,
             outcome=dict(outcome),
-            wave_decomposition=node.decomposition,
-            critic_verdict=_critic_verdict,
+            commit_sha=self._last_checkpoint_sha,
+            adapter=self.adapter,
         )
         if result.state == "skipped":
             return True, ""
@@ -1827,7 +1802,35 @@ class Engine:
             return False, "; ".join(result.reasons) or "quality gauntlet unverified"
         if not result.passed:
             return False, "; ".join(result.reasons) or "quality gauntlet failed"
-        return True, f"quality gauntlet passed ({len(result.rounds)} round(s))"
+
+        evidence = f"quality gauntlet passed ({len(result.rounds)} round(s))"
+        if bool(quality.get("smoothing")):
+            smooth_adapter = resolve_quality_adapter(
+                run_dir=run_dir,
+                agent="smoothing-pass",
+                adapter_override=self.adapter,
+            )
+            smooth_brief = build_smoothing_brief(
+                run_id=run_id,
+                node_id=node.node_id,
+                wave_id=node.wave_id,
+                owned_paths=list(node.owned_paths),
+                worktree_path=worktree.path,
+                run_dir=run_dir,
+                quality_rounds=len(result.rounds),
+                reference_path=str(reference.get("path") or ""),
+            )
+            smooth_ok, smooth_evidence = await dispatch_smoothing_pass(
+                adapter=smooth_adapter,
+                brief=smooth_brief,
+                worktree_path=worktree.path,
+                run_dir=run_dir,
+                timeout_s=node.wall_clock_limit_s,
+            )
+            if not smooth_ok:
+                return False, smooth_evidence or "smoothing-pass failed"
+            evidence = f"{evidence}; {smooth_evidence}"
+        return True, evidence
 
     def _end_attempt_with_usage(
         self,

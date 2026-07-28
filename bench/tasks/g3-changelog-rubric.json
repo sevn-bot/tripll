@@ -1,0 +1,22 @@
+{
+  "task_id": "g3-changelog-rubric",
+  "description": "G3 — one changelog Unreleased block vs changelog-eval rubric (quality gauntlet bench)",
+  "base_sha": "HEAD",
+  "wave_id": "G3",
+  "targets": ["CHANGELOG.md"],
+  "owned_paths": ["CHANGELOG.md"],
+  "outcome_contract": {
+    "reference": {
+      "kind": "rubric_only",
+      "path": "bench/tasks/g3-changelog-rubric/reference/rubric.md",
+      "comparison": "rubric",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": true
+    }
+  },
+  "verify": ["make lint"]
+}

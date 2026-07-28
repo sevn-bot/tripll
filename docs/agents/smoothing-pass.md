@@ -1,7 +1,7 @@
 # smoothing-pass
 
-> **Dispatch status:** **Contract + design** — optional post-gauntlet consistency pass; engine
-> dispatch pending implementation wave.
+> **Dispatch status:** **Live** when `quality_gauntlet.smoothing = true` — dispatched after
+> the inner loop via `harness/quality_dispatch.dispatch_smoothing_pass`.
 
 Consistency pass after parallel or multi-round quality gauntlets (design §11.18).
 

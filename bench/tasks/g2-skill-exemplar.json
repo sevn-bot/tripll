@@ -1,0 +1,22 @@
+{
+  "task_id": "g2-skill-exemplar",
+  "description": "G2 — one SKILL.md vs bundled exemplar (quality gauntlet bench)",
+  "base_sha": "HEAD",
+  "wave_id": "G2",
+  "targets": [".cursor/skills/example/SKILL.md"],
+  "owned_paths": [".cursor/skills/example/"],
+  "outcome_contract": {
+    "reference": {
+      "kind": "skill_exemplar",
+      "path": "bench/tasks/g2-skill-exemplar/reference/SKILL.md",
+      "comparison": "side_by_side",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": false
+    }
+  },
+  "verify": ["make lint"]
+}
