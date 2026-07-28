@@ -86,7 +86,7 @@ make prd-validate PRD=path/to/prd.md PRD_JSON=1
 1. Copy `prd-templates/prd-template.md` as the starting point for each PRD rewrite.
 2. Set `prd_profile: ai-native` for prd-12-self-improvement, prd-02-personality-and-memory,
    prd-13-extensibility, and similar agent-centric PRDs.
-3. Run `make prd-check` from `src/tripll/skw/` until clean.
+3. Run `make prd-check` from `spec-kit-wave/` until clean.
 4. Record spec brownfield edits in PRD Change Log with OpenSpec delta tokens.
 
 ## Files

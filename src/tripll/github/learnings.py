@@ -36,24 +36,3 @@ def export_learnings(
             lines.append("")
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out
-
-
-def ensure_learnings_template(
-    path: Path | str,
-    *,
-    force: bool = False,
-) -> Path | None:
-    """Create an empty D13 learnings template when the path is missing.
-
-    Args:
-        path (Path | str): Target ``.pullfrog/learnings.md`` path.
-        force (bool): Overwrite an existing file when True.
-
-    Returns:
-        Path | None: Written path, or None when skipped (already exists).
-    """
-    out = Path(path)
-    if out.exists() and not force:
-        return None
-    export_learnings([], path=out)
-    return out

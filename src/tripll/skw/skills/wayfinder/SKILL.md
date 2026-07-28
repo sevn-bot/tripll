@@ -204,4 +204,4 @@ the kit already uses for other stages.
 
 When `Not yet specified` is empty and no ticket files remain open, the destination is clear.
 Tell the operator the map is ready to graduate — its Destination becomes the seed for
-`spec/<slug>/spec.md` via the kit's `specify` phase (see `src/tripll/skw/agents/wayfinder.md`).
+`spec/<slug>/spec.md` via the kit's `specify` phase (see `spec-kit-wave/agents/wayfinder.md`).

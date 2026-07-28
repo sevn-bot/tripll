@@ -13,8 +13,8 @@ Write changelog entries like a maintainer telling users what changed for them.
 Impact first, mechanism never. One change per bullet. Match detail to the change.
 Entries land under `## [Unreleased]` and are cut into a version at release time.
 
-**Standards:** `src/tripll/skw/CHANGELOG-STANDARDS.md` ·
-**Templates:** `src/tripll/skw/changelog-templates`.
+**Standards:** `spec-kit-wave/CHANGELOG-STANDARDS.md` ·
+**Templates:** `spec-kit-wave/changelog-templates`.
 
 ## When to use
 
@@ -81,5 +81,5 @@ names, package names, or lock/goroutine jargon in the prose.
 ## Handoff
 
 After drafting, show the entries inline and point the user at the review skill
-(`src/tripll/skw/skills/changelog-review/SKILL.md`) or agent to run both
+(`spec-kit-wave/skills/changelog-review/SKILL.md`) or agent to run both
 gates. Do not commit unless the user asks.

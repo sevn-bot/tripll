@@ -116,5 +116,5 @@ Good interfaces make testing natural:
 
 ## Going deeper
 
-- **Deepening a cluster given its dependencies** — see `src/tripll/skw/skills/codebase-design/DEEPENING.md`: dependency categories, seam discipline, and replace-don't-layer testing.
-- **Exploring alternative interfaces** — see `src/tripll/skw/skills/codebase-design/DESIGN-IT-TWICE.md`: spin up parallel sub-agents to design the interface several radically different ways, then compare on depth, locality, and seam placement.
+- **Deepening a cluster given its dependencies** — see `spec-kit-wave/skills/codebase-design/DEEPENING.md`: dependency categories, seam discipline, and replace-don't-layer testing.
+- **Exploring alternative interfaces** — see `spec-kit-wave/skills/codebase-design/DESIGN-IT-TWICE.md`: spin up parallel sub-agents to design the interface several radically different ways, then compare on depth, locality, and seam placement.

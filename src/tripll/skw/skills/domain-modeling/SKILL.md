@@ -44,7 +44,7 @@ When the user states how something works, check whether the code agrees. If you 
 
 ### Update the glossary inline
 
-When a term is resolved, update the glossary file (path from `scripts/context_paths.py`) right there. Don't batch these up — capture them as they happen. Use the format in `src/tripll/skw/skills/domain-modeling/CONTEXT-FORMAT.md`.
+When a term is resolved, update the glossary file (path from `scripts/context_paths.py`) right there. Don't batch these up — capture them as they happen. Use the format in `spec-kit-wave/skills/domain-modeling/CONTEXT-FORMAT.md`.
 
 The glossary should be totally devoid of implementation details. Do not treat it as a spec, a scratch pad, or a repository for implementation decisions. It is a glossary and nothing else.
 
@@ -56,4 +56,4 @@ Only offer to create an ADR when all three are true:
 2. **Surprising without context** — a future reader will wonder "why did they do it this way?"
 3. **The result of a real trade-off** — there were genuine alternatives and you picked one for specific reasons
 
-If any of the three is missing, skip the ADR. Use the format in `src/tripll/skw/skills/domain-modeling/ADR-FORMAT.md`.
+If any of the three is missing, skip the ADR. Use the format in `spec-kit-wave/skills/domain-modeling/ADR-FORMAT.md`.

@@ -59,12 +59,7 @@ from tripll.skw.states import PipelineState
 from tripll.skw.validate import load_skw_config
 from tripll.skw.wave_model import WavePlan
 
-__all__: list[str] = [
-    "PipelineBuilder",
-    "cross_check_outcome",
-    "default_skw_checkpoint_path",
-    "run_pipeline",
-]
+__all__: list[str] = ["PipelineBuilder", "cross_check_outcome", "run_pipeline"]
 
 
 def _in_pytest() -> bool:
@@ -270,29 +265,32 @@ class PipelineBuilder:
         return self.build_graph().compile(checkpointer=checkpointer)
 
 
-def default_skw_checkpoint_path() -> Path:
-    """Return the default SQLite checkpoint path for skw pipeline runs.
-
-    Returns:
-        Path: ``<repo>/.tripll/skw-checkpoints.db`` (parent dirs created).
-    """
-    from tripll.repo_root import resolve_repo_root
-
-    path = resolve_repo_root() / ".tripll" / "skw-checkpoints.db"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _run_pipeline_loop(
+def run_pipeline(
     wave_path: Path,
     kit_root: Path,
     *,
-    saver: BaseCheckpointSaver[Any],
+    checkpointer: BaseCheckpointSaver[Any] | None = None,
 ) -> PipelineState:
-    """Execute the multi-turn skw pipeline with a bound checkpointer."""
+    """Run the full multi-turn pipeline, recompiling the graph each turn.
+
+    Each turn compiles a fresh graph from the current wave-file so slug, branch,
+    wave ids, and per-wave node structure match the active plan. The review →
+    generate → validate_new loop runs in this driver between invocations.
+
+    Args:
+        wave_path (Path): Initial wave markdown file.
+        kit_root (Path): Kit root directory.
+        checkpointer (BaseCheckpointSaver | None): LangGraph checkpointer per turn.
+
+    Returns:
+        PipelineState: Final graph state (may include ``__interrupt__`` for review gate).
+    """
+    from langgraph.checkpoint.memory import MemorySaver
+
     turn = 1
     current_wave_file = wave_path.resolve()
     history: list[dict[str, Any]] = []
+    saver = checkpointer or MemorySaver()
     result: PipelineState = {}
     max_turns: int | None = None
 
@@ -328,39 +326,3 @@ def _run_pipeline_loop(
             waves_before=list(result.get("waves_before") or []),
         )
         turn = next_turn
-
-
-def run_pipeline(
-    wave_path: Path,
-    kit_root: Path,
-    *,
-    checkpointer: BaseCheckpointSaver[Any] | None = None,
-) -> PipelineState:
-    """Run the full multi-turn pipeline, recompiling the graph each turn.
-
-    Each turn compiles a fresh graph from the current wave-file so slug, branch,
-    wave ids, and per-wave node structure match the active plan. The review →
-    generate → validate_new loop runs in this driver between invocations.
-
-    Defaults to durable ``SqliteSaver`` at :func:`default_skw_checkpoint_path`
-    (``MemorySaver`` under pytest only).
-
-    Args:
-        wave_path (Path): Initial wave markdown file.
-        kit_root (Path): Kit root directory.
-        checkpointer (BaseCheckpointSaver[Any] | None): LangGraph checkpointer per turn.
-
-    Returns:
-        PipelineState: Final graph state (may include ``__interrupt__`` for review gate).
-    """
-    if checkpointer is not None:
-        return _run_pipeline_loop(wave_path, kit_root, saver=checkpointer)
-    if _in_pytest():
-        from langgraph.checkpoint.memory import MemorySaver
-
-        return _run_pipeline_loop(wave_path, kit_root, saver=MemorySaver())
-    from langgraph.checkpoint.sqlite import SqliteSaver
-
-    db_path = default_skw_checkpoint_path()
-    with SqliteSaver.from_conn_string(str(db_path)) as saver:
-        return _run_pipeline_loop(wave_path, kit_root, saver=saver)

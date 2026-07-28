@@ -14,13 +14,13 @@ document so it passes `spec-kit-wave` validation and feeds the spec-kit front en
 
 ## Canon (read before writing)
 
-1. [`src/tripll/skw/PRD-STANDARDS.md`]({{PRD_STANDARDS_PATH}}) — synthesis, profiles, workflow.
-2. [`src/tripll/skw/prd-templates/prd-template.md`]({{PRD_TEMPLATE_PATH}}) — **exact shape** to
+1. [`spec-kit-wave/PRD-STANDARDS.md`]({{PRD_STANDARDS_PATH}}) — synthesis, profiles, workflow.
+2. [`spec-kit-wave/prd-templates/prd-template.md`]({{PRD_TEMPLATE_PATH}}) — **exact shape** to
    follow (frontmatter + H2 sections + Traceability H3s).
-3. [`src/tripll/skw/prd-templates/prd-rules.toml`]({{PRD_RULES_PATH}}) — machine rules the
+3. [`spec-kit-wave/prd-templates/prd-rules.toml`]({{PRD_RULES_PATH}}) — machine rules the
    validator enforces.
 4. **EARS/GEARS live in specs only** —
-   [`src/tripll/skw/spec-templates/acceptance-criteria-ears.md`]({{EARS_TEMPLATE_PATH}}).
+   [`spec-kit-wave/spec-templates/acceptance-criteria-ears.md`]({{EARS_TEMPLATE_PATH}}).
 
 ## Operator context
 
@@ -86,7 +86,7 @@ Override for this run: `{{PRD_PROFILE}}` (when not `auto`, use exactly).
 
 ### 6. Validation gate (mandatory)
 
-From `src/tripll/skw/`:
+From `spec-kit-wave/`:
 
 ```bash
 make prd-validate PRD={{PRD_PATH}}

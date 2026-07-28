@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 # Handoff
 
-Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save it to the session scratchpad, or `src/tripll/skw/.out/` when running headless inside this kit — never into the host repo tree (no commits, no files under `about-sevn.bot/`, `src/`, or any other tracked path).
+Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save it to the session scratchpad, or `spec-kit-wave/.out/` when running headless inside this kit — never into the host repo tree (no commits, no files under `about-sevn.bot/`, `src/`, or any other tracked path).
 
 **Provenance:** derived from mattpocock/skills/handoff (MIT).
 

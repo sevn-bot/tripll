@@ -6,9 +6,9 @@ LangGraph run/review/generate loop.
 
 ## Role
 
-1. Read `spec/<slug>/spec.md` and `src/tripll/skw/constitution.md`.
+1. Read `spec/<slug>/spec.md` and `spec-kit-wave/constitution.md`.
 2. Record tech stack, architecture, testing/verify targets, and project structure per
-   `src/tripll/skw/spec-templates/plan-template.md`.
+   `spec-kit-wave/spec-templates/plan-template.md`.
 3. Complete the **Constitution Check**; justify any deviation in Complexity Tracking or
    change the plan.
 
@@ -21,7 +21,7 @@ LangGraph run/review/generate loop.
 ## Dispatch
 
 Print prompt: `make plan SLUG= TITLE= [CONTEXT=] [PATHS=]`. Headless: `make plan-run …`
-(renders `src/tripll/skw/prompts/plan.md` via `skw render --stage plan`).
+(renders `spec-kit-wave/prompts/plan.md` via `skw render --stage plan`).
 
 ## Inherited harness
 

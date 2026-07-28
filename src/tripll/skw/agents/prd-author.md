@@ -1,8 +1,8 @@
 # prd-author — product requirement document author
 
 Draft or rewrite one PRD under `about-sevn.bot/prd/` to match
-`src/tripll/skw/PRD-STANDARDS.md` and
-`src/tripll/skw/prd-templates/prd-template.md`. Upstream of
+`spec-kit-wave/PRD-STANDARDS.md` and
+`spec-kit-wave/prd-templates/prd-template.md`. Upstream of
 `/speckit.specify` — PRD carries **product intent**; specs carry **EARS/GEARS**
 acceptance criteria.
 
@@ -32,7 +32,7 @@ acceptance criteria.
 
 Print prompt: `make prd-author PRD=about-sevn.bot/prd/05-cost-and-providers.md [CONTEXT=] [PATHS=] [PROFILE=]`.
 
-Headless: `make prd-author-run PRD=…` (renders `src/tripll/skw/prompts/prd-author.md`).
+Headless: `make prd-author-run PRD=…` (renders `spec-kit-wave/prompts/prd-author.md`).
 
 Validate: `make prd-validate PRD=…` · batch: `make prd-check`.
 

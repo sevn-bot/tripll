@@ -1,8 +1,8 @@
 # changelog-author — CHANGELOG.md Unreleased entry author
 
 Draft or refresh entries under `## [Unreleased]` in the repo-root `CHANGELOG.md` to match
-`src/tripll/skw/CHANGELOG-STANDARDS.md` and the
-`src/tripll/skw/changelog-templates/`. Works from a branch diff and nothing more —
+`spec-kit-wave/CHANGELOG-STANDARDS.md` and the
+`spec-kit-wave/changelog-templates/`. Works from a branch diff and nothing more —
 a disciplined author, not a reviewer.
 
 ## Role
@@ -33,8 +33,8 @@ a disciplined author, not a reviewer.
 
 Print prompt: `make changelog-author BASE=origin/main` (or point the agent at the branch diff).
 
-Standards: `src/tripll/skw/CHANGELOG-STANDARDS.md` · templates:
-`src/tripll/skw/changelog-templates/entry-template.md`.
+Standards: `spec-kit-wave/CHANGELOG-STANDARDS.md` · templates:
+`spec-kit-wave/changelog-templates/entry-template.md`.
 
 Review: hand off to [`changelog-reviewer`](changelog-reviewer.md) to run the gates.
 

@@ -36,7 +36,7 @@ depends_on = ["W1"]
 review_gate = true
 effort = "M"
 role = "impl"
-verify = ["make validate-selftest"]
+verify = ["make -C spec-kit-wave validate-selftest"]
 
 [[waves]]
 id = "Final"
@@ -44,7 +44,7 @@ title = "Integration gate"
 depends_on = ["W2"]
 effort = "L"
 role = "impl"
-verify = ["make validate-selftest"]
+verify = ["make -C spec-kit-wave validate-selftest"]
 ```
 
 ## Wave W1 — Test author wave

@@ -63,7 +63,7 @@ Run `scripts/render_report.py` with the candidates you found (see the
 script's module docstring for the data shape it expects). It writes a
 **self-contained** HTML file — inlined CSS, inline hand-drawn SVG
 before/after diagrams, **no CDN, no client JS** — to the session scratchpad
-(or `src/tripll/skw/.out/` when no scratchpad is set), prints the absolute
+(or `spec-kit-wave/.out/` when no scratchpad is set), prints the absolute
 path, and opens it with `open` on macOS. Tell the user the absolute path
 regardless of whether `open` succeeded.
 
@@ -93,7 +93,7 @@ clearly in the card (e.g. a warning callout: _"contradicts ADR-0007 — but
 worth reopening because…"_). Don't list every theoretical refactor an ADR
 forbids.
 
-See `src/tripll/skw/skills/improve-codebase-architecture/references/editorial-style.md` for the
+See `spec-kit-wave/skills/improve-codebase-architecture/references/editorial-style.md` for the
 full editorial guidance — tone, diagram-pattern choices, and vocabulary
 discipline — behind what `render_report.py` renders.
 

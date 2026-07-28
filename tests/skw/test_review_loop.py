@@ -46,7 +46,7 @@ id = "Fix-W2"
 title = "Fix wave"
 depends_on = []
 role = "impl"
-verify = ["make validate-selftest"]
+verify = ["make -C spec-kit-wave validate-selftest"]
 ```
 
 ## Wave Fix-W2 — Fix wave

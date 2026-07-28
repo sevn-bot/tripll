@@ -129,8 +129,8 @@ Adapted from [AI-Builder-Club/skills verifier-setup](https://github.com/AI-Build
 | Generated output | `.cursor/skills/verify/SKILL.md` + `.claude/skills/verify/SKILL.md` |
 
 ```bash
-make install-skills          # symlink kit skills into IDE hosts
-make verifier-setup-run      # headless one-time scaffold
+make -C spec-kit-wave install-skills          # symlink kit skills into IDE hosts
+make -C spec-kit-wave verifier-setup-run      # headless one-time scaffold
 # then per task (after setup):
 # /verify  — or load the generated verify skill before opening a PR
 ```
@@ -155,9 +155,9 @@ and [mergisi/awesome-openclaw-agents github-issue-triager](https://github.com/me
 | Agent | [`agents/github-issue-triage.md`](agents/github-issue-triage.md) · [`src/tripll/skw/agents/github-issue-triage.md`](../src/tripll/skw/agents/github-issue-triage.md) |
 
 ```bash
-make install-skills
-make github-issue-triage ISSUE=21
-make github-issue-triage-run QUEUE=1
+make -C spec-kit-wave install-skills
+make -C spec-kit-wave github-issue-triage ISSUE=21
+make -C spec-kit-wave github-issue-triage-run QUEUE=1
 ```
 
 Paths resolve from `skw.toml [github]` via `scripts/context_paths.py` (never hardcoded in the skill).

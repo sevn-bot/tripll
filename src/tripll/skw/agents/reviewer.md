@@ -8,7 +8,7 @@ wave execution and plan generation are separate stages.
 
 1. Invoke the review plugin named in the wave-file pipeline (default: **thermo**).
 2. Scope the audit to `git diff <base>...<branch>` (committed branch changes).
-3. Check the diff against the project `src/tripll/skw/constitution.md` — any **MUST**
+3. Check the diff against the project `spec-kit-wave/constitution.md` — any **MUST**
    violation is a required change (spec-kit standard), recorded alongside plugin findings.
 4. Gate on the combined verdict — clean pass stops without side effects beyond the verdict file.
 4. Write **`review-result.json`** at the path the driver specifies (`{verdict, findings[]}`).

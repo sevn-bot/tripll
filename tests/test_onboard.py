@@ -48,7 +48,6 @@ def test_init_foreign_repo_writes_artefacts(
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0, result.output
     assert (foreign_repo / "tripll.toml").is_file()
-    assert (foreign_repo / ".pullfrog" / "learnings.md").is_file()
     assert any((foreign_repo / "docs" / "specs").glob("*.md"))
     assert any((foreign_repo / "docs" / "prds").glob("*.md"))
     assert any((foreign_repo / "docs" / "plans").glob("*-wave-plan.md"))

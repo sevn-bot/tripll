@@ -364,39 +364,3 @@ changelog-check: sync ## Deterministic CHANGELOG.md gate (BASE=origin/main)
 
 changelog-eval: sync ## Advisory LLM double-score for Unreleased entries (not in CI)
 	$(TRIPLL_CLI) changelog eval --repo-root "$(REPO_ROOT)" --base "$(or $(BASE),origin/main)"
-
-SKW_RENDER := $(UV_RUN) run python -m tripll.skw.render --kit-root src/tripll/skw
-
-install-skills: ## Symlink skw kit skills into .cursor/skills and .claude/skills
-	@set -e; \
-	for skill in src/tripll/skw/skills/*/; do \
-		name=$$(basename "$$skill"); \
-		mkdir -p .cursor/skills .claude/skills; \
-		ln -sfn "$$(pwd)/$$skill" ".cursor/skills/$$name"; \
-		ln -sfn "$$(pwd)/$$skill" ".claude/skills/$$name"; \
-	done
-
-validate: sync ## Validate a wave plan — WAVE=<path>
-	@test -n "$(WAVE)" || { echo "usage: make validate WAVE=<path>"; exit 1; }
-	$(TRIPLL_CLI) validate-plan "$(WAVE)"
-
-validate-selftest: sync ## Validate skw example wave plan (kit self-test)
-	$(UV_RUN) run python -m tripll.skw.validate src/tripll/skw/waves/example-wave-plan.md
-
-specify-run: sync ## Render specify prompt — SLUG= TITLE= [CONTEXT=] [PATHS=]
-	@test -n "$(SLUG)" && test -n "$(TITLE)" || { echo "usage: make specify-run SLUG= TITLE= [CONTEXT=] [PATHS=]"; exit 1; }
-	$(SKW_RENDER) --stage specify --slug "$(SLUG)" --title "$(TITLE)" $(if $(CONTEXT),--context "$(CONTEXT)",) $(if $(PATHS),--paths "$(PATHS)",)
-
-wave-generator-run: sync ## Render wave-generator prompt — SLUG= TITLE= [CONTEXT=] [PATHS=]
-	@test -n "$(SLUG)" && test -n "$(TITLE)" || { echo "usage: make wave-generator-run SLUG= TITLE= [CONTEXT=] [PATHS=]"; exit 1; }
-	$(SKW_RENDER) --stage wave-generator --slug "$(SLUG)" --title "$(TITLE)" $(if $(CONTEXT),--context "$(CONTEXT)",) $(if $(PATHS),--paths "$(PATHS)",)
-
-github-issue-triage: sync ## Fetch open issues JSON (use ISSUE= or QUEUE=1 with github-issue-triage-run)
-	python3 src/tripll/skw/skills/github-issue-triage/scripts/fetch_open_issues.py --limit 100
-
-github-issue-triage-run: sync ## Render github-issue-triage prompt — ISSUE=<n> or QUEUE=1 [CONTEXT=] [PATHS=]
-	@test -n "$(ISSUE)" || test "$(QUEUE)" = "1" || { echo "usage: make github-issue-triage-run ISSUE=<n> or QUEUE=1"; exit 1; }
-	$(SKW_RENDER) --stage github-issue-triage $(if $(ISSUE),--issue "$(ISSUE)",) $(if $(filter 1,$(QUEUE)),--queue,) $(if $(CONTEXT),--context "$(CONTEXT)",) $(if $(PATHS),--paths "$(PATHS)",)
-
-verifier-setup-run: sync ## Render verifier-setup prompt [CONTEXT=] [PATHS=]
-	$(SKW_RENDER) --stage verifier-setup $(if $(CONTEXT),--context "$(CONTEXT)",) $(if $(PATHS),--paths "$(PATHS)",)

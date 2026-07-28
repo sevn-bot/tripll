@@ -1,7 +1,7 @@
 # orchestrator — reference doc (not dispatched at runtime)
 
 > **Runtime orchestration is the LangGraph pipeline** (`uv run skw run` / `make loop`). This file
-> and `src/tripll/skw/prompts/orchestrator.md` are **reference documentation only** —
+> and `spec-kit-wave/prompts/orchestrator.md` are **reference documentation only** —
 > no orchestrator subagent is dispatched. Use `make loop` for the full automated loop, or step
 > manually with `make …-run` targets (each prints a `Next:` footer from `skw next-step`).
 

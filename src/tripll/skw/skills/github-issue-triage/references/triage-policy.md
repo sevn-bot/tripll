@@ -120,14 +120,14 @@ Actionable bugs and features with clear scope should produce or extend a wave pl
 | **Index row** | Default for github-issue-manager — upsert `#N` into `.ignorelocal/waves/github-issues/index.md` |
 | **New wave file** | New theme, no existing open plan covers the work (brief → `@wave-plan-author`) |
 | **Existing wave file** | Issue fits an open plan's locked decisions and wave graph |
-| **Spec-kit only** | Needs product spec before implementation (`make specify`) |
+| **Spec-kit only** | Needs product spec before implementation (`make -C spec-kit-wave specify`) |
 
 Default wave output directory: `.ignorelocal/waves/` (operator-local). Manager artefacts:
 `.ignorelocal/waves/github-issues/` (see `references/manager-file-model.md`). Kit smoke plans
-live under `src/tripll/skw/waves/`.
+live under `spec-kit-wave/waves/`.
 
 Implementation waves must follow **tests-first** (one `role = test-author` wave before impl).
-Use `make validate WAVE=…` before dispatch.
+Use `make -C spec-kit-wave validate WAVE=…` before dispatch.
 
 ## Maintainer voice
 

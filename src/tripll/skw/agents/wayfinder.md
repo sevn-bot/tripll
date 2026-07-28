@@ -34,7 +34,7 @@ the kit `grilling` and `domain-modeling` skills. Resolve glossary/ADR/map paths 
 ## Dispatch
 
 Print prompt: `make wayfinder SLUG= TITLE= [CONTEXT=]`. Headless: `make wayfinder-run …`
-(renders `src/tripll/skw/prompts/wayfinder.md` via `skw render --stage wayfinder`).
+(renders `spec-kit-wave/prompts/wayfinder.md` via `skw render --stage wayfinder`).
 
 ## Inherited harness
 

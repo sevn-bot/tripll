@@ -21,10 +21,10 @@ milestones, or issue state only when the operator explicitly approves.
 and [mergisi/awesome-openclaw-agents github-issue-triager](https://github.com/mergisi/awesome-openclaw-agents/tree/main/agents/development/github-issue-triager)
 (Sentry / OpenClaw patterns).
 
-Canonical home: **`src/tripll/skw/skills/github-issue-triage/`**. Install into IDE hosts:
+Canonical home: **`spec-kit-wave/skills/github-issue-triage/`**. Install into IDE hosts:
 
 ```bash
-make install-skills
+make -C spec-kit-wave install-skills
 ```
 
 ## When to use
@@ -40,21 +40,21 @@ diff → `review-result.json`). Use this skill for GitHub **Issues** queue manag
 
 ## Configuration (portable)
 
-Read repo policy paths from `src/tripll/skw/skw.toml` `[github]` when present:
+Read repo policy paths from `spec-kit-wave/skw.toml` `[github]` when present:
 
 ```bash
-python3 src/tripll/skw/scripts/context_paths.py --kit-root spec-kit-wave | rg '^github_'
+python3 spec-kit-wave/scripts/context_paths.py --kit-root spec-kit-wave | rg '^github_'
 ```
 
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `github_default_repo` | detect via `gh repo view` | Target repository |
-| `github_triage_policy` | `src/tripll/skw/skills/github-issue-triage/references/triage-policy.md` | Classification rules |
+| `github_triage_policy` | `spec-kit-wave/skills/github-issue-triage/references/triage-policy.md` | Classification rules |
 | `github_wave_plans_dir` | `.ignorelocal/waves` | Operator wave plans |
 | `github_contributing` | `CONTRIBUTING.md` | Contribution policy |
 | `github_security` | `SECURITY.md` | Security escalation |
 
-Always read `src/tripll/skw/skills/github-issue-triage/references/triage-policy.md` before triage.
+Always read `spec-kit-wave/skills/github-issue-triage/references/triage-policy.md` before triage.
 
 ## Standing instructions
 
@@ -78,7 +78,7 @@ Fetch issues (parallel when useful):
 
 ```bash
 # All open issues (JSON)
-python3 src/tripll/skw/skills/github-issue-triage/scripts/fetch_open_issues.py \
+python3 spec-kit-wave/skills/github-issue-triage/scripts/fetch_open_issues.py \
   --limit 100 > /tmp/open-issues.json
 
 # Filtered views
@@ -125,11 +125,11 @@ Produce a patch plan per issue:
 Save plans as JSON for `post_issue_update.py` (dry-run first):
 
 ```bash
-python3 src/tripll/skw/skills/github-issue-triage/scripts/post_issue_update.py \
+python3 spec-kit-wave/skills/github-issue-triage/scripts/post_issue_update.py \
   sevn-bot/sevn 21 /tmp/triage-21.json
 
 # After operator approval:
-python3 src/tripll/skw/skills/github-issue-triage/scripts/post_issue_update.py \
+python3 spec-kit-wave/skills/github-issue-triage/scripts/post_issue_update.py \
   sevn-bot/sevn 21 /tmp/triage-21.json --apply
 ```
 
@@ -160,20 +160,20 @@ When an issue needs implementation:
 
 **A. New wave plan** — issue starts a new theme:
 
-1. Fill `src/tripll/skw/skills/github-issue-triage/assets/issue-wave-brief.template.md` → save as
+1. Fill `spec-kit-wave/skills/github-issue-triage/assets/issue-wave-brief.template.md` → save as
    `.ignorelocal/waves/issue-<N>-brief.md` (or operator-chosen path).
 2. Choose slug/title from issue title (kebab-case slug).
 3. Author wave file:
 
 ```bash
-make wave-generator-run \
+make -C spec-kit-wave wave-generator-run \
   SLUG=issue-21-session-folder-names \
   TITLE="Use group and topic names in session folder paths" \
   CONTEXT=.ignorelocal/waves/issue-21-brief.md \
   PATHS=src/sevn/,tests/
 ```
 
-4. Validate: `make validate WAVE=ignorelocal/<slug>-wave-plan.md`
+4. Validate: `make -C spec-kit-wave validate WAVE=.ignorelocal/waves/<slug>-wave-plan.md`
 5. Comment on the issue with the wave plan path/slug (draft first).
 
 **B. Existing wave plan** — issue fits open work:
@@ -181,13 +181,13 @@ make wave-generator-run \
 1. Read the open plan under `github_wave_plans_dir` (default `.ignorelocal/waves/`).
 2. Add a `- [ ]` bullet under the appropriate `## Wave <id>` citing `#<N>` and acceptance criteria.
 3. Update locked decisions table if the issue freezes a choice.
-4. Re-run `make validate WAVE=<plan>`.
+4. Re-run `make -C spec-kit-wave validate WAVE=<plan>`.
 5. Draft issue comment linking the plan wave.
 
 **C. Needs spec first** — unclear product intent:
 
 ```bash
-make specify-run SLUG=<slug> TITLE="<title>" CONTEXT=<brief>
+make -C spec-kit-wave specify-run SLUG=<slug> TITLE="<title>" CONTEXT=<brief>
 ```
 
 Hand off to `wayfinder` when fog is high, then `specify` → `plan` → `tasks` (wave-generator).
@@ -259,9 +259,9 @@ Beyond fetch / triage / comment / wave routing, this skill also supports:
 ## Headless dispatch
 
 ```bash
-make github-issue-triage ISSUE=21
-make github-issue-triage-run ISSUE=21 CONTEXT=brief.md
-make github-issue-triage-run QUEUE=1   # full open queue
+make -C spec-kit-wave github-issue-triage ISSUE=21
+make -C spec-kit-wave github-issue-triage-run ISSUE=21 CONTEXT=brief.md
+make -C spec-kit-wave github-issue-triage-run QUEUE=1   # full open queue
 ```
 
 ## Cursor / Claude invocation
@@ -269,7 +269,7 @@ make github-issue-triage-run QUEUE=1   # full open queue
 | Host | How |
 | --- | --- |
 | **Cursor** | `@github-issue-triage` agent, or `/github-issue-triage` skill |
-| **Claude Code** | `/github-issue-triage` after `make install-skills` |
+| **Claude Code** | `/github-issue-triage` after `make -C spec-kit-wave install-skills` |
 
 ## Guardrails
 

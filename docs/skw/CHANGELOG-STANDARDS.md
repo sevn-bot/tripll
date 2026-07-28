@@ -199,7 +199,7 @@ make changelog-check
 make changelog-eval
 make changelog-eval MODEL=anthropic:claude-sonnet-5   # override the judge
 
-# Direct module invocation (from src/tripll/skw/)
+# Direct module invocation (from spec-kit-wave/)
 uv run python -m skw.changelog_eval --repo .. --base origin/main --json
 ```
 
