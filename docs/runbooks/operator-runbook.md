@@ -315,6 +315,12 @@ Integration branch: `tripll/integrate/<run-id>` (push target for `--deliver`).
 Pre-0 / review-gate batches never auto-commit; a failing gate aborts the batch
 before committing.
 
+**Outer loop (L2-W4):** With the ``[graph]`` extra installed, ``tripll run`` / ``resume`` routes
+wave batch dispatch through the L1 outer LangGraph ``waves`` node, which delegates to the same
+``Engine`` batch scheduler. ``ledger.db`` remains authoritative; LangGraph checkpoints are
+derived. Orchestrator serial mode and runs without ``[graph]`` keep the direct Engine path — no
+CLI flag changes.
+
 ## 8. PR loop and merge gate (code factory L1)
 
 After implementation waves, the **PR phase** pushes the branch, opens a pull request,
