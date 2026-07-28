@@ -26,10 +26,51 @@ AUTH_FIX_COMMANDS: dict[str, str] = {
     "cursor_cloud": "Install tripll[cloud] and configure sevn.evolution.router",
 }
 
+_MANAGED_TOP_LEVEL_KEYS = frozenset({"default_provider", "providers", "tracing"})
+
 
 def _toml_quote(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
+
+
+def _render_scalar(key: str, value: Any) -> str:
+    if isinstance(value, bool):
+        return f"{key} = {'true' if value else 'false'}"
+    if isinstance(value, int):
+        return f"{key} = {value}"
+    if isinstance(value, float):
+        return f"{key} = {value}"
+    if isinstance(value, str):
+        return f"{key} = {_toml_quote(value)}"
+    if isinstance(value, list):
+        items = ", ".join(
+            _toml_quote(str(item)) if isinstance(item, str) else str(item) for item in value
+        )
+        return f"{key} = [{items}]"
+    raise TypeError(f"unsupported TOML scalar for {key!r}: {type(value)!r}")
+
+
+def _render_table(prefix: str, row: dict[str, Any], lines: list[str]) -> None:
+    lines.append(f"[{prefix}]")
+    for sub_key in sorted(row):
+        sub_value = row[sub_key]
+        if isinstance(sub_value, dict):
+            raise TypeError(f"nested tables under {prefix}.{sub_key} are not supported")
+        lines.append(_render_scalar(sub_key, sub_value))
+    lines.append("")
+
+
+def _render_extra_top_level(data: dict[str, Any], lines: list[str]) -> None:
+    extras = [(key, data[key]) for key in sorted(data) if key not in _MANAGED_TOP_LEVEL_KEYS]
+    for key, value in extras:
+        if isinstance(value, dict):
+            continue
+        lines.append(_render_scalar(key, value))
+        lines.append("")
+    for key, value in extras:
+        if isinstance(value, dict):
+            _render_table(key, value, lines)
 
 
 def _render_config(data: dict[str, Any]) -> str:
@@ -43,53 +84,35 @@ def _render_config(data: dict[str, Any]) -> str:
 
     providers = data.get("providers")
     if isinstance(providers, dict):
-        for name, row in providers.items():
-            if not isinstance(row, dict):
-                continue
-            lines.append(f"[providers.{name}]")
-            if "max_parallel" in row:
-                lines.append(f"max_parallel = {int(row['max_parallel'])}")
-            if "default_model" in row:
-                lines.append(f"default_model = {_toml_quote(str(row['default_model']))}")
-            lines.append("")
+        for name in sorted(providers):
+            row = providers[name]
+            if isinstance(row, dict):
+                _render_table(f"providers.{name}", row, lines)
 
     tracing = data.get("tracing")
     if isinstance(tracing, dict):
-        lines.append("[tracing]")
-        if "enabled" in tracing:
-            lines.append(f"enabled = {'true' if tracing['enabled'] else 'false'}")
-        sinks = tracing.get("sinks")
-        if isinstance(sinks, list):
-            sink_items = ", ".join(_toml_quote(str(s)) for s in sinks)
-            lines.append(f"sinks = [{sink_items}]")
-        if "retention_days" in tracing:
-            lines.append(f"retention_days = {int(tracing['retention_days'])}")
-        if "capture" in tracing:
-            lines.append(f"capture = {_toml_quote(str(tracing['capture']))}")
-        lines.append("")
+        _render_table("tracing", tracing, lines)
 
+    _render_extra_top_level(data, lines)
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _deep_merge_dict(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    """Merge *patch* into *base*, recursing one level for nested dict values."""
+    merged = dict(base)
+    for key, value in patch.items():
+        existing = merged.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            row = dict(existing)
+            row.update(value)
+            merged[key] = row
+        else:
+            merged[key] = value
+    return merged
+
+
 def write_user_config(data: dict[str, Any], *, path: Path | None = None) -> Path:
-    """Merge-write user config — existing keys are preserved unless overridden.
-
-    Args:
-        data (dict[str, Any]): New tables to merge in.
-        path (Path | None): Destination file (default user config path).
-
-    Returns:
-        Path: Written config file path.
-
-    Examples:
-        >>> import tempfile
-        >>> from pathlib import Path
-        >>> with tempfile.TemporaryDirectory() as d:
-        ...     p = Path(d) / "config.toml"
-        ...     out = write_user_config({"default_provider": "cursor_local"}, path=p)
-        ...     assert out == p
-        ...     assert "cursor_local" in out.read_text()
-    """
+    """Merge-write user config — existing keys are preserved unless overridden."""
     dest = path or user_config_path()
     dest.parent.mkdir(parents=True, exist_ok=True)
     existing: dict[str, Any] = {}
@@ -102,9 +125,7 @@ def write_user_config(data: dict[str, Any], *, path: Path | None = None) -> Path
     merged = dict(existing)
     for key, value in data.items():
         if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            row = dict(merged[key])
-            row.update(value)
-            merged[key] = row
+            merged[key] = _deep_merge_dict(merged[key], value)
         else:
             merged[key] = value
 
@@ -134,28 +155,7 @@ def run_setup(
     non_interactive: bool = False,
     provider: str | None = None,
 ) -> Path:
-    """Run ``tripll setup`` — detect backends and write user config.
-
-    Args:
-        non_interactive (bool): Skip prompts; use defaults and *provider*.
-        provider (str | None): Default provider for non-interactive mode.
-
-    Returns:
-        Path: Written config file path.
-
-    Raises:
-        typer.Exit: When no provider is selected in non-interactive mode.
-
-    Examples:
-        >>> import tempfile
-        >>> from unittest.mock import patch
-        >>> with tempfile.TemporaryDirectory() as d, patch(
-        ...     "tripll.onboard.setup.user_config_path",
-        ...     return_value=__import__("pathlib").Path(d) / "config.toml",
-        ... ):
-        ...     p = run_setup(non_interactive=True, provider="cursor_local")
-        ...     assert p.is_file()
-    """
+    """Run ``tripll setup`` — detect backends and write user config."""
     probes = _probe_providers()
     cfg = load_config()
 

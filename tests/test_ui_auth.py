@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 from fastapi.testclient import TestClient
 
+from tripll.api._auth import AUTH_COOKIE
 from tripll.api._csrf import CSRF_COOKIE, CSRF_FORM_FIELD
 from tripll.api.app import create_app
 from tripll.ledger import insert_run, open_ledger
@@ -189,3 +190,30 @@ def test_base_html_emits_token_via_tojson(
     assert "Bearer {{ api_token }}" not in response.text
     assert "tojson" in (TEMPLATE_ROOT / "base.html").read_text(encoding="utf-8")
     assert "\\u003cscript\\u003e" in response.text
+
+
+@pytest.mark.tier1
+def test_plain_navigation_reuses_auth_cookie_after_query_token(
+    token_client: TestClient,
+) -> None:
+    """H3: plain GET links work after an initial ``?token=`` page load."""
+    prime = token_client.get("/?token=test-token-secret")
+    assert prime.status_code == 200
+    assert token_client.cookies.get(AUTH_COOKIE) == "test-token-secret"
+
+    for path in ("/", "/agents", "/settings", "/runs/run-1"):
+        response = token_client.get(path)
+        assert response.status_code == 200, path
+
+
+@pytest.mark.tier1
+def test_plain_navigation_reuses_auth_cookie_after_bearer(
+    token_client: TestClient,
+) -> None:
+    """H3: plain GET links work after an initial Bearer-authenticated page load."""
+    prime = token_client.get("/", headers=AUTH_HEADER)
+    assert prime.status_code == 200
+    assert token_client.cookies.get(AUTH_COOKIE) == "test-token-secret"
+
+    response = token_client.get("/agents")
+    assert response.status_code == 200
