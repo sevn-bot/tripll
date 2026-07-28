@@ -1,0 +1,42 @@
+<section class="pr-panel" {% if pr_panel_open %}data-panel-open="1"{% endif %}>
+  <h2>PR phase</h2>
+
+  {% if pr.merge_gate_pending %}
+  <div class="merge-gate-banner" role="status">
+    <strong>Merge gate pending</strong>
+    <span class="muted"> — CI/review loop complete; operator approval required before merge.</span>
+  </div>
+  {% elif pr.merge_approved %}
+  <div class="merge-gate-banner merge-gate-approved" role="status">
+    <strong>Merge gate approved</strong>
+    <span class="muted"> — merge in GitHub UI or <code>gh pr merge</code> (tripll never auto-merges).</span>
+  </div>
+  {% endif %}
+
+  <div class="pr-panel-body">
+    <div class="pr-panel-meta">
+      <span class="badge badge-{{ pr.state }}">{{ pr.state | replace("_", " ") }}</span>
+      {% if pr.ci_green is not none %}
+      <span class="pr-check muted">CI green: {{ "yes" if pr.ci_green else "no" }}</span>
+      {% endif %}
+      {% if pr.review_clean is not none %}
+      <span class="pr-check muted">Review clean: {{ "yes" if pr.review_clean else "no" }}</span>
+      {% endif %}
+    </div>
+    <p class="muted pr-panel-message">{{ pr.message }}</p>
+
+    {% if pr.can_approve %}
+    <form class="pr-approve-form" method="post" action="/runs/{{ run_id }}/pr/approve-merge">
+      {% include "_csrf_field.html" %}
+      <button type="submit" class="btn btn-merge-gate" aria-label="Approve merge gate">
+        Approve merge gate
+      </button>
+      <span class="muted pr-approve-hint">Records operator approval only — does not merge the PR.</span>
+    </form>
+    {% endif %}
+
+    {% if pr_flash %}
+    <p class="pr-flash" role="status">{{ pr_flash }}</p>
+    {% endif %}
+  </div>
+</section>
