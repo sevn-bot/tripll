@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="tripll">
+  <path d="M12 36 C28 20, 44 52, 64 36 S100 20, 116 36" stroke="#E23B3B" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <path d="M12 64 C28 48, 44 80, 64 64 S100 48, 116 64" stroke="#E23B3B" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <path d="M12 92 C28 76, 44 108, 64 92 S100 76, 116 92" stroke="#2B6CE8" stroke-width="10" stroke-linecap="round" fill="none"/>
+</svg>
