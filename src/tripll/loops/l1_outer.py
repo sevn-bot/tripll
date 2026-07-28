@@ -1,10 +1,10 @@
 """L1 outer LangGraph loop — validate → waves → verify → commit → review → generate.
 
 Compiles a durable ``AsyncSqliteSaver`` graph keyed ``thread_id == run_id`` with
-``durability="sync"`` on gate-bearing invocations. Outer-loop nodes remain
-**scaffolding**: they record step markers and ledger snapshots only; real wave
-dispatch stays on the batch ``Engine`` path. PR investigate/fix wiring lives in
-``l1_pr`` + ``dispatch_bridge`` (W9).
+``durability="sync"`` on gate-bearing invocations. The ``waves`` node delegates
+batch dispatch to :class:`~tripll.engine.Engine` via ``dispatch_bridge`` (L2-W4);
+remaining outer nodes record step markers and ledger snapshots. PR investigate/fix
+wiring lives in ``l1_pr`` + ``dispatch_bridge`` (W9).
 
 Exports:
     OUTER_NODES — ordered node names for the outer loop.
@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
@@ -34,6 +34,7 @@ from tripll.loops import graph_available, require_graph
 from tripll.loops.state import L1OuterState, graph_delta_hash, spill_large_field
 
 if TYPE_CHECKING:
+    from tripll.engine import Engine
     from tripll.graph import RunGraph
     from tripll.ledger import LedgerConnection
 
@@ -206,11 +207,109 @@ def _node_writer(
     return _fn
 
 
-def build_l1_outer_graph(*, run_dir: Path | None = None) -> Any:
+def _node_validate(*, run_dir: Path | None = None) -> Callable[[L1OuterState], L1OuterState]:
+    """Record validate step and ledger snapshot before wave dispatch."""
+
+    def _fn(state: L1OuterState) -> L1OuterState:
+        delta = graph_delta_hash({"node": "validate", "turn": state.get("turn", 0)})
+        update: L1OuterState = {
+            "step": "validate",
+            "history": ["validate"],
+            "graph_delta_hash": delta,
+            "turn_hashes": [delta],
+            "turn": int(state.get("turn") or 0) + 1,
+        }
+        run_id = str(state.get("run_id") or state.get("thread_id") or "")
+        if run_dir is not None and run_id:
+            ledger_path = run_dir / "ledger.db"
+            if ledger_path.is_file():
+                from tripll.ledger import open_ledger
+
+                with open_ledger(ledger_path) as lc:
+                    record_loop_snapshot(
+                        lc,
+                        run_id=run_id,
+                        step="validate",
+                        history=[*(state.get("history") or []), "validate"],
+                        next_node="waves",
+                        extra={"thread_id": run_id},
+                    )
+        if run_dir is not None:
+            note = f"validate@{datetime.now(UTC).isoformat()}"
+            update.update(spill_large_field(state, field="notes", value=note, run_dir=run_dir))
+        return update
+
+    return _fn
+
+
+def _node_waves(
+    *,
+    run_dir: Path | None = None,
+    engine: Engine | None = None,
+) -> Callable[[L1OuterState], Awaitable[L1OuterState]]:
+    """Dispatch all wave batches through the Engine seam (L2-W4)."""
+
+    async def _fn(state: L1OuterState) -> L1OuterState:
+        if engine is None:
+            return _node_writer("waves", run_dir=run_dir)(state)
+
+        from tripll.loops.dispatch_bridge import (
+            engine_wave_result_as_dict,
+            invoke_engine_wave_dispatch_async,
+        )
+
+        wave_result = await invoke_engine_wave_dispatch_async(
+            state,
+            engine=engine,
+            record_validate_snapshot=False,
+        )
+        delta = graph_delta_hash(
+            {
+                "node": "waves",
+                "state": wave_result.state,
+                "waves_done": wave_result.waves_done,
+                "dispatched": list(wave_result.waves_dispatched),
+            }
+        )
+        update: L1OuterState = {
+            "step": "waves",
+            "history": ["waves"],
+            "graph_delta_hash": delta,
+            "turn_hashes": [delta],
+            "turn": int(state.get("turn") or 0) + 1,
+            "wave_dispatch": engine_wave_result_as_dict(wave_result),
+            "paused": wave_result.paused,
+        }
+        run_id = str(state.get("run_id") or state.get("thread_id") or "")
+        if run_dir is not None and run_id:
+            ledger_path = run_dir / "ledger.db"
+            if ledger_path.is_file():
+                from tripll.ledger import open_ledger
+
+                with open_ledger(ledger_path) as lc:
+                    sync_loop_snapshot_from_state(
+                        lc,
+                        run_id=run_id,
+                        state={**state, **update},
+                        next_node="verify",
+                    )
+        if run_dir is not None:
+            note = (
+                f"waves@{datetime.now(UTC).isoformat()} "
+                f"state={wave_result.state} done={wave_result.waves_done}"
+            )
+            update.update(spill_large_field(state, field="notes", value=note, run_dir=run_dir))
+        return update
+
+    return _fn
+
+
+def build_l1_outer_graph(*, run_dir: Path | None = None, engine: Engine | None = None) -> Any:
     """Build the outer-loop ``StateGraph`` (uncompiled).
 
     Args:
         run_dir (Path | None): When set, enables spill-to-file for large fields.
+        engine (Engine | None): When set, the ``waves`` node dispatches through Engine.
 
     Returns:
         StateGraph: Graph with ``OUTER_NODES`` wired in order.
@@ -222,8 +321,15 @@ def build_l1_outer_graph(*, run_dir: Path | None = None) -> Any:
     from langgraph.graph import END, START, StateGraph
 
     graph = StateGraph(L1OuterState)
+    node_builders: dict[str, Any] = {
+        "validate": _node_validate(run_dir=run_dir),
+        "waves": _node_waves(run_dir=run_dir, engine=engine),
+    }
     for name in OUTER_NODES:
-        graph.add_node(name, cast("Any", _node_writer(name, run_dir=run_dir)))
+        if name in node_builders:
+            graph.add_node(name, cast("Any", node_builders[name]))
+        else:
+            graph.add_node(name, cast("Any", _node_writer(name, run_dir=run_dir)))
     graph.add_edge(START, OUTER_NODES[0])
     for left, right in pairwise(OUTER_NODES):
         graph.add_edge(left, right)
@@ -236,6 +342,7 @@ def compile_l1_outer_graph(
     *,
     interrupt_before: list[str] | None = None,
     run_dir: Path | None = None,
+    engine: Engine | None = None,
 ) -> Any:
     """Compile the outer loop with durable checkpointing and retry defaults.
 
@@ -243,6 +350,7 @@ def compile_l1_outer_graph(
         checkpointer: LangGraph checkpointer (``AsyncSqliteSaver`` in production).
         interrupt_before (list[str] | None): Nodes to pause before (gates/kill test).
         run_dir (Path | None): Run directory for spill files.
+        engine (Engine | None): Engine instance for real ``waves`` dispatch.
 
     Returns:
         CompiledGraph: Ready for ``ainvoke`` / ``aget_state``.
@@ -250,7 +358,7 @@ def compile_l1_outer_graph(
     require_graph(feature="L1 outer loop")
     from langgraph.types import RetryPolicy
 
-    sg = build_l1_outer_graph(run_dir=run_dir)
+    sg = build_l1_outer_graph(run_dir=run_dir, engine=engine)
     default_retry = RetryPolicy(max_attempts=5, initial_interval=0.5)
     sg.set_node_defaults(retry_policy=default_retry)
     return sg.compile(

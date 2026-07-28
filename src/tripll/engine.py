@@ -987,6 +987,7 @@ class Engine:
         self._run_wall_clock_start: float | None = None
         self._run_deadline_ts: float | None = None
         self._last_fired_exit_id: int | None = None
+        self._active_run_graph: RunGraph | None = None
 
     # -- public API ---------------------------------------------------------
 
@@ -1885,10 +1886,236 @@ class Engine:
                     exc,
                 )
 
+    async def drive_wave_batches(
+        self,
+        run_id: str,
+        graph: RunGraph,
+        *,
+        run_bag: dict[str, Any] | None = None,
+        record_validate_snapshot: bool = True,
+    ) -> RunResult:
+        """Dispatch all wave batches — shared Engine seam for linear and outer-loop paths.
+
+        Args:
+            run_id (str): Run identifier.
+            graph (RunGraph): Parsed execution graph.
+            run_bag (dict[str, Any] | None): Optional trace span bag from ``_drive``.
+            record_validate_snapshot (bool): Write validate ``loop_snapshot`` when True.
+
+        Returns:
+            RunResult: Terminal or paused outcome after batch dispatch.
+
+        Examples:
+            >>> import inspect
+            >>> inspect.iscoroutinefunction(Engine.drive_wave_batches)
+            True
+        """
+        from tripll.loops import graph_available
+
+        done: set[str] = set()
+        blocked: list[str] = []
+        results: dict[str, NodeResult] = {}
+
+        with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+            await self._prepare_run_ledger(
+                lc,
+                run_id,
+                graph,
+                done,
+                blocked,
+                results,
+                record_validate_snapshot=record_validate_snapshot and graph_available(),
+            )
+
+            logs_dir = self.runs_root.logs_dir(run_id)
+            logger.info(
+                "engine: {} dispatching waves — logs in {}",
+                run_id,
+                logs_dir,
+            )
+
+            for batch in graph.batches:
+                if batch.is_human_gate:
+                    continue
+                logger.info("engine: {} batch {} — lanes {}", run_id, batch.batch_id, batch.lanes)
+                batch_nodes = nodes_for_batch(graph, batch)
+
+                pause_result = await self._drain_batch(
+                    lc, run_id, graph, batch_nodes, done, blocked, results
+                )
+                if pause_result is not None:
+                    if run_bag is not None:
+                        run_bag["exit_id"] = pause_result.state
+                    return pause_result
+
+            state: RunState = "failed" if blocked else "done"
+            if blocked:
+                self._write_escalation(run_id, blocked, results)
+            else:
+                self._fire_goal_met_exit(
+                    lc,
+                    run_id,
+                    ci_green=True,
+                    outcome_satisfied=True,
+                )
+            transition_run(lc, run_id, state)
+
+        self._sync_report(run_id, graph, partial_results=results)
+
+        if blocked:
+            self.runs_root.fail_run(run_id)
+            if run_bag is not None:
+                run_bag["exit_id"] = "failed"
+                run_bag["waves_done"] = len(done)
+            return RunResult(run_id=run_id, state="failed", nodes=results)
+        self.runs_root.complete_run(run_id)
+        if run_bag is not None:
+            run_bag["exit_id"] = "done"
+            run_bag["waves_done"] = len(done)
+        return RunResult(run_id=run_id, state="done", nodes=results)
+
+    async def _prepare_run_ledger(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        graph: RunGraph,
+        done: set[str],
+        blocked: list[str],
+        results: dict[str, NodeResult],
+        *,
+        record_validate_snapshot: bool,
+    ) -> None:
+        """Startup reconciliation, resume hydration, and human-gate completion."""
+        from tripll.loops.l1_outer import record_loop_snapshot
+
+        for w in list_waves(lc, run_id):
+            if w.state in ("running", "dispatched", "verifying"):
+                transition_wave(lc, run_id, w.node_id, "queued")
+                append_event(
+                    lc,
+                    run_id=run_id,
+                    node_id=w.node_id,
+                    phase="recovery",
+                    last_action=("startup reconciliation: no live dispatch for stale wave"),
+                )
+
+        transition_run(lc, run_id, "active")
+        self._init_run_wall_clock(graph)
+
+        if record_validate_snapshot:
+            record_loop_snapshot(
+                lc,
+                run_id=run_id,
+                step="validate",
+                history=[],
+                next_node="waves",
+                extra={"thread_id": run_id},
+            )
+
+        for w in list_waves(lc, run_id):
+            if w.state == "done":
+                done.add(w.node_id)
+                results[w.node_id] = NodeResult(w.node_id, "done", w.attempt_count)
+            elif w.state == "blocked":
+                blocked.append(w.node_id)
+                results[w.node_id] = NodeResult(
+                    w.node_id, "blocked", w.attempt_count, "already blocked on resume"
+                )
+        if done:
+            logger.info("engine: {} resuming — {} waves already done", run_id, len(done))
+        if blocked:
+            logger.info("engine: {} resuming — {} waves already blocked", run_id, len(blocked))
+        if self._is_approved(run_id):
+            complete_human_gate_waves(
+                lc,
+                run_id,
+                graph,
+                done=done,
+                blocked=blocked,
+                results=results,
+            )
+        self._sync_report(run_id, graph, partial_results=results)
+
+        self._role_dispatch_effective = self._resolve_role_dispatch(graph)
+        if self._pools is None:
+            self._init_provider_fabric(graph)
+
+    async def _drive_via_outer_loop(
+        self,
+        run_id: str,
+        graph: RunGraph,
+        *,
+        run_bag: dict[str, Any] | None = None,
+    ) -> RunResult:
+        """Run batch dispatch through the L1 outer LangGraph (``waves`` → Engine seam).
+
+        Args:
+            run_id (str): Run identifier.
+            graph (RunGraph): Parsed execution graph.
+            run_bag (dict[str, Any] | None): Optional trace span bag from ``_drive``.
+
+        Returns:
+            RunResult: Outcome recorded by the outer ``waves`` node.
+        """
+        from tripll.loops.l1_outer import checkpoint_db_path, compile_l1_outer_graph
+
+        run_dir = self.runs_root.run_dir(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        db_path = checkpoint_db_path(run_dir)
+        self._configure_orchestrator(graph, run_id=run_id)
+
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+        async with AsyncSqliteSaver.from_conn_string(str(db_path)) as cp:
+            app = compile_l1_outer_graph(
+                cp,
+                run_dir=run_dir,
+                engine=self,
+                interrupt_before=["verify"],
+            )
+            cfg: dict[str, Any] = {
+                "configurable": {"thread_id": run_id},
+                "durability": "sync",
+            }
+            seed: dict[str, Any] = {
+                "run_id": run_id,
+                "thread_id": run_id,
+                "run_dir": str(run_dir),
+                "history": [],
+                "turn": 0,
+            }
+            await app.ainvoke(seed, cfg)
+            final = await app.aget_state(cfg)
+            values = dict(final.values)
+            wave_payload = values.get("wave_dispatch") or {}
+            state = str(wave_payload.get("state") or "failed")
+            node_details = wave_payload.get("node_details") or {}
+            nodes = {
+                str(node_id): NodeResult(
+                    str(node_id),
+                    str(detail.get("state") or "blocked"),
+                    int(detail.get("attempts") or 0),
+                    str(detail.get("evidence") or ""),
+                )
+                for node_id, detail in node_details.items()
+            }
+            if run_bag is not None:
+                run_bag["exit_id"] = state
+                run_bag["waves_done"] = int(wave_payload.get("waves_done") or 0)
+            return RunResult(
+                run_id=run_id,
+                state=state,
+                nodes=nodes,
+                quota_pending=bool(wave_payload.get("quota_pending")),
+                cost_pending=bool(wave_payload.get("cost_pending")),
+                hitl_pending=bool(wave_payload.get("hitl_pending")),
+                hitl_gate_kind=wave_payload.get("hitl_gate_kind"),
+            )
+
     async def _drive(self, run_id: str, graph: RunGraph) -> RunResult:
         """Main run loop: batches, concurrent dispatch, gates, and terminal state."""
         from tripll.loops import graph_available, require_graph
-        from tripll.loops.l1_outer import plan_requires_langgraph, record_loop_snapshot
+        from tripll.loops.l1_outer import plan_requires_langgraph
 
         if plan_requires_langgraph(graph):
             require_graph(feature="cyclic run plan")
@@ -1968,10 +2195,6 @@ class Engine:
                     hitl_gate_kind=GateKind.PRE0.value,
                 )
 
-        results: dict[str, NodeResult] = {}
-        done: set[str] = set()
-        blocked: list[str] = []
-
         from tripll.tracing.spans import close_run_tracing, trace_span
 
         self._init_run_tracing(run_id, graph)
@@ -1985,123 +2208,48 @@ class Engine:
 
         try:
             with trace_span("tripll.run", run_id=run_id, **run_attrs) as run_bag:
-                with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
-                    # W5.4: startup reconciliation — stale in-flight waves from a dead engine.
-                    for w in list_waves(lc, run_id):
-                        if w.state in ("running", "dispatched", "verifying"):
-                            transition_wave(lc, run_id, w.node_id, "queued")
-                            append_event(
-                                lc,
-                                run_id=run_id,
-                                node_id=w.node_id,
-                                phase="recovery",
-                                last_action=(
-                                    "startup reconciliation: no live dispatch for stale wave"
-                                ),
-                            )
-
-                    transition_run(lc, run_id, "active")
-                    self._init_run_wall_clock(graph)
-
-                    if graph_available():
-                        record_loop_snapshot(
-                            lc,
-                            run_id=run_id,
-                            step="validate",
-                            history=[],
-                            next_node="waves",
-                            extra={"thread_id": run_id},
-                        )
-
-                    # Resumability: skip waves already marked done or blocked in the ledger.
-                    for w in list_waves(lc, run_id):
-                        if w.state == "done":
-                            done.add(w.node_id)
-                            results[w.node_id] = NodeResult(w.node_id, "done", w.attempt_count)
-                        elif w.state == "blocked":
-                            blocked.append(w.node_id)
-                            results[w.node_id] = NodeResult(
-                                w.node_id, "blocked", w.attempt_count, "already blocked on resume"
-                            )
-                    if done:
-                        logger.info(
-                            "engine: {} resuming — {} waves already done", run_id, len(done)
-                        )
-                    if blocked:
-                        logger.info(
-                            "engine: {} resuming — {} waves already blocked", run_id, len(blocked)
-                        )
-                    if self._is_approved(run_id):
-                        complete_human_gate_waves(
-                            lc,
-                            run_id,
-                            graph,
-                            done=done,
-                            blocked=blocked,
-                            results=results,
-                        )
-                    self._sync_report(run_id, graph, partial_results=results)
-
+                self._active_run_graph = graph
+                try:
                     self._role_dispatch_effective = self._resolve_role_dispatch(graph)
                     if self._pools is None:
                         self._init_provider_fabric(graph)
                     self._configure_orchestrator(graph, run_id=run_id)
+
                     if self._orchestrator_mode:
-                        result = await self._drive_orchestrator_serial(
-                            lc, run_id, graph, done, blocked, results
-                        )
-                        run_bag["exit_id"] = result.state
-                        run_bag["waves_done"] = len(done)
-                        run_bag["waves_parked"] = sum(
-                            1 for r in results.values() if r.state in ("blocked", "paused")
-                        )
-                        return result
+                        done: set[str] = set()
+                        blocked: list[str] = []
+                        results: dict[str, NodeResult] = {}
+                        with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
+                            await self._prepare_run_ledger(
+                                lc,
+                                run_id,
+                                graph,
+                                done,
+                                blocked,
+                                results,
+                                record_validate_snapshot=graph_available(),
+                            )
+                            result = await self._drive_orchestrator_serial(
+                                lc, run_id, graph, done, blocked, results
+                            )
+                            run_bag["exit_id"] = result.state
+                            run_bag["waves_done"] = len(done)
+                            run_bag["waves_parked"] = sum(
+                                1 for r in results.values() if r.state in ("blocked", "paused")
+                            )
+                            return result
 
-                    logs_dir = self.runs_root.logs_dir(run_id)
-                    logger.info(
-                        "engine: {} dispatching waves — logs in {}",
+                    if graph_available():
+                        return await self._drive_via_outer_loop(run_id, graph, run_bag=run_bag)
+
+                    return await self.drive_wave_batches(
                         run_id,
-                        logs_dir,
+                        graph,
+                        run_bag=run_bag,
+                        record_validate_snapshot=True,
                     )
-
-                    for batch in graph.batches:
-                        if batch.is_human_gate:
-                            continue
-                        logger.info(
-                            "engine: {} batch {} — lanes {}", run_id, batch.batch_id, batch.lanes
-                        )
-                        batch_nodes = nodes_for_batch(graph, batch)
-
-                        pause_result = await self._drain_batch(
-                            lc, run_id, graph, batch_nodes, done, blocked, results
-                        )
-                        if pause_result is not None:
-                            run_bag["exit_id"] = pause_result.state
-                            return pause_result
-
-                    state: RunState = "failed" if blocked else "done"
-                    if blocked:
-                        self._write_escalation(run_id, blocked, results)
-                    else:
-                        self._fire_goal_met_exit(
-                            lc,
-                            run_id,
-                            ci_green=True,
-                            outcome_satisfied=True,
-                        )
-                    transition_run(lc, run_id, state)
-
-                self._sync_report(run_id, graph, partial_results=results)
-
-                if blocked:
-                    self.runs_root.fail_run(run_id)
-                    run_bag["exit_id"] = "failed"
-                    run_bag["waves_done"] = len(done)
-                    return RunResult(run_id=run_id, state="failed", nodes=results)
-                self.runs_root.complete_run(run_id)
-                run_bag["exit_id"] = "done"
-                run_bag["waves_done"] = len(done)
-                return RunResult(run_id=run_id, state="done", nodes=results)
+                finally:
+                    self._active_run_graph = None
         finally:
             close_run_tracing()
 

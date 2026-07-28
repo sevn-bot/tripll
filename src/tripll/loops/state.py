@@ -48,6 +48,7 @@ class L1OuterState(TypedDict, total=False):
     open_findings: int
     dispatch: list[dict[str, Any]]
     dispatch_results: list[dict[str, Any]]
+    wave_dispatch: dict[str, Any]
     merge_gate: dict[str, Any]
     ci_green: bool
     review_clean: bool
