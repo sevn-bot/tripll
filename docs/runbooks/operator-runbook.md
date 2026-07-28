@@ -216,6 +216,15 @@ Two operator paths add work mid-flight without restarting the run. Both require
   required on resume).
 - Use `--dry-run` on inject/reconcile to validate without writing.
 
+**Dashboard + API (L2-W5c):**
+
+- Run detail page includes an **Inject hotfix** panel (pause first; form posts with CSRF).
+- `POST /api/runs/{id}/inject` — JSON body: `brief`, `owned_paths`, `after`, optional
+  `verify_target`, `dry_run`; returns 202 with `task_id` / `node_id`.
+- `GET /api/runs/{id}/injects` — lists inject artefacts and ledger events
+  (`inject_requested`, `inject_applied`, `reconcile_inserted`, etc.).
+- Returns **409** when `inject.lock` is held (shared with CLI reconcile).
+
 See `ignorelocal/live-injection-design.md` for the full design.
 
 ## 6. Switching backends

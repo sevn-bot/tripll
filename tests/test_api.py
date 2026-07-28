@@ -6,6 +6,8 @@ Covers:
 - GET /api/runs — lists runs from ledger.
 - GET /api/runs/{id} — 404 on missing; detail on seeded run.
 - POST /api/runs/{id}/pause — writes pause marker; 404 on missing run.
+- POST /api/runs/{id}/inject — hotfix inject; 409 on lock; auth required.
+- GET /api/runs/{id}/injects — list inject artefacts and ledger events.
 - POST /api/runs/{id}/approve and /resume — spawn stub (mocked).
 - GET /api/runs/{id}/waves — returns all wave rows.
 - GET /api/waves/{run_id}/{node_id} — 404 on missing wave; detail on seeded.
@@ -33,6 +35,7 @@ from tripll.ledger import (
     insert_wave,
     open_ledger,
     transition_run,
+    transition_wave,
 )
 from tripll.pipeline import RunsRoot
 from tripll.profiles import (
@@ -87,6 +90,49 @@ def _seed_run(
         if terminal:
             transition_run(lc, run_id, "done")
     return run_dir
+
+
+_INJECT_PLAN = (
+    "# Demo\n\n"
+    "## Wave W1 -- impl\n\n"
+    "- [ ] **W1.1** Do thing.\n\n"
+    "## Files in scope\n\n| Subsystem | Paths |\n|--|--|\n| Core | `src/tripll/` |\n"
+)
+
+
+def _seed_inject_ready_run(rr: RunsRoot, run_id: str = "run-inject") -> Path:
+    """Paused run with one done wave and a Mode B plan for inject tests."""
+    node_id = "demo:all-waves"
+    run_dir = rr.processing_dir / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "pause-requested.md").write_text("# pause\n", encoding="utf-8")
+    (run_dir / "demo-wave-plan.md").write_text(_INJECT_PLAN, encoding="utf-8")
+    with open_ledger(run_dir / "ledger.db") as lc:
+        insert_run(
+            lc,
+            run_id=run_id,
+            slug="test",
+            source_mode="B",
+            input_path=str(run_dir),
+        )
+        insert_wave(
+            lc,
+            node_id=node_id,
+            run_id=run_id,
+            plan_id="demo",
+            wave_id="all-waves",
+            lane="demo",
+        )
+        append_event(lc, run_id=run_id, node_id=node_id, phase="done")
+        transition_wave(lc, run_id, node_id, "done")
+        transition_run(lc, run_id, "paused")
+    return run_dir
+
+
+@pytest.fixture
+def inject_repo_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point TRIPLL_REPO_ROOT at the test temp dir for inject path checks."""
+    monkeypatch.setenv("TRIPLL_REPO_ROOT", str(tmp_path))
 
 
 @pytest.fixture
@@ -362,6 +408,98 @@ def test_pause_run_404(client) -> None:  # type: ignore[no-untyped-def]
     """POST /api/runs/{id}/pause returns 404 for unknown run."""
     r = client.post("/api/runs/missing/pause")
     assert r.status_code == 404
+
+
+def test_inject_api_applies_hotfix(
+    client,
+    tmp_rr: RunsRoot,
+    inject_repo_root: None,
+) -> None:  # type: ignore[no-untyped-def]
+    """POST /api/runs/{id}/inject applies a dry-run hotfix when run is paused."""
+    _seed_inject_ready_run(tmp_rr, "run-inject-api")
+    r = client.post(
+        "/api/runs/run-inject-api/inject",
+        json={
+            "brief": "Fix null handling",
+            "owned_paths": ["src/a.py"],
+            "after": "all-waves",
+            "dry_run": True,
+        },
+    )
+    assert r.status_code == 202
+    body = r.json()
+    assert body["dry_run"] is True
+    assert body["node_id"] == "hotfix:HF-1"
+    assert "task_id" in body
+
+
+def test_inject_api_409_when_lock_held(
+    client,
+    tmp_rr: RunsRoot,
+    inject_repo_root: None,
+) -> None:  # type: ignore[no-untyped-def]
+    """POST /api/runs/{id}/inject returns 409 when inject.lock is held."""
+    run_dir = _seed_inject_ready_run(tmp_rr, "run-inject-lock")
+    (run_dir / "inject.lock").write_text("held\n", encoding="utf-8")
+    r = client.post(
+        "/api/runs/run-inject-lock/inject",
+        json={
+            "brief": "Fix",
+            "owned_paths": ["src/a.py"],
+            "after": "all-waves",
+            "dry_run": False,
+        },
+    )
+    assert r.status_code == 409
+    assert "inject.lock" in r.json()["detail"]
+
+
+def test_list_injects(
+    client,
+    tmp_rr: RunsRoot,
+    inject_repo_root: None,
+) -> None:  # type: ignore[no-untyped-def]
+    """GET /api/runs/{id}/injects lists artefacts after a dry-run inject."""
+    _seed_inject_ready_run(tmp_rr, "run-inject-list")
+    client.post(
+        "/api/runs/run-inject-list/inject",
+        json={
+            "brief": "Fix",
+            "owned_paths": ["src/a.py"],
+            "after": "all-waves",
+            "dry_run": True,
+        },
+    )
+    r = client.get("/api/runs/run-inject-list/injects")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["run_id"] == "run-inject-list"
+    assert body["lock_held"] is False
+    assert isinstance(body["artefacts"], list)
+    assert isinstance(body["events"], list)
+
+
+def test_inject_api_requires_auth(
+    client_authed,
+    tmp_rr: RunsRoot,
+    inject_repo_root: None,
+) -> None:  # type: ignore[no-untyped-def]
+    """POST /api/runs/{id}/inject requires Bearer token when TRIPLL_API_TOKEN is set."""
+    _seed_inject_ready_run(tmp_rr, "run-inject-auth")
+    payload = {
+        "brief": "Fix",
+        "owned_paths": ["src/a.py"],
+        "after": "all-waves",
+        "dry_run": True,
+    }
+    r = client_authed.post("/api/runs/run-inject-auth/inject", json=payload)
+    assert r.status_code == 401
+    r = client_authed.post(
+        "/api/runs/run-inject-auth/inject",
+        json=payload,
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 202
 
 
 def test_approve_run_spawns_subprocess(client, tmp_rr: RunsRoot) -> None:  # type: ignore[no-untyped-def]
