@@ -1,0 +1,29 @@
+{
+  "task_id": "g10-benchmark-bundle",
+  "description": "G10 \u2014 quality gauntlet sealed bench task",
+  "base_sha": "HEAD",
+  "wave_id": "G10",
+  "targets": [
+    "examples/bench-output/README.md",
+    "examples/bench-output/style.css"
+  ],
+  "owned_paths": [
+    "examples/bench-output/"
+  ],
+  "outcome_contract": {
+    "reference": {
+      "kind": "benchmark_task",
+      "path": "bench/tasks/g10-benchmark-bundle/reference/README.md",
+      "comparison": "side_by_side",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": true
+    }
+  },
+  "verify": [
+    "make lint"
+  ]
+}

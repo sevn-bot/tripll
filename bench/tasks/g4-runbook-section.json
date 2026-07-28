@@ -1,0 +1,28 @@
+{
+  "task_id": "g4-runbook-section",
+  "description": "G4 \u2014 quality gauntlet sealed bench task",
+  "base_sha": "HEAD",
+  "wave_id": "G4",
+  "targets": [
+    "docs/runbooks/recovery-snippet.md"
+  ],
+  "owned_paths": [
+    "docs/runbooks/recovery-snippet.md"
+  ],
+  "outcome_contract": {
+    "reference": {
+      "kind": "spec_section",
+      "path": "bench/tasks/g4-runbook-section/reference/recovery.md#stuck-wave",
+      "comparison": "side_by_side",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": false
+    }
+  },
+  "verify": [
+    "make lint"
+  ]
+}

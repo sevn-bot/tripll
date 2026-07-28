@@ -1,0 +1,28 @@
+{
+  "task_id": "g9-merge-gate",
+  "description": "G9 \u2014 quality gauntlet sealed bench task",
+  "base_sha": "HEAD",
+  "wave_id": "G9",
+  "targets": [
+    "src/dashboard/merge_gate.html"
+  ],
+  "owned_paths": [
+    "src/dashboard/"
+  ],
+  "outcome_contract": {
+    "reference": {
+      "kind": "html_crop",
+      "path": "bench/tasks/g9-merge-gate/reference/card.html#merge-gate",
+      "comparison": "side_by_side",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": true
+    }
+  },
+  "verify": [
+    "make lint"
+  ]
+}

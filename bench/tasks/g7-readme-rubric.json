@@ -1,0 +1,28 @@
+{
+  "task_id": "g7-readme-rubric",
+  "description": "G7 \u2014 quality gauntlet sealed bench task",
+  "base_sha": "HEAD",
+  "wave_id": "G7",
+  "targets": [
+    "README.md"
+  ],
+  "owned_paths": [
+    "README.md"
+  ],
+  "outcome_contract": {
+    "reference": {
+      "kind": "rubric_only",
+      "path": "bench/tasks/g7-readme-rubric/reference/rubric.md",
+      "comparison": "rubric",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": false
+    }
+  },
+  "verify": [
+    "make lint"
+  ]
+}
