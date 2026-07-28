@@ -343,6 +343,28 @@ scoped exploration within `workspace_scope` only — see
 [`../graph-serving.md`](../graph-serving.md#cold-or-empty-graph-store). Pass
 `--grep-brief` to force the legacy grep-style directive.
 
+### E2E delivery validation (fixture / CI)
+
+Automated walkthrough (no live GitHub): `tests/test_delivery_e2e.py` exercises the
+full operator chain with stubbed `gh` sync and fake adapters:
+
+```bash
+make test TESTS=tests/test_delivery_e2e.py
+make test TESTS=tests/test_pr_loop.py
+```
+
+**Manual fixture-repo checklist** (requires `[graph]` extra + real remote):
+
+1. `tripll run <set> --integrate --deliver` — local merge, push, open PR
+2. `tripll findings sync --pr <n> --run-id <run-id>`
+3. `tripll pr shepherd --run <run-id> --phase investigate_and_fix` — repeat after fixes until parked
+4. `tripll pr status <run-id>` — expect `"state": "merge_gate_pending"`
+5. `tripll pr approve-merge <run-id>` — human gate (never skipped)
+6. Merge PR manually in GitHub UI or `gh pr merge` (tripll `merge` action requires `merge_approved`)
+
+After step 3, re-run `findings sync` when CI/review updates; poll reloads open findings from
+the run-directory graph store on each shepherd cycle.
+
 ## 9. Orchestrator mode (headless Multitask parity)
 
 Orchestrator mode is **opt-in** when an input set contains `*-orchestrator-prompt.md`
