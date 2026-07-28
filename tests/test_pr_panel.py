@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.test_ui_auth import AUTH_HEADER, _post_with_auth_and_csrf
+from tests.test_ui_auth import AUTH_HEADER
+from tripll.api._csrf import CSRF_COOKIE, CSRF_FORM_FIELD
 from tripll.api._pr_panel import build_pr_panel
 from tripll.api.app import create_app
 from tripll.ledger import insert_run, insert_wave, open_ledger
@@ -117,7 +118,16 @@ def test_pr_approve_merge_form_succeeds_with_csrf(
     token_client: TestClient,
     tmp_path: Path,
 ) -> None:
-    response = _post_with_auth_and_csrf(token_client, "/runs/run-pr-auth/pr/approve-merge", {})
+    prime = token_client.get("/", headers=AUTH_HEADER)
+    assert prime.status_code == 200
+    csrf = token_client.cookies.get(CSRF_COOKIE, "")
+    assert csrf
+    response = token_client.post(
+        "/runs/run-pr-auth/pr/approve-merge",
+        data={CSRF_FORM_FIELD: csrf},
+        headers=AUTH_HEADER,
+        follow_redirects=False,
+    )
     assert response.status_code == 303
     assert "pr_msg=" in response.headers["location"]
     run_dir = tmp_path / "runs" / "processing" / "run-pr-auth"
@@ -156,15 +166,16 @@ def test_api_pr_status_merge_gate_pending(token_client: TestClient, tmp_path: Pa
     assert body["merge_gate_pending"] is True
 
 
-def test_api_pr_approve_merge_without_pending_returns_409(token_client: TestClient) -> None:
+def test_api_pr_approve_merge_without_pending_returns_409(
+    token_client: TestClient,
+    tmp_path: Path,
+) -> None:
+    rr = RunsRoot(tmp_path / "runs")
+    run_dir = rr.processing_dir / "run-no-gate"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
     response = token_client.post(
-        "/api/runs/run-pr-auth/pr/approve-merge",
+        "/api/runs/run-no-gate/pr/approve-merge",
         headers=AUTH_HEADER,
     )
-    assert response.status_code in (202, 409)
-    if response.status_code == 202:
-        retry = token_client.post(
-            "/api/runs/run-pr-auth/pr/approve-merge",
-            headers=AUTH_HEADER,
-        )
-        assert retry.status_code == 409
+    assert response.status_code == 409
