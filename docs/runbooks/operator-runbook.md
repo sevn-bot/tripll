@@ -198,6 +198,14 @@ Two operator paths add work mid-flight without restarting the run. Both require
 | **B — plan edit + reconcile** | Full wave section with verify targets, roles, effort | `tripll pause <run-id>` → edit `*-wave-plan.md` under `processing/<run-id>/` → `tripll run reconcile-graph <run-id>` → `tripll resume <run-id>` |
 | **C — parallel lane add** | New lane mid-batch (disjoint owned paths) without authoring a full plan file | `tripll pause <run-id>` → `tripll wave add <run-id> --lane … --wave-id … --brief … --paths … --after … [--batch current\|next]` → `tripll resume <run-id>` |
 
+**Orchestrator serial runs (L2-W5d):** When `orchestrator_mode: serial` is active,
+`--after <wave>` inserts the injected node into the orchestrator prompt's
+`serial_waves` list immediately after the anchor wave. A hotfix
+`--after W3` runs before W4 on resume. Reconcile/resume re-applies inject
+artefacts so serial order is restored after plan re-parse. Review gates on
+completed waves are unchanged; injected hotfix/wave-add nodes do not inherit
+review gates unless the plan declares them.
+
 **Hotfix vs wave add:** `tripll run inject` inserts a synthetic one-shot hotfix node
 (`hotfix:HF-N`). `tripll wave add` inserts a structured lane-level wave with explicit
 batch placement (`--batch current` appends to the anchor batch; `--batch next` places
@@ -378,6 +386,22 @@ full operator chain with stubbed `gh` sync and fake adapters:
 make test TESTS=tests/test_delivery_e2e.py
 make test TESTS=tests/test_pr_loop.py
 ```
+
+**Fixture-repo tier** (minimal git target under `tests/fixtures/delivery/minimal-repo/`):
+
+```bash
+make test TESTS=tests/test_delivery_live_fixture.py
+```
+
+Offline operator dry-run against the fixture plan (no dispatch, no remote):
+
+```bash
+export TRIPLL_REPO_ROOT=/path/to/copy-of-minimal-repo   # after git init (see bootstrap.py)
+tripll run runs/input/delivery-smoke --integrate --deliver --dry-run
+export TRIPLL_PR_DRY_RUN=1   # default in pytest; skip real gh/git push
+```
+
+Evidence log: [`docs/evidence/live-fixture-e2e-evidence.md`](../evidence/live-fixture-e2e-evidence.md).
 
 **Manual fixture-repo checklist** (requires `[graph]` extra + real remote):
 
