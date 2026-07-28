@@ -1,0 +1,74 @@
+<details class="inject-panel" {% if inject_panel_open %}open{% endif %}>
+  <summary>Inject hotfix (L2-W5)</summary>
+  <div class="inject-panel-body">
+    <p class="muted inject-help">
+      Pause the run first and wait for in-flight waves to finish. Inject adds a synthetic
+      <code>hotfix:HF-N</code> wave after the selected dependency; resume to dispatch.
+    </p>
+
+    {% if inject_lock_held %}
+    <p class="inject-lock-banner" role="status">inject.lock held — wait for the current inject/reconcile to finish.</p>
+    {% endif %}
+
+    <form class="inject-form" method="post" action="/runs/{{ run_id }}/inject">
+      {% include "_csrf_field.html" %}
+
+      <label for="inject-after">Insert after (done wave)</label>
+      <select id="inject-after" name="after" required aria-label="Insert hotfix after wave">
+        <option value="" disabled {% if not inject_after_default %}selected{% endif %}>Select wave…</option>
+        {% for opt in inject_after_options %}
+        <option value="{{ opt.node_id }}"
+                {% if inject_after_default == opt.node_id %}selected{% endif %}>
+          {{ opt.node_id }} ({{ opt.phase }})
+        </option>
+        {% endfor %}
+      </select>
+      {% if not inject_after_options %}
+      <p class="muted">No completed waves yet — finish at least one wave before injecting.</p>
+      {% endif %}
+
+      <label for="inject-paths">Owned paths (one per line)</label>
+      <textarea id="inject-paths" name="owned_paths" rows="3" required
+                placeholder="src/tripll/engine.py"
+                aria-label="Owned paths for hotfix"></textarea>
+
+      <label for="inject-brief">Brief</label>
+      <textarea id="inject-brief" name="brief" rows="4" required
+                placeholder="Fix null handling when wave row missing from ledger"
+                aria-label="Hotfix brief"></textarea>
+
+      <label for="inject-verify">Verify target (optional)</label>
+      <input id="inject-verify" type="text" name="verify_target"
+             placeholder="make ci-affected" aria-label="Verify target override" />
+
+      <label class="inject-dry-run">
+        <input type="checkbox" name="dry_run" value="1" aria-label="Dry run only" />
+        Dry run (validate only)
+      </label>
+
+      <button type="submit" class="btn btn-inject" aria-label="Apply hotfix inject"
+              {% if inject_lock_held %}disabled{% endif %}>
+        Inject hotfix
+      </button>
+    </form>
+
+    {% if inject_artefacts %}
+    <div class="inject-history">
+      <h3>Inject history</h3>
+      <ul class="inject-artefact-list">
+        {% for item in inject_artefacts %}
+        <li>
+          <code>{{ item.node_id }}</code>
+          <span class="muted">— {{ item.injected_at }}</span>
+          <span class="muted">({{ item.injected_by }})</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if inject_flash %}
+    <p class="inject-flash" role="status">{{ inject_flash }}</p>
+    {% endif %}
+  </div>
+</details>

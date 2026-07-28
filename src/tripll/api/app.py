@@ -52,6 +52,12 @@ from pydantic import BaseModel, Field
 from tripll.api._artefacts import LogPathError, resolve_attempt_log_path, tail_log_file
 from tripll.api._auth import require_auth
 from tripll.api._csrf import apply_csrf_cookie
+from tripll.api._inject import (
+    inject_error_to_status,
+    list_run_injects,
+    parse_owned_paths,
+    run_hotfix_inject,
+)
 from tripll.api._runs import (
     RunDetail,
     RunSummary,
@@ -65,6 +71,7 @@ from tripll.api._worktree_status import (
     load_staged_wave_plan_text,
     resolve_wave_worktree_path,
 )
+from tripll.inject import InjectError
 from tripll.ledger import (
     EventRow,
     get_run,
@@ -271,6 +278,29 @@ class BackendOut(BaseModel):
     available: bool
     detail: str
     streaming: bool
+
+
+class InjectIn(BaseModel):
+    """Request body for POST /api/runs/{id}/inject."""
+
+    brief: str = Field(...)
+    owned_paths: list[str] = Field(..., min_length=1)
+    after: str = Field(...)
+    verify_target: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    agent: str | None = None
+    dry_run: bool = False
+
+
+class InjectOut(BaseModel):
+    """Response body for a successful hotfix inject."""
+
+    task_id: str
+    node_id: str
+    run_id: str
+    dry_run: bool
+    message: str
 
 
 # ---------------------------------------------------------------------------
@@ -927,6 +957,63 @@ def create_app(
         )
         logger.info("api: wrote pause marker for run {}", run_id)
         return {"message": f"Pause requested for run {run_id} (marker written)"}
+
+    @app.post("/api/runs/{run_id}/inject", response_model=InjectOut, status_code=202, tags=["runs"])
+    async def inject_run(
+        run_id: str,
+        data: InjectIn,
+        _auth: None = Depends(require_auth),
+    ) -> InjectOut:
+        """Apply a hotfix inject (same logic as ``tripll run inject``)."""
+        rr: RunsRoot = app.state.runs_root
+        if rr.find_run_dir(run_id) is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+        owned = parse_owned_paths(data.owned_paths)
+        if not owned:
+            raise HTTPException(status_code=400, detail="owned_paths must be non-empty")
+        try:
+            task = run_hotfix_inject(
+                rr,
+                run_id,
+                brief=data.brief.strip(),
+                owned_paths=owned,
+                after=data.after.strip(),
+                verify_target=data.verify_target,
+                provider=data.provider,
+                model=data.model,
+                agent=data.agent,
+                dry_run=data.dry_run,
+                injected_by="api",
+                cost_budget_usd=_read_config().cost_budget_usd,
+            )
+        except InjectError as exc:
+            raise HTTPException(
+                status_code=inject_error_to_status(exc),
+                detail=str(exc),
+            ) from exc
+        msg = (
+            f"Dry-run hotfix plan valid — node {task.node_id}"
+            if data.dry_run
+            else f"Inject applied: {task.node_id} (task {task.task_id})"
+        )
+        return InjectOut(
+            task_id=task.task_id,
+            node_id=task.node_id,
+            run_id=run_id,
+            dry_run=data.dry_run,
+            message=msg,
+        )
+
+    @app.get("/api/runs/{run_id}/injects", tags=["runs"])
+    async def get_run_injects(
+        run_id: str,
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, object]:
+        """List inject artefacts and related ledger events for a run."""
+        rr: RunsRoot = app.state.runs_root
+        if rr.find_run_dir(run_id) is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+        return list_run_injects(rr, run_id)
 
     # ---------------------------------------------------------------------------
     # Waves

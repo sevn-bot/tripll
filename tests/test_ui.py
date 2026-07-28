@@ -438,6 +438,16 @@ def test_run_detail_does_not_spawn_subprocess(client: TestClient, tmp_rr: RunsRo
     mock_popen.assert_not_called()
 
 
+def test_run_detail_includes_inject_panel(client: TestClient, tmp_rr: RunsRoot) -> None:
+    """Run detail page renders the inject hotfix panel (L2-W5c)."""
+    _seed_run(tmp_rr, "run-inject-ui")
+    r = client.get("/runs/run-inject-ui")
+    assert r.status_code == 200
+    assert "Inject hotfix" in r.text
+    assert 'action="/runs/run-inject-ui/inject"' in r.text
+    assert "inject-after" in r.text
+
+
 # ---------------------------------------------------------------------------
 # 11. W4 fragment routes (batch timeline, report)
 # ---------------------------------------------------------------------------

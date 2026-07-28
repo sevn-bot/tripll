@@ -63,6 +63,7 @@ from tripll.api._artefacts import (
 )
 from tripll.api._auth import require_auth
 from tripll.api._csrf import ensure_csrf_token, require_csrf
+from tripll.api._inject import list_run_injects, parse_owned_paths, run_hotfix_inject
 from tripll.api._l1_panels import build_l1_panels
 from tripll.api._orchestrator_ui import build_orchestrator_view
 from tripll.api._runs import RunSummary, _find_ledger, _is_run_live, _list_all_runs
@@ -75,6 +76,7 @@ from tripll.api._worktree_status import (
     should_poll_worktree,
 )
 from tripll.api.app import _read_config, _slug_profile_id, _tripll_argv
+from tripll.inject import InjectError
 from tripll.ledger import (
     EventRow,
     WaveRow,
@@ -451,6 +453,8 @@ def make_ui_router() -> APIRouter:
     async def run_detail(
         request: Request,
         run_id: str,
+        inject_msg: str | None = None,
+        inject_open: int | None = None,
         _auth: None = Depends(require_auth),
     ) -> HTMLResponse:
         """Render the hydrated run-detail page for *run_id* (W1.1).
@@ -474,7 +478,56 @@ def make_ui_router() -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
         ctx.update(_ui_context(request, nav_section="runs"))
         ctx["sse_url"] = f"/api/runs/{run_id}/events/stream"
+        ctx["inject_flash"] = inject_msg or ""
+        ctx["inject_panel_open"] = inject_open == 1
         return templates.TemplateResponse(request, "run_detail.html", ctx)
+
+    @router.post("/runs/{run_id}/inject")
+    async def inject_run_form(
+        request: Request,
+        run_id: str,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
+        """Apply hotfix inject from dashboard form POST."""
+        rr: RunsRoot = request.app.state.runs_root
+        form = await request.form()
+        brief = str(form.get("brief", "")).strip()
+        owned_raw = str(form.get("owned_paths", "")).strip()
+        after = str(form.get("after", "")).strip()
+        verify_raw = str(form.get("verify_target", "")).strip()
+        verify_target = verify_raw or None
+        dry_run = form.get("dry_run") == "1"
+        owned = parse_owned_paths(owned_raw)
+
+        if not brief or not owned or not after:
+            msg = quote("Missing required fields (brief, paths, after wave)")
+            return RedirectResponse(
+                f"/runs/{run_id}?inject_msg={msg}&inject_open=1",
+                status_code=303,
+            )
+        try:
+            run_hotfix_inject(
+                rr,
+                run_id,
+                brief=brief,
+                owned_paths=owned,
+                after=after,
+                verify_target=verify_target,
+                dry_run=dry_run,
+                injected_by="dashboard",
+                cost_budget_usd=_read_config().cost_budget_usd,
+            )
+        except InjectError as exc:
+            return RedirectResponse(
+                f"/runs/{run_id}?inject_msg={quote(str(exc))}&inject_open=1",
+                status_code=303,
+            )
+        label = quote("Dry-run OK — no changes written" if dry_run else "Inject applied")
+        return RedirectResponse(
+            f"/runs/{run_id}?inject_msg={label}&inject_open=1",
+            status_code=303,
+        )
 
     # ------------------------------------------------------------------
     # Fragment routes (timeline, log, worktree, tasks, batch-timeline, report)
@@ -1166,6 +1219,11 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         fired_exit_ids=fired_exit_ids,
     )
 
+    inject_after_options = [
+        {"node_id": w["node_id"], "phase": w["phase"]} for w in wave_rows if w["phase"] == "done"
+    ]
+    inject_data = list_run_injects(rr, run_id)
+
     return {
         "run_id": run_id,
         "run_state": run_row.state,
@@ -1182,6 +1240,12 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         "wave_summary": orch.wave_summary,
         "hitl": hitl_info,
         "l1": l1,
+        "inject_after_options": inject_after_options,
+        "inject_after_default": inject_after_options[-1]["node_id"] if inject_after_options else "",
+        "inject_artefacts": inject_data["artefacts"],
+        "inject_lock_held": inject_data["lock_held"],
+        "inject_flash": "",
+        "inject_panel_open": False,
     }
 
 
