@@ -18,6 +18,7 @@ Exports:
     Batch — group of lanes that may run in parallel.
     RunGraph — top-level execution graph with ``validate`` + ``to_dict``.
     derive_forbidden_paths — compute a lane's forbidden-path set (CW + others).
+    insert_orchestrator_serial_after — insert a wave id after an anchor in serial order.
 """
 
 from __future__ import annotations
@@ -453,3 +454,49 @@ def derive_forbidden_paths(
             forbidden.add(test_root)
 
     return sorted(forbidden)
+
+
+def insert_orchestrator_serial_after(
+    graph: RunGraph,
+    wave_id: str,
+    after_node_id: str,
+) -> bool:
+    """Insert *wave_id* into orchestrator serial order immediately after the anchor wave.
+
+    When orchestrator mode is active, maps *after_node_id* to its ``wave_id`` and
+    inserts *wave_id* at index ``anchor + 1`` in ``orchestrator.serial_waves``.
+    Idempotent when *wave_id* is already listed. Appends when the anchor wave is
+    not present in ``serial_waves`` (e.g. chained hotfix inject).
+
+    Args:
+        graph (RunGraph): Run graph (mutated in place when orchestrator is enabled).
+        wave_id (str): Wave label to insert (e.g. ``HF-1``, ``W7``).
+        after_node_id (str): Graph node id for the completed ``--after`` anchor.
+
+    Returns:
+        bool: ``True`` when *wave_id* is present in ``serial_waves`` after the call.
+
+    Examples:
+        >>> g = RunGraph(
+        ...     run_id="r",
+        ...     nodes={"p:W1": WaveNode("p:W1", "p", "plan.md", "W1", "l")},
+        ...     orchestrator=OrchestratorConfig(True, "p.md", serial_waves=["W1", "W2"]),
+        ... )
+        >>> insert_orchestrator_serial_after(g, "HF-1", "p:W1")
+        True
+        >>> g.orchestrator is not None and g.orchestrator.serial_waves == ["W1", "HF-1", "W2"]
+        True
+    """
+    cfg = graph.orchestrator
+    if cfg is None or not cfg.enabled:
+        return False
+    if wave_id in cfg.serial_waves:
+        return True
+    after_node = graph.nodes.get(after_node_id)
+    after_wave_id = after_node.wave_id if after_node is not None else ""
+    if after_wave_id and after_wave_id in cfg.serial_waves:
+        idx = cfg.serial_waves.index(after_wave_id) + 1
+        cfg.serial_waves.insert(idx, wave_id)
+        return True
+    cfg.serial_waves.append(wave_id)
+    return True

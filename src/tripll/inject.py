@@ -31,7 +31,14 @@ from typing import Literal
 
 from loguru import logger
 
-from tripll.graph import Batch, Lane, RunGraph, WaveNode, derive_forbidden_paths
+from tripll.graph import (
+    Batch,
+    Lane,
+    RunGraph,
+    WaveNode,
+    derive_forbidden_paths,
+    insert_orchestrator_serial_after,
+)
 from tripll.ledger import (
     LedgerConnection,
     append_event,
@@ -510,7 +517,9 @@ def build_hotfix_wave_node(task: HotfixTask) -> WaveNode:
 
 def merge_hotfix_task(graph: RunGraph, task: HotfixTask) -> RunGraph:
     """Return a copy of *graph* with *task* merged (idempotent per ``node_id``)."""
+    after_node_id = task.depends_on[0] if task.depends_on else ""
     if task.node_id in graph.nodes:
+        insert_orchestrator_serial_after(graph, task.node_id.rsplit(":", 1)[-1], after_node_id)
         return graph
     node = build_hotfix_wave_node(task)
     node = WaveNode(
@@ -536,7 +545,6 @@ def merge_hotfix_task(graph: RunGraph, task: HotfixTask) -> RunGraph:
     else:
         lane.waves.append(node)
         lane.owned_paths = list(dict.fromkeys([*lane.owned_paths, *task.owned_paths]))
-    after_node_id = task.depends_on[0] if task.depends_on else ""
     batch_index = _batch_for_node(graph, after_node_id) if after_node_id else None
     if batch_index is not None:
         batch = graph.batches[batch_index]
@@ -546,17 +554,7 @@ def merge_hotfix_task(graph: RunGraph, task: HotfixTask) -> RunGraph:
         last = graph.batches[-1]
         if not last.is_human_gate and _HOTFIX_LANE_ID not in last.lanes:
             last.lanes.append(_HOTFIX_LANE_ID)
-    if graph.orchestrator is not None and graph.orchestrator.enabled:
-        cfg = graph.orchestrator
-        wave_id = node.wave_id
-        if wave_id not in cfg.serial_waves:
-            after_node = graph.nodes.get(after_node_id) if after_node_id else None
-            after_wave_id = after_node.wave_id if after_node is not None else ""
-            if after_wave_id and after_wave_id in cfg.serial_waves:
-                idx = cfg.serial_waves.index(after_wave_id) + 1
-                cfg.serial_waves.insert(idx, wave_id)
-            else:
-                cfg.serial_waves.append(wave_id)
+    insert_orchestrator_serial_after(graph, node.wave_id, after_node_id)
     errors = graph.validate()
     if errors:
         raise InjectError(
@@ -586,7 +584,9 @@ def build_wave_add_wave_node(task: WaveAddTask) -> WaveNode:
 
 def merge_wave_add_task(graph: RunGraph, task: WaveAddTask) -> RunGraph:
     """Return a copy of *graph* with wave-add *task* merged (idempotent per ``node_id``)."""
+    after_node_id = task.depends_on[0] if task.depends_on else ""
     if task.node_id in graph.nodes:
+        insert_orchestrator_serial_after(graph, task.wave_id, after_node_id)
         return graph
     node = build_wave_add_wave_node(task)
     node = WaveNode(
@@ -634,6 +634,7 @@ def merge_wave_add_task(graph: RunGraph, task: WaveAddTask) -> RunGraph:
     if batch.wave_ids and task.wave_id not in batch.wave_ids:
         batch.wave_ids.append(task.wave_id)
 
+    insert_orchestrator_serial_after(graph, task.wave_id, after_node_id)
     errors = graph.validate()
     if errors:
         raise InjectError(
@@ -895,19 +896,16 @@ def apply_wave_add(
 def merge_injected_artefacts(graph: RunGraph, run_dir: Path) -> RunGraph:
     """Re-merge all inject artefacts (hotfix + wave-add) into a freshly parsed graph."""
     for hotfix_task in load_hotfix_tasks(run_dir):
-        if hotfix_task.node_id not in graph.nodes:
-            graph = merge_hotfix_task(graph, hotfix_task)
+        graph = merge_hotfix_task(graph, hotfix_task)
     for wave_task in load_wave_add_tasks(run_dir):
-        if wave_task.node_id not in graph.nodes:
-            graph = merge_wave_add_task(graph, wave_task)
+        graph = merge_wave_add_task(graph, wave_task)
     return graph
 
 
 def merge_injected_hotfixes(graph: RunGraph, run_dir: Path) -> RunGraph:
     """Re-merge hotfix inject artefacts into a freshly parsed graph."""
     for task in load_hotfix_tasks(run_dir):
-        if task.node_id not in graph.nodes:
-            graph = merge_hotfix_task(graph, task)
+        graph = merge_hotfix_task(graph, task)
     return graph
 
 
