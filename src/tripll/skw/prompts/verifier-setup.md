@@ -2,8 +2,8 @@ You are running **verifier-setup** for sevn.bot — a one-time scaffold that lea
 repo with a per-task **`/verify`** skill, a documented stack launcher, and a confirmed
 driver for agentic proof-before-PR.
 
-Follow the kit skill at [`spec-kit-wave/skills/verifier-setup/SKILL.md`]({{SKILL_PATH}}).
-Use the verify template at [`spec-kit-wave/skills/verifier-setup/assets/verify.template.md`]({{TEMPLATE_PATH}}).
+Follow the kit skill at [`src/tripll/skw/skills/verifier-setup/SKILL.md`]({{SKILL_PATH}}).
+Use the verify template at [`src/tripll/skw/skills/verifier-setup/assets/verify.template.md`]({{TEMPLATE_PATH}}).
 
 ## Operator context
 
@@ -24,7 +24,7 @@ Use the verify template at [`spec-kit-wave/skills/verifier-setup/assets/verify.t
 | Mid-branch regression | `make ci-affected` |
 | Python-only regression | `make lint && make typecheck` |
 | Evidence dir | `evidence/` (must be gitignored) |
-| Kit skills install | `make -C spec-kit-wave install-skills` |
+| Kit skills install | `make install-skills` |
 
 ## Instructions
 
