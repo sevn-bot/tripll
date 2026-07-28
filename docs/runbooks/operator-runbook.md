@@ -196,6 +196,14 @@ Two operator paths add work mid-flight without restarting the run. Both require
 |------|-------------|-------|
 | **A — hotfix inject** | One-line bug fix; narrow path scope; no new plan section | `tripll pause <run-id>` → `tripll run inject <run-id> --after <wave> --brief … --paths …` → `tripll resume <run-id>` |
 | **B — plan edit + reconcile** | Full wave section with verify targets, roles, effort | `tripll pause <run-id>` → edit `*-wave-plan.md` under `processing/<run-id>/` → `tripll run reconcile-graph <run-id>` → `tripll resume <run-id>` |
+| **C — parallel lane add** | New lane mid-batch (disjoint owned paths) without authoring a full plan file | `tripll pause <run-id>` → `tripll wave add <run-id> --lane … --wave-id … --brief … --paths … --after … [--batch current\|next]` → `tripll resume <run-id>` |
+
+**Hotfix vs wave add:** `tripll run inject` inserts a synthetic one-shot hotfix node
+(`hotfix:HF-N`). `tripll wave add` inserts a structured lane-level wave with explicit
+batch placement (`--batch current` appends to the anchor batch; `--batch next` places
+in the following open batch or creates an `Inject-N` batch before Final). Both use
+the same `inject.lock`, pause gate, and ledger `inject_requested` / `inject_applied`
+events under `processing/<run-id>/injects/`.
 
 **Mode B parse behaviour:**
 
