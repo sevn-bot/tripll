@@ -222,10 +222,15 @@ Shipped on `feat/quality-gauntlet`:
 
 Still pending:
 
-1. **LangGraph** — optional sub-graph for inner cycle (§7.8)
-2. **Agent dispatch** — isolated `quality-critic` adapter rounds (D27 live)
-3. **Bench** — G1–G3 tasks + D24 metric gate
-4. **Prompt bodies** — skw briefs beyond contract stubs
+1. **LangGraph** — optional sub-graph for inner cycle (§7.8) — **deferred**; engine micro-loop
+   in `harness/quality_dispatch.run_quality_gauntlet_live` handles rounds.
+
+Shipped in quality-gauntlet §9 follow-up:
+
+1. **Agent dispatch** — isolated `quality-critic` adapter rounds (D27 live)
+2. **Smoothing-pass** — post-gauntlet consistency dispatch when `smoothing = true`
+3. **Bench** — G1–G3 sealed tasks under `bench/tasks/` (D24 metric gate unchanged)
+4. **Prompt bodies** — `skw/prompts/quality-critic.md`, `skw/prompts/smoothing-pass.md`
 
 ---
 

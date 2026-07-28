@@ -18,6 +18,8 @@ from tripll.loops.exits import NO_PROGRESS_STREAK, no_progress_exit
 __all__ = [
     "QualityGauntletResult",
     "QualityVerdict",
+    "Winner",
+    "artifact_fingerprint",
     "capture_artifact_paths",
     "check_quality_exits",
     "evaluate_stop_condition",
@@ -113,6 +115,11 @@ def _artifact_fingerprint(worktree: Path, paths: list[str]) -> str:
             digest.update(rel.encode())
             digest.update(path.read_bytes())
     return digest.hexdigest()
+
+
+def artifact_fingerprint(worktree: Path, paths: list[str]) -> str:
+    """Return a stable SHA-256 digest over *paths* file contents in *worktree*."""
+    return _artifact_fingerprint(worktree, paths)
 
 
 def evaluate_stop_condition(
