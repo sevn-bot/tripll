@@ -449,6 +449,7 @@ async def invoke_engine_wave_dispatch_async(
         run_id,
         graph,
         record_validate_snapshot=record_validate_snapshot,
+        finalize_run=False,
     )
     dispatched = tuple(
         node_id
