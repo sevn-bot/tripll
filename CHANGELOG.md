@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format is based on
 - [2026-07-29] God-module extraction (#16): run / inject / reconcile-graph CLI commands moved to `tripll.cli._run`; shared helpers to `tripll.cli._shared` (no CLI behavior change)
 
 ### Added
+- [2026-07-29] Tracker protocol and idempotent plan publish: `src/tripll/trackers/{base,github,publish}.py`, `src/tripll/github/issues.py`, and `tripll plan publish --tracker github --parent <ref>` with pre-read idempotence (R30, ADR 016)
 - [2026-07-29] Calibration loop (R28 advisory): `src/tripll/calibrate/{predict,score,routing,sync}.py`, `compile_plan` PREDICTED metrics, `tripll calibrate --run`, REALIZED `attempts_to_green` / `first_attempt_pass_rate`, Brier scoring, and calibration section in `report.md`
 - [2026-07-29] Executable structural rules: `src/tripll/rules/executable.py`, committed `.tripll/rules/no-stdlib-logging.md`, `make rules-check` gate wired into `ci-affected` and `ci-resume`, and structural scope breaches via `harness/boundary.py`
 - [2026-07-29] Bug-to-rule loop: `Rule` graph nodes (`{repo}#{rule_id}`), wave postmortem, `tripll rules promote|retire|list`, finding→proposed promotion with `finding://` provenance, and active-rules section in learnings export

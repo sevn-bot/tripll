@@ -1096,13 +1096,21 @@ def _print_graph_summary(input_path: Path, graph: object, *, run_id: str, mode: 
 # plan
 # ---------------------------------------------------------------------------
 
+plan_app = typer.Typer(
+    name="plan",
+    help="Parse wave-plan inputs and publish breakdowns to trackers.",
+    invoke_without_command=True,
+)
+app.add_typer(plan_app, name="plan")
 
-@app.command()
-def plan(
+
+@plan_app.callback()
+def plan_cmd(
+    ctx: typer.Context,
     input_path: Annotated[
-        Path,
+        Path | None,
         typer.Argument(help="Path to the parallel-wave set or plain wave folder."),
-    ],
+    ] = None,
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", help="Print the derived graph without executing."),
@@ -1124,6 +1132,11 @@ def plan(
 
     Use ``--write-manifest`` to regenerate ``parallel-wave.md`` deterministically.
     """
+    if ctx.invoked_subcommand is not None:
+        return
+    if input_path is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(2)
     _ = runs_root
     if not input_path.exists():
         typer.echo(f"Input path not found: {input_path}", err=True)
@@ -1148,6 +1161,57 @@ def plan(
 
     if dry_run:
         _print_graph_summary(input_path, graph, run_id=run_id, mode=mode)
+
+
+@plan_app.command("publish")
+def plan_publish_cmd(
+    plan_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to a wave-plan markdown file.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    tracker: Annotated[
+        str,
+        typer.Option("--tracker", help="Tracker backend (github)."),
+    ] = "github",
+    parent: Annotated[
+        str,
+        typer.Option("--parent", help="Parent epic ref (e.g. issue number)."),
+    ] = "",
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Write local artifact only; skip tracker mutations."),
+    ] = False,
+    repo: Annotated[
+        str | None,
+        typer.Option("--repo", help="GitHub owner/repo override for github tracker."),
+    ] = None,
+) -> None:
+    """Publish a plan breakdown to a tracker (local artifact → summary → tickets)."""
+    if not parent.strip():
+        typer.echo("--parent is required", err=True)
+        raise typer.Exit(2)
+    if tracker != "github":
+        typer.echo(f"Unsupported tracker: {tracker!r} (only github is implemented)", err=True)
+        raise typer.Exit(2)
+
+    from tripll.trackers.github import GitHubTracker
+    from tripll.trackers.publish import publish_plan_breakdown
+
+    backend = GitHubTracker(repo=repo)
+    result = publish_plan_breakdown(
+        tracker=backend,
+        plan_path=plan_path,
+        parent_ref=parent.strip(),
+        dry_run=dry_run,
+    )
+    typer.echo(f"artifact: {result.artifact_path}")
+    if result.summary_ref:
+        typer.echo(f"summary: {result.summary_ref}")
+    typer.echo(f"created {result.created}, skipped {result.skipped}")
 
 
 # ---------------------------------------------------------------------------
