@@ -1164,6 +1164,8 @@ def _build_wave_rows(
         rows.append(
             {
                 "node_id": w.node_id,
+                "plan_id": w.plan_id,
+                "is_hotfix": w.plan_id == "hotfix",
                 "lane": w.lane,
                 "wave_id": w.wave_id,
                 "phase": phase,

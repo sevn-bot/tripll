@@ -7,7 +7,8 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
-- Quality gauntlet design (D26–D28): `docs/design/quality-gauntlet.md`, plan v3
+- Live injection completion (L2-W5): `POST /api/runs/{id}/reconcile-graph`, `--force-after-drain`
+  on inject/reconcile CLI and API, dashboard hotfix badge + SSE inject/reconcile timeline refresh.
   `[waves.outcome.reference]` + `[waves.outcome.quality_gauntlet]` schema, agent contracts
   (`quality-critic`, `smoothing-pass`, `reference-picker`), and harness contract parsers.
 - W13 config spine: `tripll.toml` + user config (`~/.config/tripll/config.toml`), `tripll setup`,

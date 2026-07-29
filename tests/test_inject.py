@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from tripll.cli import _rewrite_run_inject_argv, app
 from tripll.engine import Engine
 from tripll.inject import InjectError, apply_hotfix_inject, load_hotfix_tasks
-from tripll.ledger import list_attempts, list_waves, open_ledger, transition_wave
+from tripll.ledger import insert_wave, list_attempts, list_waves, open_ledger, transition_wave
 from tripll.pipeline import RunsRoot
 
 from ._fakes import AlwaysPassVerifier, FakeAdapter, FakeWorktreeManager
@@ -211,3 +211,48 @@ async def test_inject_overlap_exit_code(tmp_path: Path) -> None:
             after="all-waves",
         )
     assert exc.value.exit_code == 3
+
+
+@pytest.mark.asyncio
+async def test_inject_force_after_drain_allows_inflight(tmp_path: Path) -> None:
+    """--force-after-drain permits inject when pause marker present but waves in-flight."""
+    adapter = FakeAdapter()
+    engine = _make_engine(tmp_path, adapter)
+    src = _seed_mode_b(engine.runs_root)
+    started = await engine.start(src)
+    approve_run_with_hitl(engine, started.run_id)
+    rid = started.run_id
+    run_dir = engine.runs_root.run_dir(rid)
+    _mark_all_waves_done(engine.runs_root, rid)
+    (run_dir / "pause-requested.md").write_text("# pause\n")
+
+    with open_ledger(engine.runs_root.ledger_path(rid)) as lc:
+        insert_wave(
+            lc,
+            node_id="other:W9",
+            run_id=rid,
+            plan_id="other",
+            wave_id="W9",
+            lane="other",
+        )
+        transition_wave(lc, rid, "other:W9", "running")
+
+    with pytest.raises(InjectError, match="in-flight") as exc:
+        apply_hotfix_inject(
+            engine.runs_root,
+            rid,
+            brief="Should fail",
+            owned_paths=["src/tripll/engine.py"],
+            after="all-waves",
+        )
+    assert exc.value.exit_code == 2
+
+    task = apply_hotfix_inject(
+        engine.runs_root,
+        rid,
+        brief="Forced inject",
+        owned_paths=["src/tripll/engine.py"],
+        after="all-waves",
+        force_after_drain=True,
+    )
+    assert task.node_id == "hotfix:HF-1"

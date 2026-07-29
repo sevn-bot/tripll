@@ -6,7 +6,14 @@ import json
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
-from tripll.inject import HotfixTask, InjectError, apply_hotfix_inject, load_hotfix_tasks
+from tripll.inject import (
+    HotfixTask,
+    InjectError,
+    ReconcileResult,
+    apply_hotfix_inject,
+    load_hotfix_tasks,
+    reconcile_run_graph,
+)
 from tripll.ledger import list_events, open_ledger
 from tripll.repo_root import resolve_repo_root
 
@@ -63,6 +70,7 @@ def run_hotfix_inject(
     dry_run: bool = False,
     injected_by: str = "api",
     cost_budget_usd: float = 0.0,
+    force_after_drain: bool = False,
 ) -> HotfixTask:
     """Apply a hotfix inject using the same core path as tripll run inject."""
     _ = injected_by
@@ -78,9 +86,30 @@ def run_hotfix_inject(
         model=model,
         agent=agent,
         cost_budget_usd=cost_budget_usd,
+        force_after_drain=force_after_drain,
         dry_run=dry_run,
         repo_root=resolve_repo_root(),
     )
+
+
+def run_reconcile_graph(
+    rr: RunsRoot,
+    run_id: str,
+    *,
+    dry_run: bool = False,
+    force_after_drain: bool = False,
+) -> ReconcileResult:
+    """Reconcile parsed plan files with ledger waves (same path as CLI reconcile)."""
+    with open_ledger(rr.ledger_path(run_id)) as lc:
+        return reconcile_run_graph(
+            rr,
+            run_id,
+            lc=lc,
+            dry_run=dry_run,
+            require_pause=True,
+            force_after_drain=force_after_drain,
+            source="api",
+        )
 
 
 def list_run_injects(rr: RunsRoot, run_id: str) -> dict[str, Any]:

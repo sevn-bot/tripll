@@ -9,6 +9,9 @@
       <summary class="wave-summary-grid">
         <span class="wave-col-node">
           {{ w.node_id }}
+          {% if w.is_hotfix %}
+          <span class="hotfix-badge" title="Live hotfix inject">hotfix</span>
+          {% endif %}
           {% if w.is_gate_only %}
           <span class="gate-badge">gate — no dispatch</span>
           {% elif w.has_attempts %}

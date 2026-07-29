@@ -422,13 +422,20 @@ def _assert_no_inflight_waves(lc: LedgerConnection, run_id: str) -> None:
         )
 
 
-def _assert_run_paused(run_dir: Path, lc: LedgerConnection, run_id: str) -> None:
+def _assert_run_paused(
+    run_dir: Path,
+    lc: LedgerConnection,
+    run_id: str,
+    *,
+    force_after_drain: bool = False,
+) -> None:
     if not (run_dir / _PAUSE_MARKER).is_file():
         raise InjectError(
             f"run {run_id} is not paused — write pause-requested.md first (tripll pause or API)",
             exit_code=2,
         )
-    _assert_no_inflight_waves(lc, run_id)
+    if not force_after_drain:
+        _assert_no_inflight_waves(lc, run_id)
 
 
 def _assert_reconcile_gate(
@@ -437,11 +444,12 @@ def _assert_reconcile_gate(
     run_id: str,
     *,
     require_pause: bool,
+    force_after_drain: bool = False,
 ) -> None:
     """Validate it is safe to mutate graph/ledger (pause + lock + drain)."""
     _assert_inject_lock_free(run_dir)
     if require_pause:
-        _assert_run_paused(run_dir, lc, run_id)
+        _assert_run_paused(run_dir, lc, run_id, force_after_drain=force_after_drain)
 
 
 def _acquire_inject_lock(run_dir: Path) -> Path:
@@ -476,11 +484,12 @@ def validate_hotfix_inject(
     owned_paths: list[str],
     after: str,
     cost_budget_usd: float = 0.0,
+    force_after_drain: bool = False,
 ) -> str:
     """Run inject gate checks; return resolved ``after`` node id."""
     if not owned_paths:
         raise InjectError("--paths must declare at least one owned path", exit_code=1)
-    _assert_run_paused(run_dir, lc, run_id)
+    _assert_run_paused(run_dir, lc, run_id, force_after_drain=force_after_drain)
     _assert_cost_headroom(lc, run_id, budget_usd=cost_budget_usd)
     after_node_id = resolve_after_node_id(graph, after)
     after_wave = get_wave(lc, run_id, after_node_id)
@@ -946,6 +955,7 @@ def reconcile_run_graph(
     expected_graph: RunGraph | None = None,
     dry_run: bool = False,
     require_pause: bool = True,
+    force_after_drain: bool = False,
     source: str = "cli",
 ) -> ReconcileResult:
     """Diff parsed graph vs ledger waves and apply safe mutations.
@@ -981,7 +991,13 @@ def reconcile_run_graph(
     if not run_dir.is_dir():
         raise InjectError(f"run not found in processing/: {run_id}", exit_code=1)
 
-    _assert_reconcile_gate(run_dir, lc, run_id, require_pause=require_pause)
+    _assert_reconcile_gate(
+        run_dir,
+        lc,
+        run_id,
+        require_pause=require_pause,
+        force_after_drain=force_after_drain,
+    )
 
     graph = (
         expected_graph
@@ -1070,6 +1086,7 @@ def plan_hotfix_inject(
     model: str | None = None,
     agent: str | None = None,
     cost_budget_usd: float = 0.0,
+    force_after_drain: bool = False,
     repo_root: Path | None = None,
     injected_by: str = "cli",
 ) -> tuple[HotfixTask, RunGraph]:
@@ -1090,6 +1107,7 @@ def plan_hotfix_inject(
             owned_paths=owned_paths,
             after=after,
             cost_budget_usd=cost_budget_usd,
+            force_after_drain=force_after_drain,
         )
         if get_wave(lc, run_id, after_node_id).state != "done":
             raise InjectError(
@@ -1166,6 +1184,7 @@ def apply_hotfix_inject(
     model: str | None = None,
     agent: str | None = None,
     cost_budget_usd: float = 0.0,
+    force_after_drain: bool = False,
     dry_run: bool = False,
     repo_root: Path | None = None,
     injected_by: str = "cli",
@@ -1182,6 +1201,7 @@ def apply_hotfix_inject(
         model=model,
         agent=agent,
         cost_budget_usd=cost_budget_usd,
+        force_after_drain=force_after_drain,
         repo_root=repo_root,
         injected_by=injected_by,
     )
