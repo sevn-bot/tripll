@@ -63,7 +63,6 @@ class FakeTracker:
         return f"{parent}#summary"
 
 
-@pytest.mark.xfail(reason="green after W6: fake tracker conforms to protocol", strict=False)
 def test_fake_tracker_protocol_conformance_without_editing_base() -> None:
     """A second Tracker implementation requires no edit to base.py (R30)."""
     tracker_protocol = require_attr("tripll.trackers.base", "Tracker")
@@ -75,10 +74,6 @@ def test_fake_tracker_protocol_conformance_without_editing_base() -> None:
     assert ref.startswith("EPIC-1#")
 
 
-@pytest.mark.xfail(
-    reason="green after W6: idempotent publish creates nothing on second run",
-    strict=False,
-)
 def test_publish_idempotent_second_run_creates_nothing(tmp_path: Path) -> None:
     """Second publish lists existing children and creates zero tickets (spec step 3)."""
     publish_plan_breakdown = require_attr("tripll.trackers.publish", "publish_plan_breakdown")
@@ -107,7 +102,6 @@ def test_publish_idempotent_second_run_creates_nothing(tmp_path: Path) -> None:
 
 
 @pytest.mark.tier2
-@pytest.mark.xfail(reason="green after W6: real gh scratch publish", strict=False)
 def test_real_gh_tracker_publish_dry_run() -> None:
     """Tier-2: gh-backed tracker when RUN_LIVE=1 and gh available."""
     if os.environ.get("RUN_LIVE") != "1":

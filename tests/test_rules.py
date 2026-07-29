@@ -12,14 +12,12 @@ pytest_plugins = ["tests.rules._helpers"]
 pytestmark = pytest.mark.tier1
 
 
-@pytest.mark.xfail(reason="green after W2: rule model and origin validator", strict=False)
 def test_rule_three_states_are_proposed_active_retired() -> None:
     """Only the three lifecycle states are valid (R27)."""
     rule_states = require_attr("tripll.rules.model", "RULE_STATES")
     assert rule_states == frozenset({"proposed", "active", "retired"})
 
 
-@pytest.mark.xfail(reason="green after W2: frontmatter round trip", strict=False)
 def test_rule_frontmatter_round_trip_preserves_fields(tmp_path: Path) -> None:
     """Parse → render → parse preserves rule_id, state, origin, scope."""
     parse_rule_markdown = require_attr("tripll.rules.model", "parse_rule_markdown")
@@ -34,7 +32,6 @@ def test_rule_frontmatter_round_trip_preserves_fields(tmp_path: Path) -> None:
     assert second.scope == first.scope == ["src/**"]
 
 
-@pytest.mark.xfail(reason="green after W2: origin validator accepts resolving refs", strict=False)
 def test_origin_codebase_resolves_when_file_line_exists(
     rules_foreign_repo: Path,
 ) -> None:
@@ -43,14 +40,12 @@ def test_origin_codebase_resolves_when_file_line_exists(
     validate_origin("codebase://src/widget.py:1", repo_root=rules_foreign_repo)
 
 
-@pytest.mark.xfail(reason="green after W2: finding origin format", strict=False)
 def test_origin_finding_format_accepted() -> None:
     """Promoted rules may cite finding://<run>#<id> (W3 contract)."""
     validate_origin = require_attr("tripll.rules.model", "validate_origin")
     validate_origin("finding://l1-remediation#F-014", repo_root=Path("."))
 
 
-@pytest.mark.xfail(reason="green after W2: origin validator rejects missing origin", strict=False)
 def test_origin_missing_rejected() -> None:
     """A rule without origin is rejected — it is an opinion, not a constraint."""
     parse_rule_markdown = require_attr("tripll.rules.model", "parse_rule_markdown")
@@ -62,10 +57,6 @@ def test_origin_missing_rejected() -> None:
         validate_rule(rule, repo_root=Path("."))
 
 
-@pytest.mark.xfail(
-    reason="green after W2: unresolving origin names offending ref",
-    strict=False,
-)
 def test_origin_unresolving_file_line_rejected_names_ref(
     rules_foreign_repo: Path,
 ) -> None:
@@ -77,7 +68,6 @@ def test_origin_unresolving_file_line_rejected_names_ref(
         validate_origin(bad_ref, repo_root=rules_foreign_repo)
 
 
-@pytest.mark.xfail(reason="green after W2: scope intersection packing", strict=False)
 def test_pack_scope_intersection_selects_context_modules() -> None:
     """Only context modules whose scope intersects wave targets are packed (R31)."""
     pack_rules_for_brief = require_attr("tripll.rules.pack", "pack_rules_for_brief")
@@ -110,7 +100,6 @@ def test_pack_scope_intersection_selects_context_modules() -> None:
     assert "JWT is forward" not in packed
 
 
-@pytest.mark.xfail(reason="green after W2: pack_budget_tokens ceiling", strict=False)
 def test_pack_never_exceeds_budget_tokens() -> None:
     """Rules+context pack must stay within pack_budget_tokens (R31)."""
     pack_rules_for_brief = require_attr("tripll.rules.pack", "pack_rules_for_brief")
@@ -145,7 +134,6 @@ def test_pack_never_exceeds_budget_tokens() -> None:
     assert estimate_tokens(packed) <= budget
 
 
-@pytest.mark.xfail(reason="green after W2: empty rule set yields empty pack", strict=False)
 def test_empty_rule_set_yields_empty_pack_not_crash() -> None:
     """An empty active rule set yields an empty pack string, not an exception."""
     pack_rules_for_brief = require_attr("tripll.rules.pack", "pack_rules_for_brief")
@@ -159,10 +147,6 @@ def test_empty_rule_set_yields_empty_pack_not_crash() -> None:
 
 
 @pytest.mark.tier3
-@pytest.mark.xfail(
-    reason="green after W3: derive → propose → promote → pack e2e",
-    strict=False,
-)
 def test_e2e_derive_propose_promote_pack_reaches_brief(
     rules_foreign_repo: Path,
     tmp_path: Path,

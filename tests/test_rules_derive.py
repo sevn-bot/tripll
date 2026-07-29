@@ -13,7 +13,6 @@ pytest_plugins = ["tests.rules._helpers"]
 pytestmark = pytest.mark.tier1
 
 
-@pytest.mark.xfail(reason="green after W2: rules derive on foreign repo", strict=False)
 def test_derive_writes_rules_with_resolving_origins(
     rules_foreign_repo: Path,
 ) -> None:
@@ -41,10 +40,6 @@ def test_derive_writes_rules_with_resolving_origins(
     assert not bad, f"unresolving origins: {bad}"
 
 
-@pytest.mark.xfail(
-    reason="green after W2: R32 honesty when repo has no tests",
-    strict=False,
-)
 def test_derive_repo_without_tests_says_so_not_coverage_standard(
     rules_foreign_repo_no_tests: Path,
 ) -> None:

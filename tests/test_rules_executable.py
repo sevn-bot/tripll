@@ -14,7 +14,6 @@ from tests.rules._helpers import require_attr
 pytestmark = pytest.mark.tier1
 
 
-@pytest.mark.xfail(reason="green after W4: tier-1 structural pattern match", strict=False)
 def test_structural_match_catches_stdlib_logging_import(
     tmp_path: Path,
 ) -> None:
@@ -44,10 +43,6 @@ def test_structural_match_catches_stdlib_logging_import(
     assert any("logging" in v.lower() for v in result.violations)
 
 
-@pytest.mark.xfail(
-    reason="green after W4: ast-grep absent degrades warn exit 0",
-    strict=False,
-)
 def test_ast_grep_absent_degrades_warn_exit_zero(tmp_path: Path) -> None:
     """Absent ast-grep binary ⇒ warn, prose-only, exit 0 (ADR 017)."""
     run_executable_rules = require_attr("tripll.rules.executable", "run_executable_rules")
@@ -84,7 +79,6 @@ def test_ast_grep_absent_degrades_warn_exit_zero(tmp_path: Path) -> None:
 
 
 @pytest.mark.tier2
-@pytest.mark.xfail(reason="green after W4: real ast-grep binary", strict=False)
 def test_real_ast_grep_binary_catches_violation(tmp_path: Path) -> None:
     """Tier-2: real ast-grep on PATH catches planted import logging."""
     if os.environ.get("RUN_LIVE") != "1":

@@ -59,14 +59,39 @@
 
 ## xfail reconciliation schedule
 
-| After wave | Remove xfails tagged |
-|------------|---------------------|
-| W2 | `green after W2:` in `test_rules.py`, `test_rules_derive.py` |
-| W3 | `green after W3:` in `test_postmortem.py`, e2e in `test_rules.py` |
-| W4 | `green after W4:` in `test_rules_executable.py` |
-| W5 | `green after W5:` in `test_calibrate.py` |
-| W6 | `green after W6:` in `test_trackers.py` |
-| Final | sweep all remaining `green after W` markers |
+| After wave | Remove xfails tagged | Status |
+|------------|---------------------|--------|
+| W2 | `green after W2:` in `test_rules.py`, `test_rules_derive.py` | ✅ F.1 |
+| W3 | `green after W3:` in `test_postmortem.py`, e2e in `test_rules.py` | ✅ F.1 |
+| W4 | `green after W4:` in `test_rules_executable.py` | ✅ F.1 |
+| W5 | `green after W5:` in `test_calibrate.py` | ✅ F.1 |
+| W6 | `green after W6:` in `test_trackers.py` | ✅ F.1 |
+| Final | sweep all remaining `green after W` markers | ✅ F.1 — 24 removed, 0 stale |
+
+## F.1 reconciliation (2026-07-29)
+
+**Removed:** 24 `@pytest.mark.xfail` decorators (W2–W6 tier-1 + tier-3 e2e; tier-2 xfails
+converted to skip-only).
+
+| File | Removed | Now |
+|------|---------|-----|
+| `test_rules.py` | 10 | 10 pass (incl. tier-3 e2e) |
+| `test_rules_derive.py` | 2 | 2 pass |
+| `test_rules_executable.py` | 3 | 2 pass, 1 tier-2 skip (no RUN_LIVE) |
+| `test_postmortem.py` | 3 | 3 pass |
+| `test_calibrate.py` | 3 | 3 pass |
+| `test_trackers.py` | 3 | 2 pass, 1 tier-2 skip (no RUN_LIVE) |
+
+**Stale `green after W` count:** 0 (`grep -rn 'xfail' tests/ | grep -c 'green after W'`).
+
+**Tier-2/live (intentional skip without RUN_LIVE=1):**
+
+- `test_real_ast_grep_binary_catches_violation`
+- `test_real_gh_tracker_publish_dry_run`
+
+**Remaining suite red (outside F.1 scope):** `test_orchestrator_mode_smoke.py::
+test_w0_status_table_parity_terminal_and_dashboard` — CLI `--runs-root` option missing
+(pre-existing; not AI-layer contract).
 
 ## Rationale log
 

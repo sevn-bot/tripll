@@ -16,7 +16,6 @@ _EXPECTED_BRIER = sum(
 ) / len(_BRIER_PREDICTIONS)
 
 
-@pytest.mark.xfail(reason="green after W5: Brier score from fixed vectors", strict=False)
 def test_brier_score_fixed_vectors() -> None:
     """CAL-02: deterministic Brier score for known predictions/outcomes."""
     brier_score = require_attr("tripll.calibrate.score", "brier_score")
@@ -24,7 +23,6 @@ def test_brier_score_fixed_vectors() -> None:
     assert score == pytest.approx(_EXPECTED_BRIER, abs=1e-9)
 
 
-@pytest.mark.xfail(reason="green after W5: predict_first_pass from features", strict=False)
 def test_predict_first_pass_probability_bounded() -> None:
     """Predictor returns a probability in [0, 1] for compile-time features."""
     predict_first_pass_probability = require_attr(
@@ -44,10 +42,6 @@ def test_predict_first_pass_probability_bounded() -> None:
     assert 0.0 <= prob <= 1.0
 
 
-@pytest.mark.xfail(
-    reason="green after W5: R28 advisory — routing byte-identical on/off",
-    strict=False,
-)
 def test_prediction_does_not_change_routing() -> None:
     """R28: predictor on vs off yields byte-identical dispatch decisions."""
     dispatch_decisions_snapshot = require_attr(
