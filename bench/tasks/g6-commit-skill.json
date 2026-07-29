@@ -1,0 +1,28 @@
+{
+  "task_id": "g6-commit-skill",
+  "description": "G6 \u2014 quality gauntlet sealed bench task",
+  "base_sha": "HEAD",
+  "wave_id": "G6",
+  "targets": [
+    ".cursor/skills/commit/SKILL.md"
+  ],
+  "owned_paths": [
+    ".cursor/skills/commit/"
+  ],
+  "outcome_contract": {
+    "reference": {
+      "kind": "skill_exemplar",
+      "path": "bench/tasks/g6-commit-skill/reference/SKILL.md",
+      "comparison": "blind_ab",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": false
+    }
+  },
+  "verify": [
+    "make lint"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "task_id": "g8-outcome-spec",
+  "description": "G8 \u2014 quality gauntlet sealed bench task",
+  "base_sha": "HEAD",
+  "wave_id": "G8",
+  "targets": [
+    "docs/examples/outcome-contract.md"
+  ],
+  "owned_paths": [
+    "docs/examples/outcome-contract.md"
+  ],
+  "outcome_contract": {
+    "reference": {
+      "kind": "spec_section",
+      "path": "bench/tasks/g8-outcome-spec/reference/outcome.md#contract",
+      "comparison": "rubric",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": false
+    }
+  },
+  "verify": [
+    "make lint"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "task_id": "g5-error-panel",
+  "description": "G5 \u2014 quality gauntlet sealed bench task",
+  "base_sha": "HEAD",
+  "wave_id": "G5",
+  "targets": [
+    "src/api/error_panel.html"
+  ],
+  "owned_paths": [
+    "src/api/"
+  ],
+  "outcome_contract": {
+    "reference": {
+      "kind": "html_crop",
+      "path": "bench/tasks/g5-error-panel/reference/panel.html#error-banner",
+      "comparison": "blind_ab",
+      "stop_when": "reference_wins"
+    },
+    "quality_gauntlet": {
+      "enabled": true,
+      "max_rounds": 3,
+      "smoothing": false
+    }
+  },
+  "verify": [
+    "make lint"
+  ]
+}

@@ -1,0 +1,8 @@
+.bench-status {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: #e8f5e9;
+  color: #1b5e20;
+  font-weight: 600;
+}
