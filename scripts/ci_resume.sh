@@ -46,7 +46,7 @@ case "${1:-}" in
     ;;
 esac
 
-steps="$(make -s ci-steps)"
+steps="$(make --no-print-directory -s ci-steps)"
 if [[ -z "$steps" ]]; then
   echo "ci-resume: could not read step list (make ci-steps returned nothing)" >&2
   exit 2

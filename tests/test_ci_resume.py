@@ -25,7 +25,7 @@ def _run_script(*args: str, env: dict[str, str] | None = None) -> subprocess.Com
 
 def test_ci_steps_lists_expected_targets() -> None:
     proc = subprocess.run(
-        ["make", "-s", "ci-steps"],
+        ["make", "--no-print-directory", "-s", "ci-steps"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,
