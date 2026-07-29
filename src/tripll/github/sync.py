@@ -107,5 +107,9 @@ def triage_and_export(
     if state == "rejected":
         path = learnings_path or Path(".mergecraft/learnings.md")
         all_findings = list_findings_from_store(store)
-        export_learnings(all_findings, path=path)
+        from tripll.repo_root import resolve_repo_root
+        from tripll.rules.store import RuleStore
+
+        active_rules = RuleStore(resolve_repo_root()).list_active()
+        export_learnings(all_findings, path=path, active_rules=active_rules)
     return updated

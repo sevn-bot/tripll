@@ -9,7 +9,6 @@ Exports:
 from __future__ import annotations
 
 import re
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path  # noqa: TC003 — runtime repo paths
 
@@ -78,20 +77,17 @@ def _count_unit_tests(repo_root: Path) -> int:
 
 
 def _make_check_status(repo_root: Path) -> str:
+    """Return make-check probe status without running full CI during derive."""
     makefile = repo_root / "Makefile"
     if not makefile.is_file():
         return "missing"
     try:
-        proc = subprocess.run(
-            ["make", "-C", str(repo_root), "check"],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+        text = makefile.read_text(encoding="utf-8")
+    except OSError:
         return "missing"
-    return "passed" if proc.returncode == 0 else "failed"
+    if re.search(r"^check\s*:", text, re.MULTILINE):
+        return "skipped"
+    return "missing"
 
 
 def _collect_findings(repo_root: Path, layout: RepoLayout) -> list[EvaluationFinding]:
@@ -294,6 +290,13 @@ def derive_rules(
             result.rules_written.append(path)
             seen_ids.add(rule.rule_id)
             continue
+        if path.is_file() and force:
+            existing = store.read_rule(rule.rule_id)
+            if existing is not None and existing.state == "active":
+                logger.debug("derive: skipping active rule {}", rule.rule_id)
+                result.skipped.append(rule.rule_id)
+                seen_ids.add(rule.rule_id)
+                continue
         written = store.write_rule(rule, force=force)
         result.rules_written.append(written)
         seen_ids.add(rule.rule_id)

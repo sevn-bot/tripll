@@ -9,7 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path  # noqa: TC003 — runtime store paths
 
-from tripll.rules.model import Rule, parse_rule_markdown, render_rule_markdown, validate_rule
+from tripll.rules.model import (
+    Rule,
+    parse_rule_markdown,
+    render_rule_markdown,
+    validate_rule,
+    validate_rule_id,
+)
 from tripll.rules.pack import ContextModule, parse_context_markdown, render_context_markdown
 
 __all__ = ["RuleStore"]
@@ -57,24 +63,33 @@ class RuleStore:
 
     def read_rule(self, rule_id: str) -> Rule | None:
         """Load one rule by id, or ``None`` when missing."""
+        validate_rule_id(rule_id)
         path = self._rules_dir / f"{rule_id}.md"
         if not path.is_file():
             return None
         return parse_rule_markdown(path.read_text(encoding="utf-8"))
 
-    def write_rule(self, rule: Rule, *, force: bool = False) -> Path:
+    def write_rule(self, rule: Rule, *, force: bool = False, via_operator: bool = False) -> Path:
         """Write *rule* to ``<rules_dir>/<rule_id>.md``.
 
         Args:
             rule (Rule): Rule to persist.
             force (bool): Overwrite an existing file when True.
+            via_operator (bool): When True, allow ``active``/``retired`` lifecycle writes (R27).
 
         Returns:
             Path: Written file path.
 
         Raises:
             FileExistsError: When the file exists and ``force`` is False.
+            ValueError: When ``active``/``retired`` is written outside operator paths.
         """
+        if rule.state in {"active", "retired"} and not via_operator:
+            msg = (
+                f"cannot write rule in state {rule.state!r} directly — "
+                "use tripll rules promote/retire (R27)"
+            )
+            raise ValueError(msg)
         validate_rule(rule, repo_root=self.repo_root)
         self.ensure_dirs()
         path = self._rules_dir / f"{rule.rule_id}.md"

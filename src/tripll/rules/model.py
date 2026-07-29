@@ -26,9 +26,11 @@ __all__ = [
     "render_rule_markdown",
     "validate_origin",
     "validate_rule",
+    "validate_rule_id",
 ]
 
 RULE_STATES = frozenset({"proposed", "active", "retired"})
+_RULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 _CODEBASE_ORIGIN_RE = re.compile(r"^codebase://(.+):(\d+)$")
 _FINDING_ORIGIN_RE = re.compile(r"^finding://([^#]+)#(.+)$")
@@ -190,6 +192,31 @@ def validate_origin(origin: str, *, repo_root: Path) -> None:
         raise OriginValidationError(msg)
 
 
+def validate_rule_id(rule_id: str) -> None:
+    """Validate a rule slug for safe filesystem use.
+
+    Args:
+        rule_id (str): Rule identifier (filename stem under ``.tripll/rules/``).
+
+    Raises:
+        ValueError: When *rule_id* is empty, malformed, or path-like.
+
+    Examples:
+        >>> validate_rule_id("no-stdlib-logging")
+        >>> validate_rule_id("../escape")
+        Traceback (most recent call last):
+            ...
+        ValueError: ...
+    """
+    slug = rule_id.strip()
+    if not slug or not _RULE_ID_RE.fullmatch(slug):
+        msg = (
+            f"invalid rule_id {rule_id!r} — must match "
+            r"^[a-z0-9][a-z0-9-]{0,63}$"
+        )
+        raise ValueError(msg)
+
+
 def validate_rule(rule: Rule, *, repo_root: Path) -> None:
     """Validate *rule* including mandatory, resolving origin.
 
@@ -208,6 +235,7 @@ def validate_rule(rule: Rule, *, repo_root: Path) -> None:
     if rule.state not in RULE_STATES:
         msg = f"invalid rule state {rule.state!r}"
         raise ValueError(msg)
+    validate_rule_id(rule.rule_id)
     if not rule.origin.strip():
         msg = "origin is required — a rule without origin is an opinion, not a constraint"
         raise ValueError(msg)

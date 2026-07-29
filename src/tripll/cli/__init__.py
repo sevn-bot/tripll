@@ -1626,7 +1626,11 @@ def findings_export_learnings(
         rows = list_findings_from_store(store)
     finally:
         store.close()
-    path = export_learnings(rows, path=learnings)
+    from tripll.repo_root import resolve_repo_root
+    from tripll.rules.store import RuleStore
+
+    active_rules = RuleStore(resolve_repo_root()).list_active()
+    path = export_learnings(rows, path=learnings, active_rules=active_rules)
     rejected = sum(1 for r in rows if r.get("state") == "rejected")
     typer.echo(f"exported {rejected} rejected finding(s) → {path}")
 
@@ -1704,8 +1708,15 @@ def rules_promote(
     ] = None,
 ) -> None:
     """Promote a proposed rule to active (operator-only — no agent path, R27)."""
+    from tripll.rules.operator import require_operator
     from tripll.rules.promote import promote_rule
     from tripll.rules.store import RuleStore
+
+    try:
+        require_operator(f"tripll rules promote {rule_id}")
+    except PermissionError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
 
     root = (repo_root or resolve_repo_root()).resolve()
     store = RuleStore(root)
@@ -1727,8 +1738,15 @@ def rules_retire(
     ] = None,
 ) -> None:
     """Retire an active or proposed rule (operator-only)."""
+    from tripll.rules.operator import require_operator
     from tripll.rules.promote import retire_rule
     from tripll.rules.store import RuleStore
+
+    try:
+        require_operator(f"tripll rules retire {rule_id}")
+    except PermissionError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
 
     root = (repo_root or resolve_repo_root()).resolve()
     store = RuleStore(root)

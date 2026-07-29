@@ -167,7 +167,7 @@ def promote_rule(
         raise ValueError(msg)
 
     active = replace(existing, state=_ACTIVE_STATE)
-    store.write_rule(active, force=True)
+    store.write_rule(active, force=True, via_operator=True)
     if graph_store is not None:
         from tripll.graphstore.task_sync import sync_rule_to_store
 
@@ -206,7 +206,7 @@ def retire_rule(
         raise FileNotFoundError(msg)
 
     retired = replace(existing, state=_RETIRED_STATE)
-    store.write_rule(retired, force=True)
+    store.write_rule(retired, force=True, via_operator=True)
     if graph_store is not None:
         from tripll.graphstore.task_sync import sync_rule_to_store
 

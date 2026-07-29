@@ -5,20 +5,37 @@ Exports:
     classify_wave_delta — classify which side was wrong.
     render_postmortem — markdown report for operator review.
     write_postmortem — persist ``runs/<run-id>/postmortem/<node-id>.md``.
+    finalize_wave_compounding — postmortem + optional auto-propose after terminal wave.
 """
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from loguru import logger
+
+if TYPE_CHECKING:
+    from tripll.config import RulesConfig
+    from tripll.ledger import AttemptRow
 
 __all__ = [
     "PostmortemVerdict",
     "classify_wave_delta",
+    "finalize_wave_compounding",
     "render_postmortem",
     "write_postmortem",
 ]
+
+_SAFE_NODE_ID_RE = re.compile(r"[^a-zA-Z0-9._-]+")
+
+
+def _safe_node_id(node_id: str) -> str:
+    """Sanitize *node_id* for use as a postmortem filename stem."""
+    cleaned = _SAFE_NODE_ID_RE.sub("_", node_id.strip()).strip("._")
+    return cleaned or "wave"
 
 
 class PostmortemVerdict(StrEnum):
@@ -177,10 +194,118 @@ def write_postmortem(
         Path: Written postmortem file path.
     """
     resolved_verdict = verdict or classify_wave_delta(contract=contract, attempt=attempt)
-    out = Path(runs_root) / run_id / "postmortem" / f"{node_id}.md"
+    safe_id = _safe_node_id(node_id)
+    out = Path(runs_root) / run_id / "postmortem" / f"{safe_id}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         render_postmortem(contract=contract, attempt=attempt, verdict=resolved_verdict),
         encoding="utf-8",
     )
     return out
+
+
+_PROPOSE_VERDICTS = frozenset(
+    {PostmortemVerdict.AGENT_DIVERGED, PostmortemVerdict.CONTRACT_TOO_VAGUE}
+)
+
+
+def _attempt_dict_from_rows(
+    *,
+    wave_id: str,
+    wave_outcome: str,
+    attempts: list[AttemptRow],
+) -> dict[str, Any]:
+    """Build a postmortem attempt dict from ledger rows."""
+    last = attempts[-1] if attempts else None
+    scope_breaches: list[str] = []
+    verify_results: dict[str, str] = {}
+    evidence = (last.evidence or "") if last else ""
+    if evidence and "scope breach" in evidence.lower():
+        scope_breaches = [evidence]
+    outcome = (last.outcome if last and last.outcome else wave_outcome) or wave_outcome
+    if outcome == "done" and wave_outcome == "done":
+        verify_results = {"isolated_verify": "passed"}
+    elif outcome in {"failed", "scope_breach"}:
+        verify_results = {"isolated_verify": "failed"}
+    return {
+        "wave_id": wave_id,
+        "outcome": outcome,
+        "attempt_n": last.attempt_n if last else 0,
+        "scope_breaches": scope_breaches,
+        "verify_results": verify_results,
+        "touched_paths": [],
+        "evidence": evidence,
+    }
+
+
+def finalize_wave_compounding(
+    *,
+    run_id: str,
+    node_id: str,
+    wave_id: str,
+    contract: dict[str, Any],
+    attempts: list[AttemptRow],
+    wave_outcome: str,
+    runs_root: Path | str,
+    repo_root: Path,
+    rules_config: RulesConfig,
+) -> Path | None:
+    """Write postmortem and optionally propose a rule after a terminal wave (W3).
+
+    Args:
+        run_id (str): Run identifier.
+        node_id (str): Wave node id.
+        wave_id (str): Human wave id (e.g. ``W3``).
+        contract (dict[str, Any]): Declared wave contract fields.
+        attempts (list[AttemptRow]): Ledger attempts for this node.
+        wave_outcome (str): Terminal node outcome from the engine.
+        runs_root (Path | str): Runs directory root.
+        repo_root (Path): Repository root for rule store.
+        rules_config (RulesConfig): Rules configuration (``auto_propose`` gate).
+
+    Returns:
+        Path | None: Postmortem path when written, else ``None`` when rules disabled.
+    """
+    if not rules_config.enabled:
+        return None
+
+    attempt = _attempt_dict_from_rows(
+        wave_id=wave_id,
+        wave_outcome=wave_outcome,
+        attempts=attempts,
+    )
+    contract_with_wave = {**contract, "wave_id": wave_id}
+    verdict = classify_wave_delta(contract=contract_with_wave, attempt=attempt)
+    postmortem_path = write_postmortem(
+        run_id=run_id,
+        node_id=node_id,
+        contract=contract_with_wave,
+        attempt=attempt,
+        verdict=verdict,
+        runs_root=runs_root,
+    )
+
+    if rules_config.auto_propose and verdict in _PROPOSE_VERDICTS:
+        from tripll.rules.promote import propose_rule_from_finding
+        from tripll.rules.store import RuleStore
+
+        targets = contract.get("targets") or []
+        first_target = targets[0] if targets else None
+        finding: dict[str, Any] = {
+            "run_id": run_id,
+            "finding_id": f"pm-{_safe_node_id(node_id)}",
+            "state": "resolved",
+            "message_raw": f"Wave {wave_id} postmortem: {verdict.value}",
+            "file": first_target,
+        }
+        store = RuleStore(
+            repo_root,
+            rules_dir=repo_root / rules_config.dir,
+            context_dir=repo_root / rules_config.context_dir,
+        )
+        try:
+            propose_rule_from_finding(finding, store=store)
+        except ValueError as exc:
+            logger.debug("auto_propose skipped for {}: {}", node_id, exc)
+
+    return postmortem_path
