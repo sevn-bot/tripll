@@ -1,4 +1,4 @@
-"""Shared contract constants and import helpers for spec-kit-wave tests.
+"""Shared contract constants and import helpers for skw tests.
 
 Exports:
     require_module — import helper that fails tests when implementation is pending.

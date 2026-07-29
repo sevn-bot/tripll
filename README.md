@@ -131,7 +131,7 @@ replay. Backend auth lives in your toolchain (`claude`, `cursor-agent`), not in 
 | **Code KG** | `graph extract`, `graph fuse`, `graph gate`, `graph query` | Build `.tripll/graph.db`, pack wave briefs |
 | **Findings** | `findings sync`, `findings list`, `findings triage` | CI + review → Finding graph |
 | **PR phase** | `pr shepherd`, `pr status`, `pr approve-merge` | Push/open/fix loop + human merge gate |
-| **Doc gates** | `spec validate\|score`, `prd …`, `changelog check\|eval`, `doc-score` | Absorbed spec-kit-wave (`skw`) validators |
+| **Doc gates** | `spec validate\|score`, `prd …`, `changelog check\|eval`, `doc-score` | Absorbed skw validators (`src/tripll/skw/`) |
 | **Bench** | `bench run` | Frozen L1 task replay + D23 metric deltas |
 | **Legacy alias** | `skw` | Deprecated entry; use `tripll spec` / `tripll run` instead |
 
@@ -399,7 +399,7 @@ uv run tripll bench run
 uv run tripll bench run --bench-dir bench/ --db .tripll/graph.db
 ```
 
-**10. Doc gates (absorbed skw / spec-kit-wave)**
+**10. Doc gates (absorbed skw)**
 
 ```bash
 make spec-check                    # tripll spec validate docs/

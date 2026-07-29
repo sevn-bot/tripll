@@ -1,4 +1,4 @@
-# PRD standards (spec-kit-wave)
+# PRD standards (skw)
 
 Product requirement documents for sevn.bot live under `about-sevn.bot/prd/`. This kit owns
 the **template**, **rules**, and **validator** until the standard is applied repo-wide.
@@ -21,7 +21,7 @@ readiness mindset.
 
 **Do not adopt wholesale:** the v0.1→v1.0 lifecycle gates, SoT/ folder taxonomy, 47 skills,
 and EPIC-centric execution — sevn already has `about-sevn.bot/specs/`, wave-orchestrator, and
-spec-kit-wave for execution.
+`src/tripll/skw/` for execution.
 
 ## Document layers
 
@@ -72,13 +72,13 @@ Set in frontmatter. Validator enforces profile-specific sections.
 
 ```bash
 # Validate one file (path relative to repo root or absolute)
-make prd-validate PRD=about-sevn.bot/prd/05-cost-and-providers.md
+uv run python -m tripll.skw.prd_validate about-sevn.bot/prd/05-cost-and-providers.md --kit-root src/tripll/skw
 
-# Validate all PRDs under a directory (default: ../about-sevn.bot/prd)
+# Validate all PRDs under a directory (default: docs/prd)
 make prd-check
 
 # JSON output for hooks/CI
-make prd-validate PRD=path/to/prd.md PRD_JSON=1
+uv run python -m tripll.skw.prd_validate path/to/prd.md --kit-root src/tripll/skw --json
 ```
 
 ## Applying to about-sevn.bot/prd
@@ -86,7 +86,7 @@ make prd-validate PRD=path/to/prd.md PRD_JSON=1
 1. Copy `prd-templates/prd-template.md` as the starting point for each PRD rewrite.
 2. Set `prd_profile: ai-native` for prd-12-self-improvement, prd-02-personality-and-memory,
    prd-13-extensibility, and similar agent-centric PRDs.
-3. Run `make prd-check` from `src/tripll/skw/` until clean.
+3. Run `make prd-check` from the repo root until clean.
 4. Record spec brownfield edits in PRD Change Log with OpenSpec delta tokens.
 
 ## Files

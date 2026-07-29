@@ -4,7 +4,7 @@ kind: prd
 title: Fixture Standard — PRD
 status: draft
 owner: Alex
-summary: Minimal valid standard-profile PRD for spec-kit-wave validator tests.
+summary: Minimal valid standard-profile PRD for skw validator tests.
 last_updated: 2026-07-08
 related: []
 sources: []
@@ -37,7 +37,7 @@ documents.
 
 ## Experience
 
-Run `make prd-validate` from spec-kit-wave with a file path.
+Run `uv run python -m tripll.skw.prd_validate <path> --kit-root src/tripll/skw` from the repo root.
 
 ## Success Metrics
 

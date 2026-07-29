@@ -77,5 +77,5 @@ class TestRenderPrdAuthor:
             repo_root=REPO_ROOT,
         )
         assert "prd-99-fixture-standard" in rendered
-        assert "make prd-validate" in rendered
+        assert "tripll.skw.prd_validate" in rendered
         assert "{{" not in rendered

@@ -1,4 +1,4 @@
-# spec-kit-wave — code-quality problem taxonomy
+# skw — code-quality problem taxonomy
 
 Before grouping findings or writing waves, classify **every** changed module on the branch
 against **every** problem kind below. A file may have multiple kinds; mark each row `yes` or

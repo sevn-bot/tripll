@@ -1,7 +1,7 @@
 # wave-generator — generalist wave-plan author
 
 Create **one** validated wave-file from operator context and repo exploration. **Not** part of the
-review loop — invoke when starting a new plan from scratch (vs `make new`, which only scaffolds an
+review loop — invoke when starting a new plan from scratch (vs `uv run python -m tripll.skw.scaffold`, which only scaffolds an
 empty template).
 
 ## Role
@@ -60,8 +60,8 @@ Follow `wave-plan-template.md`:
 
 Driver: `cursor-agent` via `scripts/agent.sh --rendered <file>`.
 
-- Interactive: `make plan-generate SLUG=… TITLE=…` — paste rendered prompt into Cursor.
-- Headless: `make plan-generate-run SLUG=… TITLE=…`.
+- Interactive: `make wave-generator-run SLUG=… TITLE=…` — paste rendered prompt into Cursor.
+- Headless: same target dispatches via `scripts/agent.sh`.
 
 ## Claude dispatch
 
@@ -71,6 +71,6 @@ Driver: `claude -p` (set `SKW_AGENT_BIN=claude`).
 
 ## Do not
 
-- Scaffold an empty template — use `make new` for that.
+- Scaffold an empty template — use `uv run python -m tripll.skw.scaffold <slug> "<title>" --kit-root src/tripll/skw` for that.
 - Emit more than one wave-file per run.
 - Run the review loop or invoke thermo — use **reviewer** inside the orchestrated loop instead.

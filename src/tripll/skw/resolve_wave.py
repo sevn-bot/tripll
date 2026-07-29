@@ -199,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
             if role == "test-author":
                 print(
                     f"resolve_wave.py: wave {args.validate_impl!r} has role=test-author; "
-                    "use make test-creator or make test-creator-run instead of wave-runner",
+                    "use uv run skw agent-run --stage run on the test-author wave instead of wave-runner",
                     file=sys.stderr,
                 )
                 return 1

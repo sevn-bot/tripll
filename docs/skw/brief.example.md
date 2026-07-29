@@ -1,6 +1,6 @@
 # Operator brief — JSON output for `sevn status`
 
-<!-- Worked example CONTEXT file for `make plan-generate ... CONTEXT=brief.example.md`.
+<!-- Worked example CONTEXT file for `make wave-generator-run ... CONTEXT=brief.example.md`.
      Illustrative only: paths/targets are placeholders — adapt to your repo.
      The whole file is injected into the wave-generator prompt as Operator context. -->
 

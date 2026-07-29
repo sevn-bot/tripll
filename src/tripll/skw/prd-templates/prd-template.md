@@ -15,7 +15,7 @@ prd_profile: standard
 ---
 
 <!--
-  sevn.bot PRD template (spec-kit-wave)
+  sevn.bot PRD template (skw)
 
   Synthesis:
   - about-sevn.bot/_docsys frontmatter + six core product sections
@@ -27,7 +27,7 @@ prd_profile: standard
   Normative acceptance criteria (EARS/GEARS) belong in about-sevn.bot/specs/, not here.
   See spec-templates/acceptance-criteria-ears.md for spec-level patterns.
 
-  Validate: make prd-validate PRD=path/to/this-file.md
+  Validate: uv run python -m tripll.skw.prd_validate path/to/this-file.md --kit-root src/tripll/skw
 -->
 
 ## Problem & Motivation

@@ -1,4 +1,4 @@
-"""Fixtures for spec-kit-wave RED tests.
+"""Fixtures for skw RED tests.
 
 Exports:
     repo_root — minimal repository tree fixture for interface resolution.
@@ -21,7 +21,7 @@ from tests.skw.paths import KIT_ROOT
 
 @pytest.fixture
 def kit_root() -> Path:
-    """Return the spec-kit-wave package root for render tests."""
+    """Return the skw kit root for render tests."""
     return KIT_ROOT
 
 

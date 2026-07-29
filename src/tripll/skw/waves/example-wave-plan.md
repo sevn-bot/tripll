@@ -3,12 +3,12 @@
 **Status:** Example (copy and adapt)
 **Date:** 2026-06-24
 
-Runnable reference wave-file for the spec-kit-wave kit. Uses the default **thermo**
+Runnable reference wave-file for the skw kit. Uses the default **thermo**
 review pipeline (D3). Demonstrates the **tests-first** model: one `test-author` wave (W1) before
 impl waves. Validate before dispatch:
 
 ```bash
-make validate WAVE=waves/example-wave-plan.md
+make validate WAVE=src/tripll/skw/waves/example-wave-plan.md
 ```
 
 ```toml
@@ -16,7 +16,7 @@ waveorch_format = 2
 title  = "Tier-B quality remediation"
 slug   = "tier-b-quality"
 base   = "test-pre"
-branch = "feature/spec-kit-wave-kit"
+branch = "feature/skw-example-kit"
 
 [pipeline]
 max_turns = 3

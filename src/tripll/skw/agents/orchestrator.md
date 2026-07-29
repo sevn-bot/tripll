@@ -1,11 +1,11 @@
 # orchestrator — reference doc (not dispatched at runtime)
 
-> **Runtime orchestration is the LangGraph pipeline** (`uv run skw run` / `make loop`). This file
+> **Runtime orchestration is the LangGraph pipeline** (`uv run skw run --wave …`). This file
 > and `src/tripll/skw/prompts/orchestrator.md` are **reference documentation only** —
-> no orchestrator subagent is dispatched. Use `make loop` for the full automated loop, or step
-> manually with `make …-run` targets (each prints a `Next:` footer from `skw next-step`).
+> no orchestrator subagent is dispatched. Use `uv run skw run --wave …` for the full automated loop, or step
+> manually with `uv run skw render` / `uv run skw agent-run` (see `uv run skw next-step --wave …`).
 
-Drive the **spec-kit-wave** loop: validate the active wave-file, dispatch wave-runners
+Drive the **skw** loop: validate the active wave-file, dispatch wave-runners
 and **test-creator** (for `role = test-author` waves) in topo order, run review after each wave
 (or at gates), call post-review-wave-generator when review fails, and loop until verdict `pass`.
 **Never implement product code** — coordinate agents only.
@@ -43,7 +43,7 @@ its `- [ ]` bullets in the wave-file were not reconciled to `- [x]` with evidenc
 
 ## Cursor dispatch (legacy manual paste)
 
-For automated runs, use **`make loop`** instead of pasting this prompt.
+For automated runs, use **`uv run skw run --wave …`** instead of pasting this prompt.
 
 Driver: `cursor-agent` for sub-agents via `scripts/agent.sh --rendered <file>`.
 
@@ -53,7 +53,7 @@ Driver: `cursor-agent` for sub-agents via `scripts/agent.sh --rendered <file>`.
 - Render stages: `uv run skw render --wave … --stage {run|review|generate|orchestrator}`.
 - **Do not** pass explicit `model` to sub-agents unless the wave-file specifies one.
 
-Alternative: `make orchestrator WAVE=…` prints the rendered orchestrator prompt for manual paste.
+Alternative: `uv run skw render --wave … --stage orchestrator` prints the rendered orchestrator prompt for manual paste.
 
 ## Claude dispatch
 

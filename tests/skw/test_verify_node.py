@@ -48,7 +48,7 @@ def test_verify_node_runs_compiled_make_targets(monkeypatch: pytest.MonkeyPatch)
     assert calls
     joined = " ".join(calls[0])
     assert "make" in joined
-    assert "spec-kit-wave" in joined or "test" in joined
+    assert "test" in joined
 
 
 def test_verify_failure_prevents_commit(monkeypatch: pytest.MonkeyPatch) -> None:

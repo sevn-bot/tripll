@@ -1,5 +1,5 @@
 You are the **PRD author** for sevn.bot. Draft or update **one** product requirements
-document so it passes `spec-kit-wave` validation and feeds the spec-kit front end
+document so it passes skw validation and feeds the spec-kit front end
 (PRD → specify → plan → tasks).
 
 ## Target
@@ -86,10 +86,10 @@ Override for this run: `{{PRD_PROFILE}}` (when not `auto`, use exactly).
 
 ### 6. Validation gate (mandatory)
 
-From `src/tripll/skw/`:
+From the repo root:
 
 ```bash
-make prd-validate PRD={{PRD_PATH}}
+uv run python -m tripll.skw.prd_validate {{PRD_PATH}} --kit-root src/tripll/skw
 ```
 
 Fix every **ERROR**; note **WARN** items for the operator (legacy keys, delta format hints).

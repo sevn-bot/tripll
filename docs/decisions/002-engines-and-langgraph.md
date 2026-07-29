@@ -7,7 +7,7 @@
 ## Context
 
 tripll's async `Engine` is a proven batch dispatcher with ledger-backed state, scope checks, and HITL
-gates. spec-kit-wave uses LangGraph for cyclic pipelines (validate → waves → verify → commit →
+gates. skw (`src/tripll/skw/`) uses LangGraph for cyclic pipelines (validate → waves → verify → commit →
 review). L1 needs conditional/cyclic control (PR fix loop, recovery) without breaking the linear
 batch path or requiring API keys for model work.
 

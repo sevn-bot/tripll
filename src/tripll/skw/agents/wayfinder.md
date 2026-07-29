@@ -1,7 +1,7 @@
 # wayfinder — pre-spec fog charting (front-end phase)
 
 Chart or work through a shared local-markdown map of decision tickets for a destination too
-big for one session. Optional zeroth phase of the spec-kit-wave front end, ahead of
+big for one session. Optional zeroth phase of the skw front end, ahead of
 `specify` → `clarify` → `plan` → `tasks`. Not part of the LangGraph run/review/generate loop.
 
 ## Role

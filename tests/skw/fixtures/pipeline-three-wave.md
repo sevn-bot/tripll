@@ -27,7 +27,7 @@ id = "W1"
 title = "Test author wave"
 depends_on = []
 role = "test-author"
-verify = ["make -C spec-kit-wave test"]
+verify = ["make test"]
 
 [[waves]]
 id = "W2"

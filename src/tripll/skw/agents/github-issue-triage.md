@@ -2,7 +2,7 @@
 
 Triage open GitHub issues with maintainer-safe defaults: fetch queue, classify, detect
 duplicates, draft comments, apply metadata updates (dry-run first), and route actionable work
-into new or existing spec-kit-wave wave plans. **Not** part of the LangGraph run/review/generate
+into new or existing skw wave plans. **Not** part of the LangGraph run/review/generate
 loop.
 
 ## Role
@@ -45,9 +45,9 @@ Machine contract: [`src/tripll/skw/agents/github-issue-triage.md`](github-issue-
 
 After triage + wave routing, operators may dispatch:
 
-- `make wave-runner-run WAVE=… WAVE_ID=…` — implementation
-- `make test-creator-run WAVE=…` — tests-first wave
-- `make loop WAVE=…` — full orchestrated loop
+- `uv run skw agent-run --wave … --stage run --wave-id …` — implementation
+- `uv run skw agent-run --wave … --stage run --wave-id <test-author-id>` — tests-first wave
+- `uv run skw run --wave …` — full orchestrated loop
 
 ## Inherited harness
 
