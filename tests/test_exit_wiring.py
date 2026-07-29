@@ -11,10 +11,10 @@ from tripll.engine import Engine
 
 @pytest.mark.tier3
 def test_goal_met_exit_wired_through_engine() -> None:
-    """BUG-06: ``pullfrog_merge_signal`` success must reach ``evaluate_exit(1)`` in Engine."""
+    """BUG-06: ``review_merge_signal`` success must reach ``evaluate_exit(1)`` in Engine."""
     source = inspect.getsource(Engine)
     assert "evaluate_exit" in source
-    assert "pullfrog" in source.lower() or "goal_met" in source
+    assert "review_success" in source or "goal_met" in source
 
 
 @pytest.mark.tier3

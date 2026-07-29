@@ -403,9 +403,12 @@ status (`merge_gate_pending` / `merge_approved`) and an **Approve merge gate** f
 the run is parked at the human gate — same marker as `tripll pr approve-merge` (never
 auto-merges; merge in GitHub UI afterward).
 
-Rejected findings export to `.pullfrog/learnings.md` (D13). Optional CI review:
-`.github/workflows/pullfrog.yml` (requires `CLAUDE_CODE_OAUTH_TOKEN` secret).
-Local advisory review: `make review`.
+Rejected findings export to `.mergecraft/learnings.md` (D13). Optional CI review:
+`.github/workflows/mergecraft.yml` (requires `CLAUDE_CODE_OAUTH_TOKEN` and/or
+`ANTHROPIC_API_KEY`). Local advisory review: `make review` or `tripll review diff`.
+Widen mergeCraft modes via `tripll.toml` `[review].posture` (`review_only` default;
+`fix` / `full` enable Fix / AddressReviews / Build via `workflow_dispatch`).
+Auth helpers: `mergecraft auth claude` / `mergecraft auth codex` (documented upstream).
 
 ### Quality gauntlet (optional, D26–D28)
 

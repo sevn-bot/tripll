@@ -58,16 +58,32 @@ def test_finding_stale_when_about_target_has_valid_to_sha() -> None:
 
 def test_rejected_findings_export_to_learnings(tmp_path: Path) -> None:
     export_learnings = require_module("tripll.github.learnings", attr="export_learnings")
-    out = tmp_path / ".pullfrog" / "learnings.md"
+    out = tmp_path / ".mergecraft" / "learnings.md"
     export_learnings(
         [
             {
                 "state": "rejected",
-                "rule_id": "pullfrog:style",
+                "rule_id": "mergecraft:review",
+                "message_raw": "unused import",
                 "rationale": "intentional pattern",
             }
         ],
         path=out,
     )
     text = out.read_text()
-    assert "rejected" in text.lower() or "intentional" in text
+    assert "Withdrawn review findings" in text
+    assert "intentional" in text
+    assert "mergecraft:review" in text
+
+
+def test_review_comment_parses_mergecraft_triage_tags() -> None:
+    normalize_review_comment = require_module(
+        "tripll.github.findings", attr="normalize_review_comment"
+    )
+    raw = json.loads((_FIXTURES / "review_comment.json").read_text())
+    finding = normalize_review_comment(raw)
+    assert finding["rule_id"] == "mergecraft:review"
+    assert finding["category"] == "Functional Correctness"
+    assert finding["severity"] == "high"  # Major → high
+    assert finding["effort"] == "Quick win"
+    assert finding.get("suggestion")

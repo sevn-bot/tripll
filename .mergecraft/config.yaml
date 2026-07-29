@@ -1,7 +1,7 @@
-# pullfrog-py per-repo settings (https://github.com/alexhawat/pullfrog-py).
+# mergeCraft per-repo settings (https://github.com/alexhawat/mergeCraft).
 #
 # Only keys with no action-input equivalent belong here. `model`, `push`,
-# `shell`, and `status_checks` are set in .github/workflows/pullfrog.yml and win
+# `shell`, and `status_checks` are set in .github/workflows/mergecraft.yml and win
 # over this file.
 #
 # A sibling `learnings.md` holds durable review memory, including the

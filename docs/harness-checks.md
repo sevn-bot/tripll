@@ -49,7 +49,7 @@ Eight targeted exits live in `src/tripll/loops/exits.py`. Three are mandatory ca
 
 | Exit | Mechanism |
 |------|-----------|
-| 1 goal met | Outcome satisfied + CI green + `pullfrog-approval` success |
+| 1 goal met | Outcome satisfied + CI green + `mergecraft-approval` success |
 | 2 turn cap | `max_attempts=5` (impl waves), LangGraph `RetryPolicy` |
 | 3 budget cap | `TRIPLL_COST_BUDGET_USD` |
 | 4 wall clock | Per-wave `wall_clock_limit_s` + run deadline |

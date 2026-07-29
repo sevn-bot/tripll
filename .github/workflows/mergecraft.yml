@@ -1,8 +1,9 @@
-# pullfrog-py PR review (BYOK; https://github.com/alexhawat/pullfrog-py).
+# mergeCraft PR review (BYOK; https://github.com/alexhawat/mergeCraft).
 #
 # Auto-reviews PRs on open / ready / new commits. Auth: CLAUDE_CODE_OAUTH_TOKEN
-# (Claude subscription). Skips gracefully when absent (e.g. fork PRs).
-name: pullfrog-py
+# and/or ANTHROPIC_API_KEY. Skips gracefully when neither is present (e.g. fork PRs).
+# Default posture: review-only (push/shell disabled). Widen via tripll.toml [review].
+name: mergeCraft
 
 on:
   pull_request:
@@ -24,17 +25,17 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pullfrog-${{ github.workflow }}-${{ github.ref }}
+  group: mergecraft-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   review:
-    name: pullfrog-py review
+    name: mergeCraft review
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      HAS_CLAUDE_CODE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+      HAS_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -42,16 +43,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Skip when Claude subscription auth is not configured
-        if: env.HAS_CLAUDE_CODE != 'true'
+      - name: Skip when auth is not configured
+        if: env.HAS_AUTH != 'true'
         run: |
-          echo "::notice title=pullfrog-py skipped::Configure CLAUDE_CODE_OAUTH_TOKEN to enable pullfrog-py reviews (fork PRs run without secrets)."
+          echo "::notice title=mergeCraft skipped::Configure CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to enable mergeCraft reviews (fork PRs run without secrets)."
 
-      - name: pullfrog-py PR review (Claude subscription)
-        if: env.HAS_CLAUDE_CODE == 'true'
-        id: pullfrog
+      - name: mergeCraft PR review
+        if: env.HAS_AUTH == 'true'
+        id: mergecraft
         continue-on-error: true
-        uses: alexhawat/pullfrog-py@0d40626097fd92976425f7eacd2e213ee1f6d5d5 # main
+        uses: alexhawat/mergeCraft@b8e83a82e97ed537706d9a712e59af9ef031588f # pre-0.0.1
         with:
           prompt: >-
             ${{ (github.event_name == 'pull_request' && format('Review pull request #{0}. Focus on correctness, security, regressions, missing tests, and maintainability. Leave concise, actionable comments only for issues that should be addressed before merge.', github.event.pull_request.number))
@@ -63,16 +64,17 @@ jobs:
           status_checks: enabled
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
-      - name: pullfrog-py review incomplete (non-fatal)
-        if: env.HAS_CLAUDE_CODE == 'true' && steps.pullfrog.outcome != 'success'
+      - name: mergeCraft review incomplete (non-fatal)
+        if: env.HAS_AUTH == 'true' && steps.mergecraft.outcome != 'success'
         run: |
-          echo "::notice title=pullfrog-py incomplete::Review step did not finish successfully (see its log). Approval enforcement skipped."
+          echo "::notice title=mergeCraft incomplete::Review step did not finish successfully (see its log). Approval enforcement skipped."
 
-      - name: Fail when pullfrog-py would not approve
+      - name: Fail when mergeCraft would not approve
         if: >-
           github.event_name == 'pull_request' &&
-          env.HAS_CLAUDE_CODE == 'true'
+          env.HAS_AUTH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -82,7 +84,7 @@ jobs:
           conclusion=""; queried=""
           for attempt in $(seq 1 5); do
             if conclusion="$(gh api "/repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
-                --jq '[.check_runs[]? | select(.name == "pullfrog-approval")]
+                --jq '[.check_runs[]? | select(.name == "mergecraft-approval")]
                       | sort_by(.completed_at // .started_at) | last | .conclusion // ""')"; then
               queried="yes"; break
             fi
@@ -90,18 +92,18 @@ jobs:
             sleep 5
           done
           if [ -z "${queried}" ]; then
-            echo "::warning title=pullfrog-py approval unknown::Could not query check-runs for ${HEAD_SHA} after retries. Failing open."
+            echo "::warning title=mergeCraft approval unknown::Could not query check-runs for ${HEAD_SHA} after retries. Failing open."
             exit 0
           fi
           case "${conclusion}" in
             failure)
-              echo "::error title=pullfrog-py requested changes::pullfrog-approval check failed — address the review feedback on this PR."
+              echo "::error title=mergeCraft requested changes::mergecraft-approval check failed — address the review feedback on this PR."
               exit 1
               ;;
             success)
-              echo "pullfrog-py approval: no outstanding review feedback."
+              echo "mergeCraft approval: no outstanding review feedback."
               ;;
             *)
-              echo "::notice title=pullfrog-py approval not posted::No pullfrog-approval check on ${HEAD_SHA}. Not blocking."
+              echo "::notice title=mergeCraft approval not posted::No mergecraft-approval check on ${HEAD_SHA}. Not blocking."
               ;;
           esac

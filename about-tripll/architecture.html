@@ -56,9 +56,9 @@ gate</strong> — it is not started automatically by <code>tripll run</code>.</p
 <h2>PR phase (opt-in)</h2>
 <p>After implementation waves, run <code>tripll pr shepherd &lt;run-id&gt;</code> (requires
 <code>graph</code> extra for the full LangGraph cycle). Flow: push branch → open PR → sync
-findings → dispatch fix agents → stop when <code>pullfrog-approval</code> and required checks
+findings → dispatch fix agents → stop when <code>mergecraft-approval</code> and required checks
 are green → <strong>human merge gate</strong> (<code>tripll pr approve-merge</code>).
-Rejected findings export to <code>.pullfrog/learnings.md</code>. Local batch integration
+Rejected findings export to <code>.mergecraft/learnings.md</code>. Local batch integration
 (<code>--integrate</code>) is separate and does not open PRs.</p>
 
 <h2>Backends and extras</h2>

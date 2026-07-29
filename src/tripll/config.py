@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from tripll.repo_root import resolve_repo_root
+from tripll.review import ReviewConfig, review_config_from_raw
 from tripll.skw.agent_config import merge_model_table
 from tripll.tracing.config import TracingConfig, parse_tracing_config
 
@@ -30,6 +31,7 @@ __all__ = [
     "ConfigSources",
     "ProviderConfig",
     "RepoConfig",
+    "ReviewConfig",
     "TripllConfig",
     "load_config",
     "merge_model_table",
@@ -59,6 +61,17 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "specs_dir": "docs/specs",
     "prds_dir": "docs/prds",
     "plans_dir": "docs/plans",
+    "review": {
+        "provider": "mergecraft",
+        "ref": "pre-0.0.1",
+        "posture": "review_only",
+        "ci": {
+            "push": "disabled",
+            "shell": "disabled",
+            "status_checks": True,
+            "model": "anthropic/claude-sonnet",
+        },
+    },
 }
 
 
@@ -116,6 +129,7 @@ class TripllConfig:
         providers (dict[str, ProviderConfig]): Per-backend settings.
         tracing (TracingConfig): Tracing block (plan + env applied).
         repo (RepoConfig): Repo layout settings.
+        review (ReviewConfig): mergeCraft review posture and CI inputs.
         sources (ConfigSources): Provenance for diagnostics.
         raw (dict[str, Any]): Merged TOML tables before dataclass coercion.
     """
@@ -124,6 +138,7 @@ class TripllConfig:
     providers: dict[str, ProviderConfig]
     tracing: TracingConfig
     repo: RepoConfig
+    review: ReviewConfig
     sources: ConfigSources
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -325,11 +340,13 @@ def load_config(*, repo_root: Path | None = None) -> TripllConfig:
         )
 
     tracing = parse_tracing_config({"tracing": merged.get("tracing")})
+    review_raw = merged.get("review")
     return TripllConfig(
         default_provider=str(merged.get("default_provider") or "claude_code"),
         providers=_coerce_providers(merged),
         tracing=tracing,
         repo=_coerce_repo(merged),
+        review=review_config_from_raw(review_raw if isinstance(review_raw, dict) else None),
         sources=sources,
         raw=merged,
     )

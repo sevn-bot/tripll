@@ -178,7 +178,7 @@ def _triggered(exit_id: int, context: dict[str, Any]) -> bool:
         return bool(
             context.get("outcome_satisfied")
             and context.get("ci_green")
-            and context.get("pullfrog_success")
+            and context.get("review_success")
         )
     if exit_id == 2:
         turns = int(context.get("turn_count") or context.get("attempt_count") or 0)

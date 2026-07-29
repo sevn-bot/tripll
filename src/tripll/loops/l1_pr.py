@@ -141,7 +141,74 @@ def run_pr_loop_step(
                 "kind": kind,
             }
         )
+    # Optional mergeCraft mode dispatch when [review].posture != review_only.
+    mergecraft_steps = _maybe_mergecraft_dispatch(findings, run_dir=run_dir)
+    if mergecraft_steps:
+        steps.extend(mergecraft_steps)
     return steps
+
+
+def _maybe_mergecraft_dispatch(
+    findings: list[dict[str, Any]] | None,
+    *,
+    run_dir: Path | str | None = None,
+) -> list[dict[str, Any]]:
+    """Queue mergeCraft workflow_dispatch receipts when posture allows.
+
+    Default ``review_only`` returns []. When posture is ``fix`` or ``full``,
+    accepted/open review_comment findings map to AddressReviews and ci_check
+    findings map to Fix — via ``gh workflow run`` with an ADR-004 receipt.
+    """
+    from tripll.config import load_config
+    from tripll.review import dispatch_mode
+
+    cfg = load_config()
+    if not cfg.review.allows_mode_dispatch():
+        return []
+
+    open_findings = _open_findings(findings)
+    if not open_findings:
+        return []
+
+    # Prefer a PR number from finding evidence / source when present.
+    pr_number = 0
+    for finding in open_findings:
+        for key in ("pr_number", "pr"):
+            val = finding.get(key)
+            if val is not None:
+                with suppress(TypeError, ValueError):
+                    pr_number = int(val)
+                    break
+        if pr_number:
+            break
+
+    kinds = {str(f.get("kind") or "") for f in open_findings}
+    mode = "AddressReviews" if "review_comment" in kinds else "Fix"
+    brief_lines = []
+    for finding in open_findings[:12]:
+        fid = finding.get("finding_id") or "?"
+        msg = (finding.get("message_raw") or finding.get("rule_id") or "")[:200]
+        brief_lines.append(f"- {fid}: {msg}")
+    prompt = f"Address open findings on PR #{pr_number or '?'}.\n" + "\n".join(brief_lines)
+    receipt: Path | None = None
+    if run_dir is not None:
+        receipt = Path(run_dir) / "receipts" / f"mergecraft-{mode.lower()}.json"
+    result = dispatch_mode(
+        pr=pr_number or 0,
+        mode=mode,
+        prompt=prompt,
+        workflow=cfg.review.workflow,
+        review=cfg.review,
+        receipt_path=receipt,
+    )
+    return [
+        {
+            "agent": "pr-shepherd",
+            "action": "mergecraft_dispatch",
+            "mode": mode,
+            "result": result,
+        }
+    ]
 
 
 def evaluate_pr_exits(context: dict[str, Any] | None = None) -> list[Any]:

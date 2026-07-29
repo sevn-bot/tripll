@@ -23,6 +23,22 @@ _RUFF_LINE = re.compile(
     r"^(?P<file>[^:]+):(?P<line>\d+)(?::\d+)?\s+(?P<code>[A-Z]\d+)\b",
     re.MULTILINE,
 )
+# mergeCraft triage tag: `_Category_ | _Severity_ | _Effort_`
+_MERGECRAFT_TRIAGE = re.compile(
+    r"^_(?P<category>[^_]+)_ \| _(?P<severity>[^_]+)_ \| _(?P<effort>[^_]+)_",
+    re.MULTILINE,
+)
+_SUGGESTION_FENCE = re.compile(
+    r"```suggestion\n(?P<body>.*?)\n```",
+    re.DOTALL,
+)
+
+_SEVERITY_MAP = {
+    "critical": "critical",
+    "major": "high",
+    "minor": "medium",
+    "trivial": "low",
+}
 
 
 def _now() -> str:
@@ -54,8 +70,9 @@ def _parse_rule_from_output(text: str) -> tuple[str | None, str | None, list[int
 
 def _review_rule_id(raw: dict[str, Any]) -> str:
     login = str((raw.get("user") or {}).get("login", "")).lower()
-    if login == "pullfrog":
-        return "pullfrog:review"
+    # mergeCraft bot (+ legacy pullfrog during transition).
+    if login in {"mergecraft[bot]", "mergecraft", "pullfrog"} or login.startswith("mergecraft"):
+        return "mergecraft:review"
     if "bugbot" in login:
         return "bugbot:review"
     if login:
@@ -104,8 +121,30 @@ def normalize_check_run(raw: dict[str, Any], *, run_id: str = "local") -> dict[s
     }
 
 
+def _parse_mergecraft_triage(body: str) -> dict[str, str | None]:
+    """Extract category / severity / effort / suggestion from a mergeCraft comment body."""
+    match = _MERGECRAFT_TRIAGE.search(body)
+    category = match.group("category").strip() if match else None
+    raw_sev = match.group("severity").strip().lower() if match else None
+    effort = match.group("effort").strip() if match else None
+    severity = _SEVERITY_MAP.get(raw_sev or "", "medium") if raw_sev else None
+    sug = _SUGGESTION_FENCE.search(body)
+    suggestion = sug.group("body") if sug else None
+    return {
+        "category": category,
+        "severity": severity,
+        "effort": effort,
+        "suggestion": suggestion,
+    }
+
+
 def normalize_review_comment(raw: dict[str, Any], *, run_id: str = "local") -> dict[str, Any]:
-    """Normalize an inline PR review comment into the Finding schema."""
+    """Normalize an inline PR review comment into the Finding schema.
+
+    When the comment is from mergeCraft and carries a triage tag line
+    (``_Category_ | _Severity_ | _Effort_``), those fields are promoted onto
+    the Finding. GitHub suggestion fences become ``suggestion`` for fix agents.
+    """
     file_ = str(raw.get("path") or raw.get("file") or "")
     line = raw.get("line") or raw.get("original_line")
     line_range = [int(line), int(line)] if line is not None else None
@@ -117,13 +156,17 @@ def normalize_review_comment(raw: dict[str, Any], *, run_id: str = "local") -> d
     source = (
         f"review_comment:{comment_id}" if comment_id is not None else str(raw.get("html_url") or "")
     )
+    triage = _parse_mergecraft_triage(body) if rule_id == "mergecraft:review" else {}
     return {
         "finding_id": _finding_id(dedup),
         "run_id": run_id,
         "kind": "review_comment",
         "source": source,
         "rule_id": rule_id,
-        "severity": "medium",
+        "severity": triage.get("severity") or "medium",
+        "category": triage.get("category"),
+        "effort": triage.get("effort"),
+        "suggestion": triage.get("suggestion"),
         "file": file_ or None,
         "line_range": line_range,
         "symbol_ref": None,

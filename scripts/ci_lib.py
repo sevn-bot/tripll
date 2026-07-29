@@ -59,18 +59,18 @@ PATH_RULES: tuple[PathRule, ...] = (
     ),
     PathRule(
         (
-            ".github/workflows/pullfrog.yml",
+            ".github/workflows/mergecraft.yml",
             "Makefile",
-            "scripts/check_pullfrog_ref_parity.py",
+            "scripts/check_mergecraft_ref_parity.py",
         ),
-        "pullfrog-ref-check",
+        "mergecraft-ref-check",
     ),
     PathRule(("CHANGELOG.md",), "changelog-check"),
 )
 
 # ``make`` target order when multiple path rules fire (stable, tier-ish).
 TARGET_ORDER: tuple[str, ...] = (
-    "pullfrog-ref-check",
+    "mergecraft-ref-check",
     "log-redact-check",
     "about-site-check",
     "changelog-check",

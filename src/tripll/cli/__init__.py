@@ -1173,12 +1173,119 @@ findings_app = typer.Typer(
 )
 app.add_typer(findings_app, name="findings")
 
+review_app = typer.Typer(
+    name="review",
+    help="mergeCraft review wrappers (diff / watch / init) — external tool via uv.",
+    no_args_is_help=True,
+)
+app.add_typer(review_app, name="review")
+
 bench_app = typer.Typer(
     name="bench",
     help="Frozen L1 benchmark replay and metric deltas (§9.4).",
     no_args_is_help=True,
 )
 app.add_typer(bench_app, name="bench")
+
+
+@review_app.command("diff")
+def review_diff(
+    base: Annotated[
+        str | None,
+        typer.Option("--base", help="Diff base ref (default: origin/main)."),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Materialize diff + prompt without calling an agent."),
+    ] = False,
+) -> None:
+    """Advisory offline review via ``mergecraft diff-review``."""
+    from tripll.config import load_config
+    from tripll.review import resolve_mergecraft_ref, run_mergecraft
+
+    cfg = load_config()
+    args = ["diff-review"]
+    if base:
+        args.extend(["--base", base])
+    else:
+        args.extend(["--base", os.environ.get("TRIPLL_CI_BASE", "origin/main")])
+    if dry_run:
+        args.append("--dry-run")
+    code = run_mergecraft(args, ref=resolve_mergecraft_ref(cfg.review))
+    raise typer.Exit(code)
+
+
+@review_app.command("watch")
+def review_watch(
+    pr: Annotated[int, typer.Option("--pr", help="Pull request number to watch.")],
+    pretty: Annotated[
+        bool,
+        typer.Option("--pretty", "-p", help="Human-readable timeline output."),
+    ] = False,
+) -> None:
+    """Stream PR timeline JSONL via ``mergecraft watch``."""
+    from tripll.config import load_config
+    from tripll.review import resolve_mergecraft_ref, run_mergecraft
+
+    cfg = load_config()
+    args = ["watch", "--pr", str(pr)]
+    if pretty:
+        args.append("--pretty")
+    code = run_mergecraft(args, ref=resolve_mergecraft_ref(cfg.review))
+    raise typer.Exit(code)
+
+
+@review_app.command("init")
+def review_init(
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Overwrite existing mergeCraft scaffold files."),
+    ] = False,
+) -> None:
+    """Scaffold ``.mergecraft/`` + workflow from ``[review]`` posture."""
+    from tripll.config import load_config
+    from tripll.review import scaffold_mergecraft
+
+    root = resolve_repo_root()
+    cfg = load_config(repo_root=root)
+    for line in scaffold_mergecraft(root, review=cfg.review, force=force, write_workflow=True):
+        typer.echo(line)
+
+
+@review_app.command("dispatch")
+def review_dispatch(
+    pr: Annotated[int, typer.Option("--pr", help="Pull request number.")],
+    mode: Annotated[
+        str,
+        typer.Option("--mode", help="mergeCraft mode: AddressReviews|Fix|Build|…"),
+    ],
+    prompt: Annotated[
+        str,
+        typer.Option("--prompt", help="Agent prompt body."),
+    ],
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Plan only; do not call gh workflow run."),
+    ] = False,
+) -> None:
+    """Trigger mergeCraft workflow_dispatch when ``[review].posture`` allows it."""
+    from tripll.config import load_config
+    from tripll.review import dispatch_mode
+
+    cfg = load_config()
+    result = dispatch_mode(
+        pr=pr,
+        mode=mode,
+        prompt=prompt,
+        workflow=cfg.review.workflow,
+        review=cfg.review,
+        dry_run=dry_run,
+    )
+    typer.echo(json.dumps(result, indent=2))
+    if not result.get("ok"):
+        raise typer.Exit(1)
+    if result.get("skipped") and not dry_run:
+        raise typer.Exit(0)
 
 
 @bench_app.command("run")
@@ -1403,7 +1510,7 @@ def findings_triage(
     learnings: Annotated[
         Path,
         typer.Option("--learnings", help="Rejected-findings export path."),
-    ] = Path(".pullfrog/learnings.md"),
+    ] = Path(".mergecraft/learnings.md"),
 ) -> None:
     """Update finding state; export learnings when rejected."""
     from tripll.github.findings import list_findings_from_store
@@ -1425,6 +1532,32 @@ def findings_triage(
     finally:
         store.close()
     typer.echo(f"triage {finding_id} → {updated.get('state')}")
+
+
+@findings_app.command("export-learnings")
+def findings_export_learnings(
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    learnings: Annotated[
+        Path,
+        typer.Option("--learnings", help="Rejected-findings export path."),
+    ] = Path(".mergecraft/learnings.md"),
+) -> None:
+    """Rebuild ``.mergecraft/learnings.md`` from rejected Finding nodes."""
+    from tripll.github.findings import list_findings_from_store
+    from tripll.github.learnings import export_learnings
+    from tripll.github.sync import open_store
+
+    store = open_store(db)
+    try:
+        rows = list_findings_from_store(store)
+    finally:
+        store.close()
+    path = export_learnings(rows, path=learnings)
+    rejected = sum(1 for r in rows if r.get("state") == "rejected")
+    typer.echo(f"exported {rejected} rejected finding(s) → {path}")
 
 
 @graph_app.command("query")

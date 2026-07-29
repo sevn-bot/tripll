@@ -8,7 +8,7 @@ from typing import Any
 
 from tripll.github.findings import normalize_review_comment
 
-_PULLFROG_APPROVAL = "pullfrog-approval"
+_REVIEW_APPROVAL_CHECK = "mergecraft-approval"
 
 
 def _gh_json(args: list[str]) -> Any:
@@ -44,7 +44,7 @@ def fetch_review_comments(owner: str, repo: str, pr_number: int) -> list[dict[st
 
 
 def fetch_reviews(owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
-    """Fetch PR reviews (pullfrog, human, Bugbot)."""
+    """Fetch PR reviews (mergeCraft, human, Bugbot)."""
     data = _gh_json(
         [
             "api",
@@ -82,31 +82,36 @@ def fetch_review_decision(owner: str, repo: str, pr_number: int) -> str | None:
     return None
 
 
-def pullfrog_merge_signal(check_runs: list[dict[str, Any]]) -> str | None:
-    """Return conclusion of the ``pullfrog-approval`` check-run, if present."""
+def review_merge_signal(check_runs: list[dict[str, Any]]) -> str | None:
+    """Return conclusion of the ``mergecraft-approval`` check-run, if present."""
     for run in check_runs:
-        if str(run.get("name") or "").lower() == _PULLFROG_APPROVAL:
+        if str(run.get("name") or "").lower() == _REVIEW_APPROVAL_CHECK:
             return str(run.get("conclusion") or run.get("status") or "")
     return None
 
 
-def pullfrog_success_from_check_runs(check_runs: list[dict[str, Any]]) -> bool:
-    """Return True when ``pullfrog-approval`` concluded success.
+def review_success_from_check_runs(check_runs: list[dict[str, Any]]) -> bool:
+    """Return True when ``mergecraft-approval`` concluded success.
 
     Args:
         check_runs (list[dict[str, Any]]): GitHub check-run payloads.
 
     Returns:
-        bool: True when the pullfrog merge signal is ``success``.
+        bool: True when the review merge signal is ``success``.
 
     Examples:
-        >>> pullfrog_success_from_check_runs(
-        ...     [{"name": "pullfrog-approval", "conclusion": "success"}]
+        >>> review_success_from_check_runs(
+        ...     [{"name": "mergecraft-approval", "conclusion": "success"}]
         ... )
         True
     """
-    signal = pullfrog_merge_signal(check_runs)
+    signal = review_merge_signal(check_runs)
     return signal is not None and signal.lower() == "success"
+
+
+# Backward-compat aliases (one release).
+pullfrog_merge_signal = review_merge_signal
+pullfrog_success_from_check_runs = review_success_from_check_runs
 
 
 def normalize_review_comments(
