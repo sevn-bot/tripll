@@ -68,7 +68,7 @@
 | W6 | `green after W6:` in `test_trackers.py` | ✅ F.1 |
 | Final | sweep all remaining `green after W` markers | ✅ F.1 — 24 removed, 0 stale |
 
-## F.1 reconciliation (2026-07-29)
+## F.1 reconciliation (2026-07-29, 4041f87)
 
 **Removed:** 24 `@pytest.mark.xfail` decorators (W2–W6 tier-1 + tier-3 e2e; tier-2 xfails
 converted to skip-only).
