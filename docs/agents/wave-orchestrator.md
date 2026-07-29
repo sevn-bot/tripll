@@ -147,7 +147,7 @@ Do **not** pass explicit `model` to wave-runner unless the orchestrator prompt t
 - Implement wave plan bullets (delegate to wave-runner)
 - Run parallel wave-runners in serial orchestrator mode (D8)
 - Replace the engine's deterministic `orchestrator-status.md` writer in headless runs
-- Run full `make ci` per wave (use `partial-ci` unless operator overrides)
+- Run full `make ci-resume` per wave (use `partial-ci` unless operator overrides)
 
 ## Related docs
 

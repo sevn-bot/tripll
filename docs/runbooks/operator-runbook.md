@@ -356,7 +356,7 @@ Dispatch-only is the default (branches + `report.md`, no merges). To integrate:
 
 ```bash
 make tripll ARGS='run <set> --integrate --dry-run'   # preview merges/gates/commits
-make tripll ARGS='run <set> --integrate'             # merge → docs → make ci → 1 commit
+make tripll ARGS='run <set> --integrate'             # merge → docs → make ci-resume → 1 commit
 make tripll ARGS='run <set> --integrate --deliver --dry-run'  # + push/open PR plan
 make tripll ARGS='run <set> --integrate --deliver'   # integrate then push + open PR
 ```
@@ -697,23 +697,24 @@ with **`BASE=<ref>`** or **`TRIPLL_CI_BASE=<ref>`**) and runs:
 make ci-affected              # default base origin/main
 BASE=main make ci-affected    # explicit base ref
 make ci-changed               # Python-only subset
-make ci                       # full pre-merge gate (unchanged)
+make ci-resume                # resumable pre-merge gate (GitHub Actions)
 ```
 
-Use **`make ci`** before merge and in GitHub Actions; reserve **`make ci-affected`**
-for per-wave iteration.
+Use **`make ci-resume`** before merge and in GitHub Actions; reserve **`make ci-affected`**
+for per-wave iteration. Re-run **`make ci-resume`** after fixing a failure — it resumes from
+the failed step. **`make ci-reset`** clears the checkpoint for a clean run.
 
 ---
 
 ## Dependency vulnerability scanning
 
-CI runs **`make deps-audit`** as part of **`make ci`**. The target exports pinned
+CI runs **`make deps-audit`** as part of **`make ci-resume`**. The target exports pinned
 packages from **`uv.lock`** (same extras as bootstrap: `dev`, `api`, `obs`) and
 audits them against the [OSV](https://osv.dev/) database via **`pip-audit`**.
 
 ```bash
 make deps-audit    # standalone scan (needs network for OSV API)
-make ci            # includes deps-audit after make check
+make ci-resume     # resumable gate (includes deps-audit + build)
 ```
 
 The gate **fails when any known vulnerability** is reported for a locked dependency.

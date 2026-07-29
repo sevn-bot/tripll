@@ -3,7 +3,7 @@
 Default OFF. When enabled, after dispatch each non-gate batch is integrated on
 a single integration branch off ``test-pre`` (configurable): lanes merge in the
 batch merge order, CW seams serialise, per-plan Docs&Menu sync targets run, the
-batch gate (``make ci`` + extras) runs, and — on green — **one Conventional
+batch gate (``make ci-resume`` + extras) runs, and — on green — **one Conventional
 Commit** lands per batch. Pre-0 / review-gate batches never auto-commit.
 
 The plan/render half is pure (no side effects) so ``--integrate --dry-run`` can
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
     from tripll.graph import RunGraph
 
-_DEFAULT_GATE = ["make ci"]
+_DEFAULT_GATE = ["make ci-resume"]
 
 
 class IntegrationError(RuntimeError):
@@ -57,7 +57,7 @@ class BatchIntegration:
         merge_order (list[str]): lane_ids to merge, in order.
         cw_seams (list[str]): CW ids that serialise within the batch.
         docs_menu_targets (list[str]): Docs&Menu sync make targets.
-        gate_commands (list[str]): gate make targets (``make ci`` + extras).
+        gate_commands (list[str]): gate make targets (``make ci-resume`` + extras).
         commit_subject (str | None): Conventional Commit subject, or None
             when the batch must not auto-commit.
     """

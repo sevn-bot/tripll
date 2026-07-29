@@ -28,9 +28,12 @@ Everything runs through **Make** (mirrors CI):
 | `make test` | `pytest` |
 | `make check` | lint + typecheck + log-redact gate + test (**required gate**) |
 | `make deps-audit` | OSV vulnerability scan of `uv.lock` (dev + api + obs extras) |
-| `make ci` | `make check` + `make deps-audit` + `uv build` (full local mirror of GitHub Actions) |
+| `make ci-resume` | Resumable pre-merge gate: lint → build (mirrors GitHub Actions) |
+| `make ci-affected` | Path-aware partial gate vs `origin/main` (mid-wave iteration) |
+| `make ci-changed` | Python-only partial gate (subset of `ci-affected`) |
+| `make ci` | Alias for `make ci-resume` |
 
-Run `make check` (or `make ci`) before opening a PR.
+Run `make ci-resume` before opening a PR (or `make check` for a quick lint/typecheck/test pass).
 
 ## Style
 

@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
-- [2026-07-29] Incremental CI: `make ci-affected` and `make ci-changed` (path-aware partial gate vs `origin/main`; Python ruff/mypy/pytest plus mapped make targets such as `about-site-check` and `log-redact-check`). `make ci` remains the full pre-merge gate
+- [2026-07-29] Incremental CI: `make ci-affected` and `make ci-changed` (path-aware partial gate vs `origin/main`; Python ruff/mypy/pytest plus mapped make targets such as `about-site-check` and `log-redact-check`). **`make ci-resume`** is the resumable pre-merge gate (replaces monolithic `make ci`; GitHub Actions and local Final waves)
 
 ## [0.0.0] - 2026-07-29
 ### Added

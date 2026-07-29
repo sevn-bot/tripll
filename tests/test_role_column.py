@@ -47,7 +47,7 @@ tripll_format: 1
 | W0 | Design | | yes | M | make lint | | impl |
 | W1 | Tests | W0 | | L | make lint | | test-author |
 | W2 | Implement | W1 | | M | make check | | impl |
-| Final | Gate | W2 | | L | make ci | | impl |
+| Final | Gate | W2 | | L | make ci-resume | | impl |
 """
 
 _PLAN_WITHOUT_ROLE_COLUMN = """\
@@ -67,7 +67,7 @@ tripll_format: 1
 |---------|-------|------------|-------------|--------|----------------|-------|
 | W0 | Design | | yes | M | make lint | |
 | W1 | Implement | W0 | | M | make check | |
-| Final | Gate | W1 | | L | make ci | |
+| Final | Gate | W1 | | L | make ci-resume | |
 """
 
 _PLAN_ROLE_EMPTY_CELLS = """\
@@ -88,7 +88,7 @@ tripll_format: 1
 | W0 | Design | | yes | M | make lint | | |
 | W1 | Tests | W0 | | L | make lint | | test-author |
 | W2 | Implement | W1 | | M | make check | | |
-| Final | Gate | W2 | | L | make ci | | |
+| Final | Gate | W2 | | L | make ci-resume | | |
 """
 
 

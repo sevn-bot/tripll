@@ -23,7 +23,7 @@ blocking verdict; **never edit product code, tests, or wave-files**.
 
 ## Guardrails
 
-- **Verify-only** — no edits to `src/`, `tests/`, or wave-files; no commits; no `make ci` fixes.
+- **Verify-only** — no edits to `src/`, `tests/`, or wave-files; no commits; no `make ci-resume` fixes.
 - **Never** run `git clean -x` / `git clean -X`.
 
 <!-- INJECTED -->

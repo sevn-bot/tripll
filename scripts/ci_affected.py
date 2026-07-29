@@ -2,7 +2,7 @@
 
 ``make ci-affected`` unions Python partial gates (``ci-changed`` logic) with
 ``make`` targets selected from changed paths vs ``TRIPLL_CI_BASE``. Not a merge
-gate — use ``make ci`` at wave boundary / before merge.
+gate — use ``make ci-resume`` at wave boundary / before merge.
 
 Module: scripts.ci_affected
 Depends: scripts.ci_lib

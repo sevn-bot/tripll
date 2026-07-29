@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 # tripll — standalone wave-plan execution pipeline (run from this directory).
-# CI entry point: make check  (lint + typecheck + test); make ci adds a build.
+# CI entry point: make ci-resume (resumable gate); make check for lint+typecheck+test only.
 
 UV ?= uv
 # Clear any inherited VIRTUAL_ENV so uv uses this project's .venv (avoids mismatch warning).
@@ -72,7 +72,7 @@ _TRIPLL_RESUME_FLAGS := \
 PLANS_COMPOSE := docker-compose.agent-native-plans.yml
 PLANS_ENV := .env.agent-native
 
-.PHONY: help sync sync-api init tripll lint typecheck test check ci-affected ci-changed partial-ci deps-audit log-redact-check pullfrog-ref-check review serve status-watch orchestrator-watch \
+.PHONY: help sync sync-api init tripll lint typecheck test check ci-steps ci-resume ci-reset ci-affected ci-changed partial-ci deps-audit log-redact-check pullfrog-ref-check review serve status-watch orchestrator-watch \
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
@@ -338,7 +338,22 @@ ci-affected: sync ## Path-aware partial gate (Python + mapped make targets); set
 
 partial-ci: ci-affected ## Alias for ci-affected (per-wave local gate)
 
-ci: check deps-audit build ## Full local gate mirrored by GitHub Actions (check + deps-audit + build)
+# Ordered expansion of the pre-merge gate (consumed by scripts/ci_resume.sh).
+# Keep in sync with check (lint … test) + deps-audit + build.
+CI_STEPS := lint typecheck log-redact-check pullfrog-ref-check about-site-check test deps-audit build
+
+ci-steps: ## Print ordered ci-resume step list (consumed by ci-resume)
+	@echo $(CI_STEPS)
+
+ci-resume: ## Resumable pre-merge gate: checkpoint passes, stop at first failure, resume on re-run
+	@chmod +x scripts/ci_resume.sh 2>/dev/null || true
+	@./scripts/ci_resume.sh
+
+ci-reset: ## Clear ci-resume checkpoint (start the gate over)
+	@chmod +x scripts/ci_resume.sh 2>/dev/null || true
+	@./scripts/ci_resume.sh --reset
+
+ci: ci-resume ## Alias for ci-resume (primary gate; full sequential ci removed)
 
 about-site: ## Regenerate the about-tripll/ help site from _sources + _templates
 	$(UV_RUN) run --extra dev python scripts/build_about_site.py

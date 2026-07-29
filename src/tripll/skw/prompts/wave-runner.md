@@ -34,7 +34,7 @@ Per-wave **commit & push** is handled by the deterministic ``commit_wave`` graph
 ## Verification
 
 - Run each **Verify** target (Makefile strings only).
-- When a wave names `make ci-resume`, prefer that over full `make ci` for integration gates.
+- When a wave names `make ci-resume`, use it for integration gates (not mid-wave).
 - Record verify evidence in checkbox annotations.
 
 <!-- INJECTED -->

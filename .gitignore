@@ -13,6 +13,7 @@ ignorelocal/
 
 # Verification / harness output
 evidence/
+.ci-progress
 
 # IDE agent config (local-only; never commit)
 .claude/

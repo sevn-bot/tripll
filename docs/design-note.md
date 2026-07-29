@@ -81,7 +81,7 @@ shipped graph-packed briefs as the default dispatch context. These boundaries re
 |-------|---------------|-------------------------------------|
 | **PR → CI fix → review fix loop** | `loops/l1_pr.py` + `dispatch_bridge.py` (W9): LangGraph investigate/fix nodes call real adapters (`ci-investigator` → `check-fixer`, review triager/fixer). Idempotent push/open via `github/pr.py`. Operator CLI: `tripll pr shepherd`, `findings sync`, `pr approve-merge`. | **Not wired into `Engine._drive` or `tripll run`.** One closed loop only (R10); no auto-merge (D15) — loop parks at the human merge gate. |
 | **L1 outer wave dispatch** | With `[graph]` installed, `Engine._drive` routes batch dispatch through `l1_outer` → `waves` → `dispatch_bridge.invoke_engine_wave_dispatch` → `Engine.drive_wave_batches` (L2-W4). Post-wave nodes **verify → commit → review → generate** run Final-batch gates, write completion manifests, audit ledger wave rows, and optionally dispatch `post-review-wave-generator` when `orchestrator.review_generate_cycle` is set. Ledger remains authoritative; checkpoints derived. | **Orchestrator serial mode bypasses the outer graph.** Generate cycle does not auto-merge (D15). |
-| **`--integrate`** | Per-batch local merge → Docs&Menu → `make ci` → one Conventional Commit on `tripll/integrate/<run-id>` (`integrate.py`). Resume-safe branch creation (no blind `checkout -B`). | **Default OFF.** Does not open GitHub PRs; delivery to remote CI/review is the separate PR phase above. |
+| **`--integrate`** | Per-batch local merge → Docs&Menu → `make ci-resume` → one Conventional Commit on `tripll/integrate/<run-id>` (`integrate.py`). Resume-safe branch creation (no blind `checkout -B`). | **Default OFF.** Does not open GitHub PRs; delivery to remote CI/review is the separate PR phase above. |
 | **Dispatch briefs** | Graph-packed brief is the **default** when the code graph is available (`engine._resolve_grep_brief`, `brief.enrich_brief_with_graph_pack`, W10/D23). Packed subgraph replaces the legacy no-exploration line. | Agents still must not run repo-wide grep, graphify, or architecture tours unless the packed context is insufficient (`brief.GRAPH_PACKED_DIRECTIVE`). Legacy grep brief: `--grep-brief` for A/B replay. |
 | **LangGraph vs ledger** | Optional `graph` extra: L1 PR loop + durable `AsyncSqliteSaver` checkpoints (`thread_id == run_id`). | **`ledger.db` remains the system of record** (§0.2, D6). Checkpoints are derived; recovery replays from the ledger. Linear DAG runs work without LangGraph. |
 
@@ -213,7 +213,7 @@ One brief is emitted per WaveNode dispatch. Fields match the `wave-runner` "Quic
   },
   "agent_directives": [
     "Leave changes staged; do not commit.",
-    "Do not run full make ci mid-wave — use make ci-affected.",
+    "Do not run make ci-resume mid-wave — use make ci-affected.",
     "Do not edit the ci: Makefile target.",
     "Do not edit forbidden_paths listed above.",
     "No src/sevn/ edits outside owned_paths."
@@ -408,7 +408,7 @@ Batch F → Upstream intel: #12 H1→H2, #12 H3∥H4
 Batch G → Remote deploy: #13 RD0→RD3
 Batch H → Hermes messaging: #14 M0→M1, #14 M2∥M3∥M4
 Batch I → Hermes features: #15 F0, #15 F1∥F2∥F3∥F4, #17 CA3→CA6
-Batch Final → make ci, make mc-e2e, parity checks, per-plan Docs&Menu sync
+Batch Final → make ci-resume, make mc-e2e, parity checks, per-plan Docs&Menu sync
 ```
 
 ---

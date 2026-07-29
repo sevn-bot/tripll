@@ -56,7 +56,7 @@ log line, and the button is dead while `inspect.iscoroutinefunction(...)` doctes
 
 ## Guardrails
 
-- **Verify-only** — never edit `src/`, `tests/`, or wave-files; no commits, no `make ci` fixes.
+- **Verify-only** — never edit `src/`, `tests/`, or wave-files; no commits, no `make ci-resume` fixes.
 - Runtime proof for operator-visible surfaces is mandatory — never substitute lint/typecheck/doctests.
 - In-repo paths are repo-root-relative. Never parent-directory refs, dot-slash refs, or a leading slash.
 - **Never** run `git clean -x` / `git clean -X`.

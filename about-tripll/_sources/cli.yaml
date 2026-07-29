@@ -15,7 +15,7 @@ body: |
     <tr><td><code>make finish-pre0 RUN=&lt;id&gt;</code></td><td>Interview + approve + resume in one step.</td></tr>
     <tr><td><code>make resume RUN=&lt;id&gt;</code></td><td>Resume a paused or failed run.</td></tr>
     <tr><td><code>make serve</code></td><td>Start the control-plane dashboard.</td></tr>
-    <tr><td><code>make check</code> / <code>make ci</code></td><td>Quality gate (lint + typecheck + test) and full local CI.</td></tr>
+    <tr><td><code>make check</code> / <code>make ci-resume</code></td><td>Quality gate (lint + typecheck + test) and resumable pre-merge CI.</td></tr>
   </table>
 
   <h2>Onboarding CLI</h2>

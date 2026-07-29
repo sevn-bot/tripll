@@ -18,7 +18,7 @@ documented evidence. Live GitHub push/merge remains manual.
 | Bootstrap helper | `tests/fixtures/delivery/bootstrap.py` |
 | Wave plan | `docs/plans/delivery-smoke-wave-plan.md` (copied into runs input set) |
 | Git branches | `main` + `test-pre` (integrate default base_ref) |
-| Gate | `make ci` (no-op pass) |
+| Gate | `make ci-resume` (no-op pass) |
 
 ## Automated tiers (CI)
 
@@ -62,7 +62,7 @@ Sample dry-run output (2026-07-28):
 [integrate] Branch  : tripll/integrate/delivery-smoke-20260728-153426 (off test-pre)
 [integrate] Batch A: Delivery Smoke
              merge   : delivery-smoke
-             gate    : make ci
+             gate    : make ci-resume
 [deliver] push      : idempotency_key=push:delivery-smoke-20260728-153426
 [deliver] open_pr   : idempotency_key=open_pr:delivery-smoke-20260728-153426
 [deliver] merge     : human gate — tripll pr approve-merge (never auto-merge)
@@ -101,4 +101,4 @@ and deliver phases.
 
 - `make lint` / `make typecheck`
 - `pytest tests/test_delivery_live_fixture.py tests/test_delivery_e2e.py tests/test_pr_loop.py`
-- `make ci`
+- `make ci-resume`

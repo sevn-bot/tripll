@@ -104,7 +104,7 @@ def build_graph_from_v3_plan(path: Path, *, run_id: str) -> RunGraph:
                 label=label,
                 lanes=[plan_id] if bs.wave_ids else [],
                 is_human_gate=bs.human_gate,
-                gate_commands=["make ci"] if bs.batch_id == "Final" else [],
+                gate_commands=["make ci-resume"] if bs.batch_id == "Final" else [],
                 cw_seams=cw,
                 merge_order=[plan_id] if bs.wave_ids else [],
                 wave_ids=list(bs.wave_ids),

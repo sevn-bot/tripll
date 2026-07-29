@@ -21,8 +21,8 @@ jobs:
       - name: Bootstrap (uv + sync)
         uses: ./.github/actions/bootstrap
 
-      - name: Run full gate
-        run: make ci
+      - name: Run resumable gate
+        run: make ci-resume
 
   bench:
     name: Brief-packing benchmark

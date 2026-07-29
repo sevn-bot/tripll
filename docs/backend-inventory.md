@@ -237,7 +237,7 @@ class AgentAdapter(Protocol):
 | Worktree support | `--add-dir` | `--workspace` | branch model |
 | Default in tripll | ✅ yes | ❌ capability-gated | ❌ `[cloud]` extra |
 | Commit during run | NEVER | NEVER | NEVER |
-| `make ci` during run | NEVER (only `ci-affected` / `ci-changed`) | NEVER | NEVER |
+| `make ci-resume` during run | NEVER (only `ci-affected` / `ci-changed`) | NEVER | NEVER |
 
 ---
 

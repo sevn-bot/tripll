@@ -318,7 +318,7 @@ def generate_manifest(
         if batch_id == "Pre-0":
             out.append("Phase Pre-0 — HUMAN GATE\n")
         elif batch_id == "Final":
-            out.append("Phase Final — make ci\n")
+            out.append("Phase Final — make ci-resume\n")
         else:
             out.append(f"Phase {batch_id} — {', '.join(names) or '(empty)'}\n")
     out.append("```\n\n---\n\n")

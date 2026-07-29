@@ -3,7 +3,7 @@
 ``make ci-changed`` runs ruff and mypy on changed files plus scoped pytest on
 files changed vs ``TRIPLL_CI_BASE`` (default ``origin/main``). Prefer
 ``make ci-affected`` when non-Python paths may have changed. Not a merge gate —
-use ``make ci``.
+use ``make ci-resume``.
 
 Module: scripts.ci_changed
 Depends: scripts.ci_lib
