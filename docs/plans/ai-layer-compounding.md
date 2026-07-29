@@ -23,12 +23,12 @@
 | **Stage** | Baseline recorded; anchors re-grepped at `a4fbd0d`; ADRs 014–017 pinned; contract at `docs/plans/ai-layer-compounding.md` |
 | **Next action** | Dispatch **W1** via `test-creator` — RED suite + `docs/test-plans/ai-layer-compounding.md` |
 | **Blocked on** | — |
-| **Last pushed sha** | `f05f8e9` |
-| **Last CI run id** | *(after W0 push)* |
+| **Last pushed sha** | `2d85526` |
+| **Last CI run id** | *(CI not yet reported for branch — docs-only W0)* |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `refactor/mergecraft-replace-pullfrog` (`a4fbd0d`); `main` at `9a3f19d`, **26 commits behind**, not merged |
-| **Plan sha256** | `7fde40f9198135a752671369a8d2b3958d226e1724eddc11e67532e1bfe5a90f` | |
-| **Contract sha256 (W0 pin)** | `7fde40f9198135a752671369a8d2b3958d226e1724eddc11e67532e1bfe5a90f` | |
+| **Plan sha256** | `119d3ff2d95cef77bbab5f387cdfd75f79751ca978f95f5220afaa42dc642b51` |
+| **Contract sha256 (W0 pin)** | `119d3ff2d95cef77bbab5f387cdfd75f79751ca978f95f5220afaa42dc642b51` |
 
 ---
 
