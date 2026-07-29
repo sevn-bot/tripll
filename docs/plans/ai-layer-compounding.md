@@ -23,12 +23,12 @@
 | **Stage** | Baseline recorded; anchors re-grepped at `a4fbd0d`; ADRs 014–017 pinned; contract at `docs/plans/ai-layer-compounding.md` |
 | **Next action** | Dispatch **W1** via `test-creator` — RED suite + `docs/test-plans/ai-layer-compounding.md` |
 | **Blocked on** | — |
-| **Last pushed sha** | `2d85526` |
+| **Last pushed sha** | `49e1197` |
 | **Last CI run id** | *(CI not yet reported for branch — docs-only W0)* |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `refactor/mergecraft-replace-pullfrog` (`a4fbd0d`); `main` at `9a3f19d`, **26 commits behind**, not merged |
-| **Plan sha256** | `119d3ff2d95cef77bbab5f387cdfd75f79751ca978f95f5220afaa42dc642b51` |
-| **Contract sha256 (W0 pin)** | `119d3ff2d95cef77bbab5f387cdfd75f79751ca978f95f5220afaa42dc642b51` |
+| **Plan sha256** | `e509254dff336da76e16be4ab2427d151c4c8cb064feded65bd036bec1f61397` |
+| **Contract sha256 (W0 pin)** | `e509254dff336da76e16be4ab2427d151c4c8cb064feded65bd036bec1f61397` |
 
 ---
 
@@ -738,7 +738,7 @@ into the commit body. 3. Stage the CHANGELOG bullet when `src/` is touched. 4. U
 
 | Wave | Provider / model | Scope | Findings | Status |
 |------|------------------|-------|----------|--------|
-| W0 | `cursor_local` claude-opus-5 | Baseline, anchor re-grep, ADRs 014–017, contract pin, compile the machine block | — | [x] (2026-07-29 ✅: f05f8e9 — 4 ADRs, validate-plan exit 0, issues #53–#55) |
+| W0 | `cursor_local` claude-opus-5 | Baseline, anchor re-grep, ADRs 014–017, contract pin, compile the machine block | — | [x] (2026-07-29 ✅: 49e1197 — 4 ADRs, validate-plan exit 0, issues #53–#55) |
 | W1 | `cursor_local` auto | RED suite (tier-tagged) + `docs/test-plans/ai-layer-compounding.md` — `role: test-author` | all | [ ] |
 | W2 | `cursor_local` auto | **Derived rules + context modules**: `tripll rules derive`, origin validator, scoped brief packing | CTX-01, CTX-02, CTX-03 | [ ] |
 | W3 | `cursor_local` auto | **Bug-to-rule loop**: `Rule` node kind, wave postmortem, operator promotion | RULE-01, RULE-02, RULE-03 | [ ] |
@@ -817,7 +817,7 @@ docs describing the others. The honest parallel width is ~1.5 waves; it is not w
       **fix this plan**, not the compiler.
       (2026-07-29 ✅: validate-plan exit 0)
 - [x] **W0.7** **Commit + push** (`docs(plan): baseline and ADRs for AI-layer compounding`).
-      (2026-07-29 ✅: f05f8e9 pushed)
+      (2026-07-29 ✅: 49e1197 pushed — W0 close-out commits f05f8e9…49e1197)
 
 **Acceptance:**
 
