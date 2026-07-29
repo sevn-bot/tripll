@@ -1595,6 +1595,83 @@ def rules_derive(
         typer.echo(f"  skipped: {', '.join(result.skipped)}")
 
 
+@rules_app.command("list")
+def rules_list(
+    state: Annotated[
+        str | None,
+        typer.Option("--state", help="Filter by lifecycle state (proposed, active, retired)."),
+    ] = None,
+    repo_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repo-root",
+            help="Repository root (default: resolved git root or CWD).",
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = None,
+) -> None:
+    """List rules from ``.tripll/rules/`` (operator visibility; proposed rules do not pack)."""
+    from tripll.rules.store import RuleStore
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    store = RuleStore(root)
+    rules = store.list_rules(state=state)
+    if not rules:
+        typer.echo(
+            f"No rules found under {store.rules_path}" + (f" (state={state})" if state else "")
+        )
+        return
+    for rule in rules:
+        typer.echo(f"{rule.rule_id}\t{rule.state}\t{rule.origin}")
+
+
+@rules_app.command("promote")
+def rules_promote(
+    rule_id: Annotated[str, typer.Argument(help="Rule slug to activate (operator-only, R27).")],
+    repo_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repo-root",
+            help="Repository root (default: resolved git root or CWD).",
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = None,
+) -> None:
+    """Promote a proposed rule to active (operator-only — no agent path, R27)."""
+    from tripll.rules.promote import promote_rule
+    from tripll.rules.store import RuleStore
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    store = RuleStore(root)
+    active = promote_rule(rule_id, store=store)
+    typer.echo(f"promoted {active.rule_id} → {active.state}")
+
+
+@rules_app.command("retire")
+def rules_retire(
+    rule_id: Annotated[str, typer.Argument(help="Rule slug to retire.")],
+    repo_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repo-root",
+            help="Repository root (default: resolved git root or CWD).",
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = None,
+) -> None:
+    """Retire an active or proposed rule (operator-only)."""
+    from tripll.rules.promote import retire_rule
+    from tripll.rules.store import RuleStore
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    store = RuleStore(root)
+    retired = retire_rule(rule_id, store=store)
+    typer.echo(f"retired {retired.rule_id} → {retired.state}")
+
+
 @graph_app.command("query")
 def graph_query(
     seed: Annotated[

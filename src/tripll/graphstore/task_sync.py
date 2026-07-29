@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from tripll.graphstore import EdgeInput, NodeInput, SqliteGraphStore
+from tripll.graphstore import EdgeInput, GraphStore, NodeInput, SqliteGraphStore
 
 if TYPE_CHECKING:
     from tripll.graph import RunGraph
@@ -312,3 +312,74 @@ class TaskGraphWriter:
                 )
         self._store.upsert_nodes(nodes)
         self._store.upsert_edges(edges)
+
+
+def sync_rule_to_store(
+    rule: Any,
+    *,
+    store: GraphStore | str,
+    repo: str,
+    finding: dict[str, Any] | None = None,
+) -> str:
+    """Upsert a repo-scoped Rule node and optional Finding edges (W3.1, R26).
+
+    Args:
+        rule: :class:`tripll.rules.model.Rule` instance.
+        store (GraphStore | str): Graph store or SQLite path.
+        repo (str): Repository slug for natural key ``{repo}#{rule_id}``.
+        finding (dict[str, Any] | None): Source finding for ``PROMOTED_FROM`` / ``PREVENTS``.
+
+    Returns:
+        str: Graph node id ``finding:Rule:{repo}#{rule_id}``.
+    """
+    from tripll.rules.model import Rule
+
+    if not isinstance(rule, Rule):
+        msg = f"sync_rule_to_store expected Rule, got {type(rule).__name__}"
+        raise TypeError(msg)
+
+    graph = store if isinstance(store, SqliteGraphStore) else SqliteGraphStore(str(store))
+    natural_key = f"{repo}#{rule.rule_id}"
+    node_id = f"finding:Rule:{natural_key}"
+    base = _prov(source="rules.promote", evidence=f"rule:{rule.rule_id}")
+    props = {
+        "rule_id": rule.rule_id,
+        "state": rule.state,
+        "origin": rule.origin,
+        "scope": rule.scope,
+        "executable": rule.executable,
+        "severity": rule.severity,
+    }
+    graph.upsert_nodes(
+        [
+            NodeInput(
+                node_id=node_id,
+                layer="finding",
+                kind="Rule",
+                natural_key=natural_key,
+                repo=repo,
+                props=json.dumps(props),
+                **base,
+            )
+        ]
+    )
+
+    if finding is not None:
+        run_id = str(finding.get("run_id") or "local")
+        finding_id = str(finding.get("finding_id") or "")
+        if finding_id:
+            finding_nid = f"finding:Finding:{run_id}#{finding_id}"
+            edges: list[EdgeInput] = []
+            for predicate in ("PREVENTS", "PROMOTED_FROM"):
+                edges.append(
+                    EdgeInput(
+                        edge_id=f"{predicate.lower()}:{node_id}:{finding_nid}",
+                        predicate=predicate,
+                        src=node_id,
+                        dst=finding_nid,
+                        **base,
+                    )
+                )
+            graph.upsert_edges(edges)
+
+    return node_id

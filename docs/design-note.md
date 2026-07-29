@@ -21,7 +21,7 @@ derived — recovery replays from the ledger.
 |-------|----------|-------|
 | `code` | Modules, symbols, tests, specs, requirements, CI checks | `.tripll/graph.db` |
 | `task` | Plans, waves, attempts, gates, PRs, env fingerprints | same DB + ledger |
-| `finding` | CI failures, review comments, verifier outcomes | same DB |
+| `finding` | CI failures, review comments, verifier outcomes, **Rules** (repo-scoped) | same DB |
 
 Ontology: `src/tripll/ontology/ontology.yaml`. Docs: [`docs/ontology.md`](ontology.md),
 [`docs/graph-serving.md`](graph-serving.md), [`docs/harness-checks.md`](harness-checks.md).
