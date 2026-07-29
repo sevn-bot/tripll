@@ -1196,6 +1196,13 @@ def run_inject(
         bool,
         typer.Option("--dry-run", help="Validate and write inject plan only; no ledger write."),
     ] = False,
+    force_after_drain: Annotated[
+        bool,
+        typer.Option(
+            "--force-after-drain",
+            help="Allow inject when pause marker present but waves still in-flight.",
+        ),
+    ] = False,
     runs_root: RunsRootOpt = None,
 ) -> None:
     """Inject a one-shot hotfix into a paused run (L2-W5a).
@@ -1238,6 +1245,7 @@ def run_inject(
             model=model,
             agent=agent,
             cost_budget_usd=_cost_budget_usd(),
+            force_after_drain=force_after_drain,
             dry_run=dry_run,
             repo_root=resolve_repo_root(),
         )
@@ -1263,6 +1271,13 @@ def run_reconcile_graph(
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", help="Validate only; no ledger or graph.json write."),
+    ] = False,
+    force_after_drain: Annotated[
+        bool,
+        typer.Option(
+            "--force-after-drain",
+            help="Allow reconcile when pause marker present but waves still in-flight.",
+        ),
     ] = False,
     runs_root: RunsRootOpt = None,
 ) -> None:
@@ -1291,6 +1306,7 @@ def run_reconcile_graph(
                 lc=lc,
                 dry_run=dry_run,
                 require_pause=True,
+                force_after_drain=force_after_drain,
                 source="cli",
             )
     except InjectError as exc:

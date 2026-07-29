@@ -208,6 +208,20 @@
       return;
     }
 
+    if (
+      data.phase === "inject_requested" ||
+      data.phase === "inject_applied" ||
+      data.phase === "inject_rejected" ||
+      data.phase === "reconcile_inserted" ||
+      data.phase === "graph_reconciled"
+    ) {
+      appendTimelineRow(data);
+      if (data.phase === "inject_applied" || data.phase === "reconcile_inserted") {
+        refreshWavesTable();
+      }
+      return;
+    }
+
     updateWaveRow(data);
     appendTimelineRow(data);
   };

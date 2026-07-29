@@ -448,6 +448,24 @@ def test_run_detail_includes_inject_panel(client: TestClient, tmp_rr: RunsRoot) 
     assert "inject-after" in r.text
 
 
+def test_run_detail_hotfix_badge(client: TestClient, tmp_rr: RunsRoot) -> None:
+    """Waves table shows hotfix badge for plan_id=hotfix rows (L2-W5c)."""
+    run_dir = _seed_run(tmp_rr, "run-hotfix-badge", nodes=["demo:all-waves"])
+    with open_ledger(run_dir / "ledger.db") as lc:
+        insert_wave(
+            lc,
+            node_id="hotfix:HF-1",
+            run_id="run-hotfix-badge",
+            plan_id="hotfix",
+            wave_id="HF-1",
+            lane="hotfix",
+        )
+    r = client.get("/runs/run-hotfix-badge")
+    assert r.status_code == 200
+    assert "hotfix:HF-1" in r.text
+    assert "hotfix-badge" in r.text
+
+
 # ---------------------------------------------------------------------------
 # 11. W4 fragment routes (batch timeline, report)
 # ---------------------------------------------------------------------------

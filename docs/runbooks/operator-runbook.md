@@ -240,10 +240,14 @@ events under `processing/<run-id>/injects/`.
 
 - Run detail page includes an **Inject hotfix** panel (pause first; form posts with CSRF).
 - `POST /api/runs/{id}/inject` — JSON body: `brief`, `owned_paths`, `after`, optional
-  `verify_target`, `dry_run`; returns 202 with `task_id` / `node_id`.
+  `verify_target`, `dry_run`, `force_after_drain`; returns 202 with `task_id` / `node_id`.
+- `POST /api/runs/{id}/reconcile-graph` — JSON body: optional `dry_run`,
+  `force_after_drain`; returns 202 with `inserted` / `orphans` node ids (Mode B plan edit).
 - `GET /api/runs/{id}/injects` — lists inject artefacts and ledger events
   (`inject_requested`, `inject_applied`, `reconcile_inserted`, etc.).
 - Returns **409** when `inject.lock` is held (shared with CLI reconcile).
+- Dashboard SSE timeline shows inject/reconcile events; waves table labels
+  `plan_id=hotfix` rows with a **hotfix** badge after inject.
 
 See `ignorelocal/live-injection-design.md` for the full design.
 

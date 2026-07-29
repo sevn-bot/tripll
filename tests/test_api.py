@@ -7,6 +7,7 @@ Covers:
 - GET /api/runs/{id} — 404 on missing; detail on seeded run.
 - POST /api/runs/{id}/pause — writes pause marker; 404 on missing run.
 - POST /api/runs/{id}/inject — hotfix inject; 409 on lock; auth required.
+- POST /api/runs/{id}/reconcile-graph — plan-edit reconcile; 409 on lock.
 - GET /api/runs/{id}/injects — list inject artefacts and ledger events.
 - POST /api/runs/{id}/approve and /resume — spawn stub (mocked).
 - GET /api/runs/{id}/waves — returns all wave rows.
@@ -477,6 +478,49 @@ def test_list_injects(
     assert body["lock_held"] is False
     assert isinstance(body["artefacts"], list)
     assert isinstance(body["events"], list)
+
+
+_RECONCILE_EXTRA_PLAN = """# Extra
+
+## Files in scope
+
+| Subsystem | Paths |
+|--|--|
+| Extra | `src/extra/` |
+"""
+
+
+def test_reconcile_graph_api_dry_run(
+    client,
+    tmp_rr: RunsRoot,
+    inject_repo_root: None,
+) -> None:  # type: ignore[no-untyped-def]
+    """POST /api/runs/{id}/reconcile-graph validates plan edits (dry-run)."""
+    run_dir = _seed_inject_ready_run(tmp_rr, "run-reconcile-api")
+    (run_dir / "extra-wave-plan.md").write_text(_RECONCILE_EXTRA_PLAN, encoding="utf-8")
+    r = client.post(
+        "/api/runs/run-reconcile-api/reconcile-graph",
+        json={"dry_run": True},
+    )
+    assert r.status_code == 202
+    body = r.json()
+    assert body["run_id"] == "run-reconcile-api"
+    assert body["dry_run"] is True
+    assert len(body["inserted"]) == 1
+    assert "extra" in body["inserted"][0]
+
+
+def test_reconcile_graph_api_409_when_lock_held(
+    client,
+    tmp_rr: RunsRoot,
+    inject_repo_root: None,
+) -> None:  # type: ignore[no-untyped-def]
+    """POST /api/runs/{id}/reconcile-graph returns 409 when inject.lock is held."""
+    run_dir = _seed_inject_ready_run(tmp_rr, "run-reconcile-lock")
+    (run_dir / "inject.lock").write_text("held\n", encoding="utf-8")
+    r = client.post("/api/runs/run-reconcile-lock/reconcile-graph", json={"dry_run": True})
+    assert r.status_code == 409
+    assert "inject.lock" in r.json()["detail"]
 
 
 def test_inject_api_requires_auth(

@@ -57,6 +57,7 @@ from tripll.api._inject import (
     list_run_injects,
     parse_owned_paths,
     run_hotfix_inject,
+    run_reconcile_graph,
 )
 from tripll.api._runs import (
     RunDetail,
@@ -291,6 +292,7 @@ class InjectIn(BaseModel):
     model: str | None = None
     agent: str | None = None
     dry_run: bool = False
+    force_after_drain: bool = False
 
 
 class InjectOut(BaseModel):
@@ -300,6 +302,23 @@ class InjectOut(BaseModel):
     node_id: str
     run_id: str
     dry_run: bool
+    message: str
+
+
+class ReconcileIn(BaseModel):
+    """Request body for POST /api/runs/{id}/reconcile-graph."""
+
+    dry_run: bool = False
+    force_after_drain: bool = False
+
+
+class ReconcileOut(BaseModel):
+    """Response body for a successful graph↔ledger reconcile."""
+
+    run_id: str
+    dry_run: bool
+    inserted: list[str]
+    orphans: list[str]
     message: str
 
 
@@ -985,6 +1004,7 @@ def create_app(
                 dry_run=data.dry_run,
                 injected_by="api",
                 cost_budget_usd=_read_config().cost_budget_usd,
+                force_after_drain=data.force_after_drain,
             )
         except InjectError as exc:
             raise HTTPException(
@@ -1014,6 +1034,48 @@ def create_app(
         if rr.find_run_dir(run_id) is None:
             raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
         return list_run_injects(rr, run_id)
+
+    @app.post(
+        "/api/runs/{run_id}/reconcile-graph",
+        response_model=ReconcileOut,
+        status_code=202,
+        tags=["runs"],
+    )
+    async def reconcile_run_graph_api(
+        run_id: str,
+        data: ReconcileIn,
+        _auth: None = Depends(require_auth),
+    ) -> ReconcileOut:
+        """Reconcile parsed plan files with ledger waves (same logic as CLI reconcile)."""
+        rr: RunsRoot = app.state.runs_root
+        if rr.find_run_dir(run_id) is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+        try:
+            result = run_reconcile_graph(
+                rr,
+                run_id,
+                dry_run=data.dry_run,
+                force_after_drain=data.force_after_drain,
+            )
+        except InjectError as exc:
+            raise HTTPException(
+                status_code=inject_error_to_status(exc),
+                detail=str(exc),
+            ) from exc
+        inserted = list(result.inserted)
+        orphans = list(result.orphans)
+        msg = (
+            f"[dry-run] Reconcile valid — would insert {inserted} orphan {orphans}"
+            if data.dry_run
+            else f"Reconcile applied: inserted {inserted}"
+        )
+        return ReconcileOut(
+            run_id=run_id,
+            dry_run=data.dry_run,
+            inserted=inserted,
+            orphans=orphans,
+            message=msg,
+        )
 
     # ---------------------------------------------------------------------------
     # Waves
