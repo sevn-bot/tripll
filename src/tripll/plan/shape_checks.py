@@ -196,6 +196,7 @@ def compile_plan(
     repo_root: Path | None = None,
     graph_db: Path | str | None = None,
     repo: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     """Run fake-edge cleanup, stop-rule, and one-writer checks on a plan dict."""
     waves = plan.get("waves") or []
@@ -234,6 +235,22 @@ def compile_plan(
         "dropped": report.dropped,
         "parallelised_waves": report.parallelised_waves,
     }
+    from tripll.calibrate.predict import build_wave_predictions
+
+    cleaned["_calibration"] = build_wave_predictions(
+        cleaned,
+        repo_root=repo_root,
+        graph_db=graph_db,
+        repo=repo,
+    )
+    if run_id and graph_db is not None:
+        from tripll.graphstore.task_sync import sync_calibration_experiment
+
+        sync_calibration_experiment(
+            store=str(graph_db),
+            run_id=run_id,
+            calibration=cleaned["_calibration"],
+        )
     return cleaned
 
 

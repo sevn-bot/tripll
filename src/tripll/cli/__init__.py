@@ -1672,6 +1672,19 @@ def rules_retire(
     typer.echo(f"retired {retired.rule_id} → {retired.state}")
 
 
+@app.command("calibrate")
+def calibrate_cmd(
+    run_id: Annotated[str, typer.Option("--run", help="Run id to score against the ledger.")],
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Score predicted first-pass probability against ledger attempts (W5, R28 advisory)."""
+    from tripll.calibrate.score import calibrate_run, format_calibration_report
+
+    rr = _resolve_runs_root(runs_root)
+    report = calibrate_run(run_id=run_id, runs_root=rr.root, write_realized=True)
+    typer.echo(format_calibration_report(report), nl=False)
+
+
 @graph_app.command("query")
 def graph_query(
     seed: Annotated[

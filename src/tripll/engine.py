@@ -843,6 +843,15 @@ class Engine:
         finally:
             task_writer.close()
 
+        from tripll.calibrate.sync import sync_run_calibration_metadata
+
+        sync_run_calibration_metadata(
+            run_id=run_id,
+            run_dir=run_dir,
+            graph_db_path=graph_db,
+            repo_root=self.repo_root,
+        )
+
         with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
             insert_run(
                 lc,

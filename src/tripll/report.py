@@ -93,6 +93,7 @@ def build_report(
     updated_at: str | None = None,
     cost_usd: float | None = None,
     orchestrator_section: str = "",
+    calibration_section: str = "",
 ) -> str:
     """Build the ``report.md`` body for a run.
 
@@ -106,6 +107,7 @@ def build_report(
         pre0_approved (bool): Whether the Pre-0 marker exists.
         updated_at (str | None): Human-readable last-update timestamp.
         orchestrator_section (str): Pre-rendered ``## Orchestrator`` block (W3).
+        calibration_section (str): Pre-rendered ``## Calibration`` block (W5).
 
     Returns:
         str: Markdown report text.
@@ -205,6 +207,33 @@ def build_report(
     if orchestrator_section:
         lines += ["", orchestrator_section.rstrip(), ""]
 
+    if calibration_section:
+        lines += ["", calibration_section.rstrip(), ""]
+
+    return "\n".join(lines) + "\n"
+
+
+def _calibration_section(run_dir: Path, runs_root: Path) -> str:
+    """Build ``## Calibration`` block when ledger data exists (W5.5)."""
+    ledger_path = run_dir / "ledger.db"
+    if not ledger_path.is_file():
+        return ""
+    try:
+        from tripll.calibrate.score import calibrate_run, format_calibration_report
+
+        report = calibrate_run(
+            run_id=run_dir.name,
+            runs_root=runs_root,
+            write_realized=False,
+        )
+    except (FileNotFoundError, OSError, ValueError):
+        return ""
+    if not report.rows:
+        return ""
+    body = format_calibration_report(report)
+    lines = body.splitlines()
+    if lines and lines[0].startswith("Calibration —"):
+        lines[0] = "## Calibration"
     return "\n".join(lines) + "\n"
 
 
@@ -221,6 +250,7 @@ def write_report(
     updated_at: str | None = None,
     cost_usd: float | None = None,
     orchestrator_section: str = "",
+    calibration_section: str = "",
 ) -> Path:
     """Write ``report.md`` into *run_dir* and return its path.
 
@@ -248,6 +278,7 @@ def write_report(
             updated_at=updated_at,
             cost_usd=cost_usd,
             orchestrator_section=orchestrator_section,
+            calibration_section=calibration_section,
         )
     )
     return path
@@ -306,6 +337,7 @@ def sync_report(
 
     updated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     orch_section = _orchestrator_section(run_dir)
+    cal_section = _calibration_section(run_dir, run_dir.parent.parent)
     return write_report(
         run_dir,
         graph,
@@ -318,4 +350,5 @@ def sync_report(
         updated_at=updated_at,
         cost_usd=run_row.cost_usd,
         orchestrator_section=orch_section,
+        calibration_section=cal_section,
     )

@@ -383,3 +383,101 @@ def sync_rule_to_store(
             graph.upsert_edges(edges)
 
     return node_id
+
+
+def sync_calibration_experiment(
+    *,
+    store: GraphStore | str,
+    run_id: str,
+    calibration: dict[str, Any],
+) -> None:
+    """Write Hypothesis, Experiment, and PREDICTED Metric nodes for a run (W5.2).
+
+    Args:
+        store (GraphStore | str): Graph store or SQLite path.
+        run_id (str): Run identifier.
+        calibration (dict[str, Any]): Output of :func:`tripll.calibrate.predict.build_wave_predictions`.
+    """
+    graph = store if isinstance(store, SqliteGraphStore) else SqliteGraphStore(str(store))
+    version = str(calibration.get("predictor_version") or "linear-v1")
+    base = _prov(source="calibrate", evidence=f"run:{run_id}")
+
+    hypothesis_key = f"{run_id}#first-pass"
+    hypothesis_id = f"finding:Hypothesis:{hypothesis_key}"
+    experiment_key = f"{run_id}#calibration"
+    experiment_id = f"finding:Experiment:{experiment_key}"
+
+    nodes: list[NodeInput] = [
+        NodeInput(
+            node_id=hypothesis_id,
+            layer="finding",
+            kind="Hypothesis",
+            natural_key=hypothesis_key,
+            repo=None,
+            props=json.dumps(
+                {
+                    "statement": "Each wave passes on the first dispatch attempt.",
+                    "run_id": run_id,
+                }
+            ),
+            **base,
+        ),
+        NodeInput(
+            node_id=experiment_id,
+            layer="finding",
+            kind="Experiment",
+            natural_key=experiment_key,
+            repo=None,
+            props=json.dumps(
+                {
+                    "run_id": run_id,
+                    "predictor_version": version,
+                }
+            ),
+            **base,
+        ),
+    ]
+    edges: list[EdgeInput] = []
+
+    for wave_id, payload in (calibration.get("waves") or {}).items():
+        if not isinstance(payload, dict):
+            continue
+        probability = payload.get("first_pass_probability")
+        if probability is None:
+            continue
+        metric_key = f"{run_id}#{wave_id}#first_pass_probability#{version}"
+        metric_id = f"finding:Metric:{metric_key}"
+        nodes.append(
+            NodeInput(
+                node_id=metric_id,
+                layer="finding",
+                kind="Metric",
+                natural_key=metric_key,
+                repo=None,
+                props=json.dumps(
+                    {
+                        "name": "first_pass_probability",
+                        "version": version,
+                        "value": float(probability),
+                        "wave_id": wave_id,
+                        "node_id": payload.get("node_id"),
+                        "run_id": run_id,
+                    }
+                ),
+                **base,
+            )
+        )
+        edges.append(
+            EdgeInput(
+                edge_id=f"predicted:{experiment_id}:{metric_id}",
+                predicate="PREDICTED",
+                src=experiment_id,
+                dst=metric_id,
+                **base,
+            )
+        )
+
+    if nodes:
+        graph.upsert_nodes(nodes)
+    if edges:
+        graph.upsert_edges(edges)

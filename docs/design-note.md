@@ -61,6 +61,15 @@ Per run: attempts-to-green, first-attempt pass rate, escalations, **exit fired**
 ``exit_fired`` ledger events), findings by kind,
 stale-finding rate, human gate wait, total cost, graph-brief vs grep-brief (D23).
 
+**Calibration loop (W5, R28 advisory).** At compile time, ``compile_plan`` emits a
+``first_pass_probability`` Metric per wave under an ``Experiment`` node
+(``Hypothesis`` → ``Experiment`` → ``PREDICTED`` / ``REALIZED`` in the finding layer).
+After the run, ``tripll calibrate --run <id>`` reads ``ledger.attempts``, writes REALIZED
+``attempts_to_green`` and ``first_attempt_pass_rate`` Metrics, and reports a Brier score per
+predictor version — or **uncalibrated** when fewer than three prior runs exist. Predictions are
+scored and surfaced in ``report.md``; they never change routing, model selection, attempt budget,
+or gate behaviour.
+
 ### 0.5 Migration (§13)
 
 1. Ledger unchanged — task layer written **alongside**, not instead.
