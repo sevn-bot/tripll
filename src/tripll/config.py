@@ -32,6 +32,7 @@ __all__ = [
     "ProviderConfig",
     "RepoConfig",
     "ReviewConfig",
+    "RulesConfig",
     "TripllConfig",
     "load_config",
     "merge_model_table",
@@ -72,6 +73,14 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
             "model": "anthropic/claude-sonnet",
         },
     },
+    "rules": {
+        "enabled": True,
+        "dir": ".tripll/rules",
+        "context_dir": ".tripll/context",
+        "auto_propose": True,
+        "pack_budget_tokens": 1200,
+        "executable": "ast-grep",
+    },
 }
 
 
@@ -86,6 +95,27 @@ class ProviderConfig:
 
     max_parallel: int = 3
     default_model: str = "auto"
+
+
+@dataclass(frozen=True, slots=True)
+class RulesConfig:
+    """Derived rules and context-module settings ([rules] table).
+
+    Args:
+        enabled (bool): When False, derive and brief packing are no-ops.
+        dir (str): Rendered rule files directory (committed).
+        context_dir (str): On-demand context modules directory (committed).
+        auto_propose (bool): Findings may propose rules; operator activates (R27).
+        pack_budget_tokens (int): Token ceiling for rules+context in one brief.
+        executable (str): Executable backend (``off`` | ``ast-grep``); W4 implements.
+    """
+
+    enabled: bool = True
+    dir: str = ".tripll/rules"
+    context_dir: str = ".tripll/context"
+    auto_propose: bool = True
+    pack_budget_tokens: int = 1200
+    executable: str = "ast-grep"
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +159,7 @@ class TripllConfig:
         providers (dict[str, ProviderConfig]): Per-backend settings.
         tracing (TracingConfig): Tracing block (plan + env applied).
         repo (RepoConfig): Repo layout settings.
+        rules (RulesConfig): Derived rules and context-module settings.
         review (ReviewConfig): mergeCraft review posture and CI inputs.
         sources (ConfigSources): Provenance for diagnostics.
         raw (dict[str, Any]): Merged TOML tables before dataclass coercion.
@@ -138,6 +169,7 @@ class TripllConfig:
     providers: dict[str, ProviderConfig]
     tracing: TracingConfig
     repo: RepoConfig
+    rules: RulesConfig
     review: ReviewConfig
     sources: ConfigSources
     raw: dict[str, Any] = field(default_factory=dict)
@@ -245,6 +277,23 @@ def _coerce_repo(raw: dict[str, Any]) -> RepoConfig:
     )
 
 
+def _coerce_rules(raw: dict[str, Any]) -> RulesConfig:
+    defaults = _BUILTIN_DEFAULTS["rules"]
+    rules_raw = raw.get("rules")
+    row: dict[str, Any] = rules_raw if isinstance(rules_raw, dict) else {}
+    enabled = row.get("enabled", defaults["enabled"])
+    auto_propose = row.get("auto_propose", defaults["auto_propose"])
+    pack_budget = row.get("pack_budget_tokens", defaults["pack_budget_tokens"])
+    return RulesConfig(
+        enabled=bool(enabled),
+        dir=str(row.get("dir") or defaults["dir"]),
+        context_dir=str(row.get("context_dir") or defaults["context_dir"]),
+        auto_propose=bool(auto_propose),
+        pack_budget_tokens=int(pack_budget),
+        executable=str(row.get("executable") or defaults["executable"]),
+    )
+
+
 def _apply_env_overrides(raw: dict[str, Any]) -> tuple[dict[str, Any], LayerName | None]:
     """Apply ``TRIPLL_*`` env overrides (highest precedence).
 
@@ -346,6 +395,7 @@ def load_config(*, repo_root: Path | None = None) -> TripllConfig:
         providers=_coerce_providers(merged),
         tracing=tracing,
         repo=_coerce_repo(merged),
+        rules=_coerce_rules(merged),
         review=review_config_from_raw(review_raw if isinstance(review_raw, dict) else None),
         sources=sources,
         raw=merged,

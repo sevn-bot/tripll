@@ -257,6 +257,7 @@ def _render_markdown(report: EvaluationReport) -> str:
         "tripll init",
         "  ├─ detect layout → tripll.toml",
         "  ├─ emit docs/specs, docs/prds, docs/plans (v3)",
+        "  ├─ derive rules → .tripll/rules, .tripll/context",
         "  ├─ graph extract → .tripll/graph.db",
         "  └─ write this evaluation",
         "```",
@@ -302,8 +303,9 @@ def _render_markdown(report: EvaluationReport) -> str:
             "## 4. Suggested next passes",
             "",
             "1. Review the scaffolded spec and PRD under `docs/specs/` and `docs/prds/`.",
-            "2. Fill the v3 wave plan under `docs/plans/` and run `tripll validate-plan`.",
-            "3. Run `tripll doctor` and `tripll setup` on the operator machine if providers are missing.",
+            "2. Review derived rules under `.tripll/rules/` and context modules under `.tripll/context/`.",
+            "3. Fill the v3 wave plan under `docs/plans/` and run `tripll validate-plan`.",
+            "4. Run `tripll doctor` and `tripll setup` on the operator machine if providers are missing.",
             "",
         ]
     )

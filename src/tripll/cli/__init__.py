@@ -1173,6 +1173,13 @@ findings_app = typer.Typer(
 )
 app.add_typer(findings_app, name="findings")
 
+rules_app = typer.Typer(
+    name="rules",
+    help="Derived rules and on-demand context modules (W2).",
+    no_args_is_help=True,
+)
+app.add_typer(rules_app, name="rules")
+
 review_app = typer.Typer(
     name="review",
     help="mergeCraft review wrappers (diff / watch / init) — external tool via uv.",
@@ -1558,6 +1565,34 @@ def findings_export_learnings(
     path = export_learnings(rows, path=learnings)
     rejected = sum(1 for r in rows if r.get("state") == "rejected")
     typer.echo(f"exported {rejected} rejected finding(s) → {path}")
+
+
+@rules_app.command("derive")
+def rules_derive(
+    repo_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repo-root",
+            help="Repository root (default: resolved git root or CWD).",
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing rule/context markdown."),
+    ] = False,
+) -> None:
+    """Derive cited rules and context modules from evaluation findings (CTX-01, R32)."""
+    from tripll.rules.derive import derive_rules
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    result = derive_rules(root, force=force)
+    typer.echo(f"Derived rules for {root}")
+    typer.echo(f"  rules:   {len(result.rules_written)} file(s) under .tripll/rules/")
+    typer.echo(f"  context: {len(result.context_written)} file(s) under .tripll/context/")
+    if result.skipped:
+        typer.echo(f"  skipped: {', '.join(result.skipped)}")
 
 
 @graph_app.command("query")

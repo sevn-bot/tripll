@@ -75,6 +75,7 @@ from tripll.adapters.pools import ProviderPoolRegistry, pools_from_plan
 from tripll.adapters.quota import quota_message
 from tripll.brief import (
     enrich_brief_with_graph_pack,
+    enrich_brief_with_rules_pack,
     extract_wave_summary,
     render_json_brief,
     write_brief,
@@ -3490,6 +3491,11 @@ class Engine:
             at_sha=at_sha,
             grep_brief=self._grep_brief,
             run_dir=worktree.path.parent.parent / "brief-spill",
+        )
+        brief = enrich_brief_with_rules_pack(
+            brief,
+            repo_root=self.repo_root,
+            wave_targets=targets,
         )
         from tripll.plan.code_graph import kg_extra_available, routing_hints_for_wave
 

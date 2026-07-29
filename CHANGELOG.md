@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format is based on
 - [2026-07-29] God-module extraction (#16): run / inject / reconcile-graph CLI commands moved to `tripll.cli._run`; shared helpers to `tripll.cli._shared` (no CLI behavior change)
 
 ### Added
+- [2026-07-29] Derived rules and on-demand context modules: `tripll rules derive`, `.tripll/rules/` + `.tripll/context/` on `tripll init`, origin validator, scoped brief packing under `[rules].pack_budget_tokens`, and `[rules]` config table
 - [2026-07-29] Incremental CI: `make ci-affected` and `make ci-changed` (path-aware partial gate vs `origin/main`; Python ruff/mypy/pytest plus mapped make targets such as `about-site-check` and `log-redact-check`). **`make ci-resume`** is the resumable pre-merge gate (replaces monolithic `make ci`; GitHub Actions and local Final waves)
 
 ## [0.0.0] - 2026-07-29

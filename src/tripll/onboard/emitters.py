@@ -25,6 +25,7 @@ __all__ = [
     "EmitResult",
     "EmittedFile",
     "emit_doc_skeletons",
+    "emit_rules_artifacts",
     "emit_tripll_toml",
     "prd_template_path",
     "render_spec_prompt",
@@ -315,6 +316,14 @@ def emit_tripll_toml(
             "status_checks = true",
             'model = "anthropic/claude-sonnet"',
             "",
+            "[rules]",
+            "enabled = true",
+            'dir = ".tripll/rules"',
+            'context_dir = ".tripll/context"',
+            "auto_propose = true",
+            "pack_budget_tokens = 1200",
+            'executable = "ast-grep"',
+            "",
         ]
     )
     content = "\n".join(lines)
@@ -380,6 +389,42 @@ def emit_doc_skeletons(
     _ = wave_plan_template_path()
     _ = spec_template_path()
     _ = prd_template_path()
+    return result
+
+
+def emit_rules_artifacts(
+    repo_root: Path,
+    *,
+    force: bool = False,
+) -> EmitResult:
+    """Emit ``.tripll/rules/`` and ``.tripll/context/`` via rules derive (CTX-01, W2.7).
+
+    Idempotent — existing operator-edited markdown is preserved unless *force* is set.
+
+    Args:
+        repo_root (Path): Repository root.
+        force (bool): Overwrite existing rule/context files when True.
+
+    Returns:
+        EmitResult: Per-file outcomes and drift notes.
+    """
+    from tripll.rules.derive import derive_rules
+
+    result = EmitResult()
+    derive_out = derive_rules(repo_root, force=force)
+    for path in derive_out.rules_written:
+        action = "forced" if force and path.is_file() else "created"
+        result.files.append(EmittedFile(path=path, action=action))
+    for path in derive_out.context_written:
+        action = "forced" if force and path.is_file() else "created"
+        result.files.append(EmittedFile(path=path, action=action))
+    if derive_out.rules_written or derive_out.context_written:
+        result.drift.append(
+            f"Rules derive: {len(derive_out.rules_written)} rule(s), "
+            f"{len(derive_out.context_written)} context module(s) under .tripll/"
+        )
+    if derive_out.skipped:
+        result.drift.append(f"Rules derive skipped: {', '.join(derive_out.skipped)}")
     return result
 
 
