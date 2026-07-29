@@ -14,4 +14,4 @@ tripll_format: 1
 |---------|-------|------------|-------------|--------|----------------|
 | W0 | Design | | yes | M | make lint |
 | W1 | Implement | W0 | | M | make check |
-| Final | Gate | W1 | | L | make ci |
+| Final | Gate | W1 | | L | make ci-resume |

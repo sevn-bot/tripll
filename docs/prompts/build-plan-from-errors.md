@@ -145,11 +145,11 @@ Required sections:
 7. **`## Wave Final`** — `make ci-resume` + commit note. Run the gate with `make ci-resume`
    (resumable: stops at the first failing step, resumes from it on re-run, skipping passed
    steps) and iterate fix → `make ci-resume` until it reports all steps passed — rather than
-   re-running `make ci` whole each time. Mid-wave waves use `make ci-affected` (or
+   re-running the full gate from scratch each time. Mid-wave waves use `make ci-affected` (or
    `make ci-changed` for Python-only).
 
 `verify_targets` must list **Makefile targets only** (e.g. `make lint`, `make typecheck`,
-`make ci-affected`, `make ci-changed`, `make ci-resume`, `make ci`) — never raw `pytest` or `ruff`.
+`make ci-affected`, `make ci-changed`, `make ci-resume`) — never raw `pytest` or `ruff`.
 
 Typical shape for error-driven plans:
 
@@ -158,7 +158,7 @@ Typical shape for error-driven plans:
 | W0 | Confirm problem matrix + scope | | yes | S | make lint, make typecheck |
 | W1 | First fix cluster | W0 | | M | make ci-affected |
 | … | … | … | | | |
-| Final | Integration | last impl wave | | L | make ci |
+| Final | Integration | last impl wave | | L | make ci-resume |
 
 Use `review_gate: yes` on W0 so the operator confirms the filled taxonomy and grouped
 problem types before implementation waves.

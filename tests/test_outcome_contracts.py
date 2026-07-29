@@ -8,8 +8,8 @@ from tripll.harness.contracts import evaluate_outcome, render_completion
 def test_all_required_and_not_forbidden() -> None:
     result = evaluate_outcome(
         required=["make test"],
-        forbidden=["make ci"],
-        grader_output={"make test": "pass", "make ci": "not_run"},
+        forbidden=["make ci-resume"],
+        grader_output={"make test": "pass", "make ci-resume": "not_run"},
     )
     assert result.passed is True
 

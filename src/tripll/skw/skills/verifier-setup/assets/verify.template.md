@@ -84,8 +84,8 @@ TASK: works | broken
 `{{REGRESSION_CMDS}}`. Triage failures (real-bug vs stale-test); never weaken an
 assertion to go green. If a fix here changes task behavior, re-verify (step 2).
 
-**sevn.bot note:** use `make ci-affected` mid-branch (not full `make ci` unless at
-wave boundary). Add `make telegram-e2e` when the diff touches Telegram/menu/session.
+**sevn.bot note:** use `make ci-affected` mid-branch; use `make ci-resume` at merge boundary.
+Add `make telegram-e2e` when the diff touches Telegram/menu/session.
 
 ## 4. Open the PR — lead with the proof, embed the evidence
 

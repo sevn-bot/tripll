@@ -47,8 +47,8 @@ make install                 # wraps: uv sync
 # Run the gateway against the local workspace
 make run                     # wraps: uv run python -m sevn.gateway.main
 
-# Full local check (what CI runs)
-make ci                      # fans out to: lint typecheck test doctest security
+# Resumable pre-merge gate (what CI runs)
+make ci-resume               # lint → typecheck → … → build (checkpointed)
 
 # Add a new runtime dependency (one-off, no target needed)
 uv add httpx
@@ -734,7 +734,7 @@ dev = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0", "ruff>=0.8.0"]
 - **Discoverability.** `make help` lists every target with a one-line description; new contributors (and agents) don't have to grep history or guess flag combinations.
 - **Local / CI parity.** CI workflows shell out to `make <target>` so the exact command on a laptop is the exact command on GitHub Actions. No "works on my machine" because a flag drifted.
 - **Refactor safety.** When a tool changes (`uv` → something else, `mypy` → `ty`, `pytest` plugins added), targets are edited in one place. Docs and contributors don't break.
-- **Agent-friendly.** Coding agents (Claude, Codex, etc.) can be told "run `make ci`" and don't need to re-derive the command stack each session.
+- **Agent-friendly.** Coding agents (Claude, Codex, etc.) can be told "run `make ci-resume`" and don't need to re-derive the command stack each session.
 
 ### Layout
 
@@ -749,7 +749,8 @@ dev = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0", "ruff>=0.8.0"]
   - `doctest` — `pytest --doctest-modules`
   - `security` — `bandit` + secret scan + `uv pip audit`
   - `precommit` — `pre-commit run --all-files`
-  - `ci` — fans out to `lint typecheck test doctest security` (one entry point CI calls)
+  - `ci-resume` — resumable pre-merge gate (`lint typecheck … test deps-audit build`; CI entry point)
+  - `ci` — alias for `ci-resume`
   - `run` — start the gateway against the local workspace
   - `clean` — drop caches, build artifacts, `__pycache__`, etc.
 - **Per-area Makefiles** — every high-level folder that has its own command surface ships a Makefile and is **included from the root** (or invoked via a recursive target). Examples:
@@ -787,7 +788,7 @@ GitHub Actions (and any other CI) shells out to `make <target>` rather than call
 
 ```yaml
 - run: make setup
-- run: make ci
+- run: make ci-resume
 ```
 
 so any drift between local and CI is caught the moment a target changes.
@@ -971,7 +972,7 @@ Custom checker that validates:
 - Functions with parameters have an `Args:` section with `(type)` for each arg
 - Functions with non-None returns have a `Returns:` section with type
 - Every function/method (public and private) has an `Examples:` section with at least one `>>>` block; each command block is **syntactically** valid Python (`compile` via `scripts/check_docstrings.py`)
-- Expected output and imports must match **`make doctest`** (`pytest --doctest-modules src/tripll scripts/check_docstrings.py`, same as CI `make ci`)
+- Expected output and imports must match **`make doctest`** (`pytest --doctest-modules src/tripll scripts/check_docstrings.py`, same as CI `make ci-resume`)
 - Docstrings use `"""` (not `'''` or other styles)
 - Docstrings with `\` use `r"""`
 
@@ -989,7 +990,7 @@ Custom checker that validates:
 
 ### GitHub Actions CI
 
-Runs on every push and PR. **Blocks merge** if any step fails. The shipping workflow shells out to `make <target>` (see [Makefiles & Command Surface](#makefiles--command-surface) → "CI invokes `make`") so local and CI run identical commands. The YAML below is **illustrative** — it shows the underlying tools each `make` target wraps; the real workflow is shorter and calls `make setup` then `make ci`.
+Runs on every push and PR. **Blocks merge** if any step fails. The shipping workflow shells out to `make <target>` (see [Makefiles & Command Surface](#makefiles--command-surface) → "CI invokes `make`") so local and CI run identical commands. The YAML below is **illustrative** — it shows the underlying tools each `make` target wraps; the real workflow is shorter and calls `make setup` then `make ci-resume`.
 
 ```yaml
 # .github/workflows/ci.yml
@@ -1049,7 +1050,7 @@ jobs:
 
 ### Advisory quality tier (`make ci-quality`)
 
-**Baseline + ratchet (D1):** new rule families and hygiene tools land in the **advisory** `make ci-quality` tier first. `make ci` stays green on the current tree; individual rules promote to blocking `make ci` only with operator sign-off (W6 review gate).
+**Baseline + ratchet (D1):** new rule families and hygiene tools land in the **advisory** `make ci-quality` tier first. `make ci-resume` stays green on the current tree; individual rules promote to blocking `make ci-resume` only with operator sign-off (W6 review gate).
 
 | Sub-target | Tool | Role |
 |------------|------|------|

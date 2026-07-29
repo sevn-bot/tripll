@@ -30,8 +30,8 @@ tripll_format: 1
 | wave_id | title | depends_on | review_gate | effort | verify_targets |
 |---------|-------|------------|-------------|--------|----------------|
 | W0 | Design | | yes | M | make lint |
-| W1 | Implement | W0 | | M | make ci-affected |
-| Final | Gate | W1 | | L | make ci |
+| W1 | Implement | W0 | | M | make ci-resume-affected |
+| Final | Gate | W1 | | L | make ci-resume |
 
 ## Wave W0 — review gate
 

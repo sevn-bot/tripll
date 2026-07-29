@@ -49,8 +49,8 @@ PACKED_INSUFFICIENCY_DIRECTIVE = (
 
 AGENT_DIRECTIVES: list[str] = [
     "Leave changes staged; do not commit.",
-    "Do not run full make ci mid-wave — use make ci-affected (make ci-changed for Python-only).",
-    "Run make ci once at wave boundary / before merge.",
+    "Do not run make ci-resume mid-wave — use make ci-affected (make ci-changed for Python-only).",
+    "Run make ci-resume once at wave boundary / before merge.",
     "Do not edit the ci: Makefile target.",
     "Do not edit forbidden_paths listed above.",
     "No src/sevn/ edits outside owned_paths.",
@@ -99,7 +99,7 @@ def orchestrator_directives(
         f"Validate subject: `make commit-msg-check MSG='{subject}'` from repo root.",
         f"Run `{verify}` from repo root before commit; then `make -C wave-orchestrator check`.",
         "Do not use `--no-verify` on commits.",
-        "Do not run full `make ci` mid-wave.",
+        "Do not run `make ci-resume` mid-wave.",
         "Do not edit forbidden_paths listed above.",
         "Read only the staged wave slice under plan/tripll/ for this wave.",
         f"Return completion markdown:\n{completion}",
@@ -336,7 +336,7 @@ def render_human_brief(
         f"Verification targets: {verify}\n"
         f"Manual smoke (deferred to user): {manual}\n"
         f"Parallel lane file boundary: edit only owned paths; FORBID {forbidden}\n"
-        f"Leave changes staged; do not commit; do not run full make ci."
+        f"Leave changes staged; do not commit; do not run make ci-resume."
     )
 
 
@@ -457,7 +457,7 @@ def render_dispatch_prompt(brief: dict[str, object]) -> str:
     else:
         lines += [
             "",
-            "Leave changes staged; do not commit; do not run full make ci; "
+            "Leave changes staged; do not commit; do not run make ci-resume; "
             "do not edit forbidden_paths or paths outside owned_paths.",
         ]
     return "\n".join(lines)

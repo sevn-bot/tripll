@@ -76,7 +76,7 @@ When reviewing sevn.bot or a repo with a Makefile gate:
 
 - Prefer `make ci-affected` or path-scoped `make lint` / `make typecheck` over
   raw `pytest` / `ruff` / `mypy`.
-- Full `make ci` only when the user asks or at merge boundary.
+- Full `make ci-resume` only when the user asks or at merge boundary.
 - Telegram/menu changes: note whether `make telegram-menu-docs-check` applies.
 - Do not claim CI passed unless you ran the relevant target.
 

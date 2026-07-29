@@ -31,7 +31,7 @@
 - **W0** — Design + scaffolding (if needed); `review_gate = true`
 - **W1** — Tests-first (`role = test-author`)
 - **W2+** — Implementation waves sized by blast radius
-- **Final** — `make ci-resume` or `make ci`
+- **Final** — `make ci-resume`
 
 ## Out of scope
 

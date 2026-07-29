@@ -19,7 +19,7 @@ def _graph() -> RunGraph:
     g.batches = [
         Batch("Pre-0", "human gate", is_human_gate=True),
         Batch("A", "first", lanes=["core", "ui"], merge_order=["core", "ui"], cw_seams=["CW-4"]),
-        Batch("Final", "final", lanes=["docs"], gate_commands=["make ci", "make mc-e2e"]),
+        Batch("Final", "final", lanes=["docs"], gate_commands=["make ci-resume", "make mc-e2e"]),
     ]
     g.lanes = {
         "core": Lane("core", waves=[WaveNode("core:W0", "core", "p", "W0", "core")]),
@@ -58,7 +58,7 @@ def test_plan_merge_order_and_docs_menu() -> None:
 def test_plan_final_gate_commands() -> None:
     plan = plan_integration(_graph(), run_id="r")
     final = plan.batches[2]
-    assert final.gate_commands == ["make ci", "make mc-e2e"]
+    assert final.gate_commands == ["make ci-resume", "make mc-e2e"]
 
 
 def test_plan_integration_branch_off_base() -> None:
@@ -72,7 +72,7 @@ def test_render_dry_run_lines() -> None:
     text = "\n".join(lines)
     assert "HUMAN GATE" in text
     assert "tripll/integrate/r" in text
-    assert "make ci" in text
+    assert "make ci-resume" in text
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +127,7 @@ def test_execute_no_commit_during_pre0() -> None:
 
 
 def test_execute_gate_failure_raises_and_skips_commit() -> None:
-    runner = FakeRunner(fail_targets={"make ci"})
+    runner = FakeRunner(fail_targets={"make ci-resume"})
     with pytest.raises(IntegrationError):
         execute_integration(plan_integration(_graph(), run_id="r"), runner)
     # Batch A failed its gate → no commit for A.

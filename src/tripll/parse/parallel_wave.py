@@ -72,7 +72,7 @@ LANE_BATCH_MAP: dict[str, str] = {
 }
 
 FINAL_GATE_COMMANDS: list[str] = [
-    "make ci",
+    "make ci-resume",
     "make mc-e2e",
     "make spy-hermes-check",
     "make hermes-messaging-parity-check",
@@ -169,7 +169,7 @@ _PRE0_FALLBACK: list[str] = [
 ]
 
 
-FINAL_GATE_COMMANDS_MODE_B: list[str] = ["make ci"]
+FINAL_GATE_COMMANDS_MODE_B: list[str] = ["make ci-resume"]
 
 
 def build_run_graph(

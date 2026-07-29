@@ -66,7 +66,7 @@ def test_telemetry_forbidden_includes_cw_hotspots(dev_eval_graph: RunGraph) -> N
 def test_final_batch_has_gate_commands(dev_eval_graph: RunGraph) -> None:
     final = dev_eval_graph.batches[-1]
     assert final.batch_id == "Final"
-    assert "make ci" in final.gate_commands
+    assert "make ci-resume" in final.gate_commands
 
 
 def test_build_run_graph_minimal() -> None:

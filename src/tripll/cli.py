@@ -1038,7 +1038,7 @@ def run(
         bool,
         typer.Option(
             "--integrate/--no-integrate",
-            help="Enable autonomous per-batch merge + make ci + commit (default OFF).",
+            help="Enable autonomous per-batch merge + make ci-resume + commit (default OFF).",
         ),
     ] = False,
     deliver: Annotated[

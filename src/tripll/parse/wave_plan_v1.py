@@ -351,7 +351,7 @@ def build_graph_from_v1_dir(input_dir: Path, *, run_id: str) -> RunGraph:
                 label=label,
                 lanes=lane_ids_for_batch,
                 is_human_gate=bs.human_gate,
-                gate_commands=["make ci"] if bs.batch_id == "Final" else [],
+                gate_commands=["make ci-resume"] if bs.batch_id == "Final" else [],
                 cw_seams=cw,
                 merge_order=lane_ids_for_batch,
                 wave_ids=list(bs.wave_ids),
