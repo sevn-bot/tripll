@@ -24,6 +24,15 @@ body: |
   tripll init               # brownfield repo onboarding
   tripll new &lt;name&gt;         # greenfield scaffold</code></pre>
 
+  <h2>Rules &amp; calibration CLI</h2>
+  <pre><code>tripll rules derive [--force]
+  tripll rules list [--state proposed|active|retired]
+  tripll rules promote &lt;rule_id&gt;    # operator-only (R27)
+  tripll rules retire &lt;rule_id&gt;
+  make rules-check
+  tripll calibrate --run &lt;run-id&gt;
+  tripll plan publish &lt;plan.md&gt; --tracker github --parent &lt;ref&gt;</code></pre>
+
   <h2>Dispatch CLI</h2>
   <p>The <code>tripll</code> console script underlies the Make targets:</p>
   <pre><code>tripll validate runs/input/my-set

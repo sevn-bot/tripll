@@ -34,6 +34,10 @@ Use **Make** for every recurring command — run **`make help`** for the full li
 | **`tripll doctor`** | Before first dispatch — readiness + missing logins (never stores credentials) |
 | **`tripll init`** | Brownfield onboarding — specs, plans, evaluation, repo `tripll.toml` |
 | **`tripll new`** | Greenfield scaffold — Python skeleton + starter docs |
+| **`tripll rules derive`** | Derive cited rules and context modules from evaluation findings |
+| **`tripll rules promote`** | Operator-only: activate a proposed rule (**R27** — agents may propose, never activate) |
+| **`tripll calibrate --run <id>`** | Score predicted first-pass probability vs ledger (advisory; R28) |
+| **`tripll plan publish`** | Publish wave-plan breakdown to a tracker (GitHub; idempotent) |
 | **`make setup`** | Fresh checkout: `uv sync` (dev/api/obs) + git hooks |
 | **`make check`** | Required gate: lint + typecheck + log-redact gate + test |
 | **`make ci-resume`** | Resumable pre-merge gate (lint → build; mirrors GitHub Actions) |
@@ -42,6 +46,11 @@ Use **Make** for every recurring command — run **`make help`** for the full li
 | **`make lint`** / **`make typecheck`** | After Python edits on touched paths |
 | **`make test`** | `pytest tests` |
 | **`make about-site`** | Regenerate the `about-tripll/` HTML after editing `_sources/`/`_templates/` |
+| **`make rules-check`** | Run active executable structural rules (W4; see rules runbook) |
+
+**R27 (rule activation):** Only an operator may promote `proposed → active` via
+`tripll rules promote`. Agents may propose rules from findings; there is no agent-reachable
+activation path — same reasoning as tripll never auto-merging (D15).
 
 Do **not** document or rely on raw `uv run pytest`/`ruff`/`mypy` in recurring flows — those run
 **only** through Makefile targets. Always go through **`uv`** (never raw pip/pytest/ruff/mypy).

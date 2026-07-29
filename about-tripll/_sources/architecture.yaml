@@ -6,10 +6,12 @@ body: |
   <h2>Overview</h2>
   <p>tripll is a <strong>level-1 code factory</strong>: it parses wave plans into a
   <strong>RunGraph</strong>, dispatches agents in dependency order, verifies outcomes with
-  isolated graders, and maintains a queryable <strong>Code KG</strong>. An optional
-  <strong>PR fix loop</strong> (<code>tripll pr shepherd</code>, <code>graph</code> extra)
-  pushes, opens PRs, dispatches CI/review fix agents, and stops at a <strong>human merge
-  gate</strong> — it is not started automatically by <code>tripll run</code>.</p>
+  isolated graders, and maintains a queryable <strong>Code KG</strong>. After W2–W6 it also
+  <strong>compounds</strong> run lessons — derived rules, executable structural checks,
+  calibration telemetry, and tracker publish — so the next wave starts from durable constraints
+  instead of the same priors.</p>
+  <p><a href="assets/pipeline.html">Product pipeline diagram</a> (plan → RunGraph → lanes →
+  gates → integrate + compounding loop).</p>
 
   <h2>Three graph layers</h2>
   <table class="table">
@@ -37,6 +39,19 @@ body: |
     <li><strong>Idempotency</strong> — decide/commit split; no duplicate PRs on retry.</li>
     <li><strong>Eight loop exits</strong> — turn cap (5 attempts), budget, wall clock, no-progress, circuit breaker, …</li>
   </ul>
+
+  <h2>Compounding loop (W2–W6)</h2>
+  <ul>
+    <li><strong>Rules</strong> — <code>tripll rules derive</code> from evaluation; findings propose;
+      <code>tripll rules promote</code> is operator-only (R27).</li>
+    <li><strong>Executable rules</strong> — active patterns fail <code>make rules-check</code> and
+      wave boundary checks (R29).</li>
+    <li><strong>Calibration</strong> — predicted first-pass at compile; <code>tripll calibrate</code>
+      scores Brier vs ledger (advisory; R28).</li>
+    <li><strong>Tracker publish</strong> — <code>tripll plan publish</code> writes breakdown +
+      idempotent tickets.</li>
+  </ul>
+  <p>Operator guide: <code>docs/runbooks/rules-runbook.md</code>.</p>
 
   <h2>PR phase (opt-in)</h2>
   <p>After implementation waves, run <code>tripll pr shepherd &lt;run-id&gt;</code> (requires

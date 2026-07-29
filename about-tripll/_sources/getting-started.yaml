@@ -1,8 +1,14 @@
 title: Getting started
 nav_label: Getting started
 nav_order: 20
-summary: Install tripll, run setup and doctor, onboard a repo with init or new, then start a run.
+summary: Install tripll, run setup and doctor, onboard a repo with init or new, then start a run — with the compounding loop available from day one.
 body: |
+  <h2>Why before how</h2>
+  <p>tripll is not only a dispatch engine. Each run can leave behind <strong>durable rules</strong>
+  (with file:line provenance), <strong>calibration</strong> against the ledger, and
+  <strong>scoped context</strong> packed into the next brief. Operators activate rules; agents
+  propose but never promote (R27).</p>
+
   <h2>New user path</h2>
   <p>Start here if you have only <code>pip install tripll</code> or <code>uv tool install tripll</code>
   and want to reach a started run without reading source:</p>
@@ -13,16 +19,18 @@ body: |
   # — or —
   tripll new my-project && cd my-project  # greenfield
   tripll doctor
+  tripll rules derive           # optional: cited rules from evaluation
   tripll validate-plan docs/plans/*-wave-plan.md
   make run-set SET=my-set       # or tripll run runs/input/my-set</code></pre>
   <p>Full walkthrough: <a href="../docs/runbooks/onboarding-runbook.md">onboarding runbook</a>
-  (in-repo <code>docs/runbooks/onboarding-runbook.md</code>).</p>
+  · <a href="../docs/runbooks/rules-runbook.md">rules runbook</a> (in-repo).</p>
 
   <h2>What init writes</h2>
   <ul>
-    <li><code>tripll.toml</code> — repo layout (specs, PRDs, plans dirs)</li>
+    <li><code>tripll.toml</code> — repo layout: <code>specs_dir</code>, <code>prds_dir</code>, <code>plans_dir</code></li>
     <li><code>docs/specs/</code>, <code>docs/prds/</code>, starter v3 wave plan</li>
     <li><code>docs/evaluation-&lt;date&gt;.md</code> — brownfield assessment with file:line evidence</li>
+    <li><code>.tripll/rules/</code> — after <code>tripll rules derive</code> (proposed until promoted)</li>
     <li><code>runs/</code> — input/processing/processed/failed folders</li>
   </ul>
   <p><code>tripll init</code> is idempotent — operator-edited files are not overwritten.</p>
