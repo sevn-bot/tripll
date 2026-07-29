@@ -54,6 +54,8 @@
     .badge-blocked   { background: #4a1a1a; color: #f85149; }
     .badge-deferred  { background: #3a2c00; color: #d29922; }
     .badge-gate_pending { background: #21262d; color: #e3b341; }
+    .badge-merge_gate_pending { background: #3a2c00; color: #e3b341; }
+    .badge-merge_approved { background: #1a4e1a; color: #3fb950; }
     .badge-live      { background: #1a4e1a; color: #3fb950; }
     .badge-offline   { background: #21262d; color: #8b949e; }
     .actions { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 1rem; }
@@ -297,6 +299,16 @@
     .l1-panels-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.75rem; }
     .l1-panel { padding: 0.75rem; background: #161b22; border: 1px solid #30363d; border-radius: 0.5rem; }
     .l1-panel h3 { margin: 0 0 0.5rem; font-size: 0.85em; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
+    .pr-panel { margin: 1rem 0 1.25rem; }
+    .pr-panel-body { padding: 0.75rem; background: #161b22; border: 1px solid #30363d; border-radius: 0.5rem; }
+    .merge-gate-banner { padding: 0.6rem 0.85rem; border-radius: 0.4rem; margin-bottom: 0.75rem; background: #3a2c00; border: 1px solid #e3b341; color: #f0c674; font-size: 0.9em; }
+    .merge-gate-banner.merge-gate-approved { background: #1a4e1a; border-color: #3fb950; color: #aff5b4; }
+    .pr-panel-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+    .pr-panel-message { font-size: 0.9em; margin-bottom: 0.75rem; }
+    .pr-approve-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+    .btn-merge-gate { border-color: #e3b341; color: #e3b341; }
+    .pr-approve-hint { font-size: 0.85em; }
+    .pr-flash { color: #3fb950; margin-top: 0.75rem; font-size: 0.9em; }
     .compact-table { font-size: 0.85em; margin-top: 0.35rem; }
     .findings-group { margin: 0.35rem 0; }
     .findings-list { margin: 0.35rem 0 0.35rem 1rem; font-size: 0.85em; }

@@ -66,6 +66,7 @@ from tripll.api._csrf import ensure_csrf_token, require_csrf
 from tripll.api._inject import list_run_injects, parse_owned_paths, run_hotfix_inject
 from tripll.api._l1_panels import build_l1_panels
 from tripll.api._orchestrator_ui import build_orchestrator_view
+from tripll.api._pr_panel import build_pr_panel
 from tripll.api._runs import RunSummary, _find_ledger, _is_run_live, _list_all_runs
 from tripll.api._worktree_status import (
     WORKTREE_POLL_INTERVAL_S,
@@ -455,6 +456,8 @@ def make_ui_router() -> APIRouter:
         run_id: str,
         inject_msg: str | None = None,
         inject_open: int | None = None,
+        pr_msg: str | None = None,
+        pr_open: int | None = None,
         _auth: None = Depends(require_auth),
     ) -> HTMLResponse:
         """Render the hydrated run-detail page for *run_id* (W1.1).
@@ -480,7 +483,36 @@ def make_ui_router() -> APIRouter:
         ctx["sse_url"] = f"/api/runs/{run_id}/events/stream"
         ctx["inject_flash"] = inject_msg or ""
         ctx["inject_panel_open"] = inject_open == 1
+        ctx["pr_flash"] = pr_msg or ""
+        ctx["pr_panel_open"] = pr_open == 1
         return templates.TemplateResponse(request, "run_detail.html", ctx)
+
+    @router.post("/runs/{run_id}/pr/approve-merge")
+    async def pr_approve_merge_form(
+        request: Request,
+        run_id: str,
+        _auth: None = Depends(require_auth),
+        _csrf: None = Depends(require_csrf),
+    ) -> RedirectResponse:
+        """Record operator merge-gate approval from dashboard form POST."""
+        from tripll.loops.l1_pr import approve_merge_gate
+
+        rr: RunsRoot = request.app.state.runs_root
+        run_dir = rr.find_run_dir(run_id)
+        if run_dir is None:
+            raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+        try:
+            approve_merge_gate(run_dir=run_dir)
+        except FileNotFoundError as exc:
+            msg = quote(str(exc))
+            return RedirectResponse(
+                f"/runs/{run_id}?pr_msg={msg}&pr_open=1",
+                status_code=303,
+            )
+        return RedirectResponse(
+            f"/runs/{run_id}?pr_msg={quote('Merge gate approved')}&pr_open=1",
+            status_code=303,
+        )
 
     @router.post("/runs/{run_id}/inject")
     async def inject_run_form(
@@ -1218,6 +1250,7 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         repo_root=resolve_repo_root(),
         fired_exit_ids=fired_exit_ids,
     )
+    pr = build_pr_panel(run_dir=run_dir)
 
     inject_after_options = [
         {"node_id": w["node_id"], "phase": w["phase"]} for w in wave_rows if w["phase"] == "done"
@@ -1240,6 +1273,9 @@ def _build_run_detail_context(rr: RunsRoot, run_id: str) -> dict[str, Any] | Non
         "wave_summary": orch.wave_summary,
         "hitl": hitl_info,
         "l1": l1,
+        "pr": pr,
+        "pr_flash": "",
+        "pr_panel_open": False,
         "inject_after_options": inject_after_options,
         "inject_after_default": inject_after_options[-1]["node_id"] if inject_after_options else "",
         "inject_artefacts": inject_data["artefacts"],

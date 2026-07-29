@@ -355,7 +355,10 @@ tripll pr approve-merge <run-id>         # operator merge gate — never skipped
 exists. The tripll development checkout continues to use ``runs/`` at repo root.
 
 Dashboard run detail shows **Code factory L1** panels: wave subgraph, findings grouped by
-state, and exit caps approaching limits (§12).
+state, and exit caps approaching limits (§12). The **PR phase** panel shows merge-gate
+status (`merge_gate_pending` / `merge_approved`) and an **Approve merge gate** form when
+the run is parked at the human gate — same marker as `tripll pr approve-merge` (never
+auto-merges; merge in GitHub UI afterward).
 
 Rejected findings export to `.pullfrog/learnings.md` (D13). Optional CI review:
 `.github/workflows/pullfrog.yml` (requires `CLAUDE_CODE_OAUTH_TOKEN` secret).
