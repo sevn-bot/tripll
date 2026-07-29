@@ -1104,7 +1104,7 @@ plan_app = typer.Typer(
 app.add_typer(plan_app, name="plan")
 
 
-@plan_app.callback()
+@plan_app.callback(context_settings={"allow_interspersed_args": True})
 def plan_cmd(
     ctx: typer.Context,
     input_path: Annotated[
