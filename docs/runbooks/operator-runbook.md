@@ -307,6 +307,45 @@ machine and record the level where infra first appears. As of 2026-07-26 on the 
 developer machine, tier-1 fake-clock tests enforce the contract at 2/3/5/8 probe levels; live
 calibration is operator-specific.
 
+### Live adapter verification (tier 2)
+
+Static adapter tests in `tests/test_adapters.py` cover argv builders and parsers. **Live**
+end-to-end probes live under `tests/live/` and dispatch a one-line prompt through each backend.
+They are **not** collected by default CI — tier 2 requires `RUN_LIVE=1`.
+
+**Prerequisites**
+
+| Backend | Requires |
+|---------|----------|
+| `claude_code` | `claude` on PATH and authenticated (`claude login` or API key in env) |
+| `cursor_local` | `agent` or `cursor-agent` on PATH and authenticated |
+| `cursor_cloud` | `uv sync --extra cloud` (sevn router importable); full cloud dispatch is still deferred |
+
+**Run all live adapter probes**
+
+```bash
+RUN_LIVE=1 make test -- tests/live/ -v
+```
+
+**Run one backend**
+
+```bash
+RUN_LIVE=1 make test -- tests/live/test_adapters_live.py -k claude_code -v
+RUN_LIVE=1 make test -- tests/live/test_adapters_live.py -k cursor_local -v
+```
+
+**Optional environment**
+
+| Variable | Purpose |
+|----------|---------|
+| `TRIPLL_LIVE_ADAPTER_BACKENDS` | Comma-separated subset (e.g. `claude_code,cursor_local`) |
+| `TRIPLL_LIVE_ADAPTER_AGENT` | Claude `--agent` slug for the probe (default **general-purpose**) |
+| `TRIPLL_LIVE_ADAPTER_MODEL` | Override model for the probe brief |
+| `TRIPLL_LIVE_ADAPTER_TIMEOUT_S` | Wall-clock timeout per probe (default **120**) |
+
+When a backend binary is missing or credentials are absent, the probe **skips** with a reason
+instead of failing — useful on shared CI runners where `RUN_LIVE=1` is never set.
+
 ## 7. Integration (optional)
 
 Dispatch-only is the default (branches + `report.md`, no merges). To integrate:
