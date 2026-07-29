@@ -23,12 +23,12 @@
 | **Stage** | Baseline recorded; anchors re-grepped at `a4fbd0d`; ADRs 014–017 pinned; contract at `docs/plans/ai-layer-compounding.md` |
 | **Next action** | Dispatch **W1** via `test-creator` — RED suite + `docs/test-plans/ai-layer-compounding.md` |
 | **Blocked on** | — |
-| **Last pushed sha** | `b3f8f4b` |
+| **Last pushed sha** | `f05f8e9` |
 | **Last CI run id** | *(after W0 push)* |
 | **Parked waves** | 0 of 3 (plan-level stop rule) |
 | **Integration target** | `refactor/mergecraft-replace-pullfrog` (`a4fbd0d`); `main` at `9a3f19d`, **26 commits behind**, not merged |
-| **Plan sha256** | `9c6ff0477d25323df3bf99ddf76f91d4c2c6f3cc0126de127f695940fe7ca24c` |
-| **Contract sha256 (W0 pin)** | `9c6ff0477d25323df3bf99ddf76f91d4c2c6f3cc0126de127f695940fe7ca24c` |
+| **Plan sha256** | `7fde40f9198135a752671369a8d2b3958d226e1724eddc11e67532e1bfe5a90f` | |
+| **Contract sha256 (W0 pin)** | `7fde40f9198135a752671369a8d2b3958d226e1724eddc11e67532e1bfe5a90f` | |
 
 ---
 
@@ -738,7 +738,7 @@ into the commit body. 3. Stage the CHANGELOG bullet when `src/` is touched. 4. U
 
 | Wave | Provider / model | Scope | Findings | Status |
 |------|------------------|-------|----------|--------|
-| W0 | `cursor_local` claude-opus-5 | Baseline, anchor re-grep, ADRs 014–017, contract pin, compile the machine block | — | [x] (2026-07-29 ✅: b3f8f4b — 4 ADRs, validate-plan exit 0, issues #53–#55) |
+| W0 | `cursor_local` claude-opus-5 | Baseline, anchor re-grep, ADRs 014–017, contract pin, compile the machine block | — | [x] (2026-07-29 ✅: f05f8e9 — 4 ADRs, validate-plan exit 0, issues #53–#55) |
 | W1 | `cursor_local` auto | RED suite (tier-tagged) + `docs/test-plans/ai-layer-compounding.md` — `role: test-author` | all | [ ] |
 | W2 | `cursor_local` auto | **Derived rules + context modules**: `tripll rules derive`, origin validator, scoped brief packing | CTX-01, CTX-02, CTX-03 | [ ] |
 | W3 | `cursor_local` auto | **Bug-to-rule loop**: `Rule` node kind, wave postmortem, operator promotion | RULE-01, RULE-02, RULE-03 | [ ] |
@@ -817,7 +817,7 @@ docs describing the others. The honest parallel width is ~1.5 waves; it is not w
       **fix this plan**, not the compiler.
       (2026-07-29 ✅: validate-plan exit 0)
 - [x] **W0.7** **Commit + push** (`docs(plan): baseline and ADRs for AI-layer compounding`).
-      (2026-07-29 ✅: b3f8f4b pushed)
+      (2026-07-29 ✅: f05f8e9 pushed)
 
 **Acceptance:**
 
