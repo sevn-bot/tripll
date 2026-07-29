@@ -37,6 +37,8 @@ Use **Make** for every recurring command — run **`make help`** for the full li
 | **`make setup`** | Fresh checkout: `uv sync` (dev/api/obs) + git hooks |
 | **`make check`** | Required gate: lint + typecheck + log-redact gate + test |
 | **`make ci`** | `make check` + `uv build` (mirrors GitHub Actions) |
+| **`make ci-affected`** | Mid-wave gate: scoped lint + typecheck + test vs `origin/main` (override: `BASE=…`) |
+| **`make ci-changed`** | Python-only partial gate (subset of `ci-affected`) |
 | **`make lint`** / **`make typecheck`** | After Python edits on touched paths |
 | **`make test`** | `pytest tests` |
 | **`make about-site`** | Regenerate the `about-tripll/` HTML after editing `_sources/`/`_templates/` |

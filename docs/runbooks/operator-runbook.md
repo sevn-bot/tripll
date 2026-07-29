@@ -682,6 +682,29 @@ of silently regressing latency.
 
 ---
 
+## Incremental CI (mid-wave)
+
+During wave execution, agents and inject verify against **`make ci-affected`** by
+default — not the full merge gate. It diffs against **`origin/main`** (override
+with **`BASE=<ref>`** or **`TRIPLL_CI_BASE=<ref>`**) and runs:
+
+- **Python:** ruff + mypy on changed `src/`, `tests/`, `scripts/` files, plus
+  scoped pytest (paired tests + import-graph matches).
+- **Path-mapped make targets:** e.g. `about-site-check` when `_sources/` changes,
+  `log-redact-check` when `config/log-hide-keys.toml` changes.
+
+```bash
+make ci-affected              # default base origin/main
+BASE=main make ci-affected    # explicit base ref
+make ci-changed               # Python-only subset
+make ci                       # full pre-merge gate (unchanged)
+```
+
+Use **`make ci`** before merge and in GitHub Actions; reserve **`make ci-affected`**
+for per-wave iteration.
+
+---
+
 ## Dependency vulnerability scanning
 
 CI runs **`make deps-audit`** as part of **`make ci`**. The target exports pinned

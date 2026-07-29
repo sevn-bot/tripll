@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- [2026-07-29] Incremental CI: `make ci-affected` and `make ci-changed` (path-aware partial gate vs `origin/main`; Python ruff/mypy/pytest plus mapped make targets such as `about-site-check` and `log-redact-check`). `make ci` remains the full pre-merge gate
+
+## [0.0.0] - 2026-07-29
+### Added
 - Live injection completion (L2-W5): `POST /api/runs/{id}/reconcile-graph`, `--force-after-drain`
   on inject/reconcile CLI and API, dashboard hotfix badge + SSE inject/reconcile timeline refresh.
   `[waves.outcome.reference]` + `[waves.outcome.quality_gauntlet]` schema, agent contracts

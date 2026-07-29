@@ -72,7 +72,7 @@ _TRIPLL_RESUME_FLAGS := \
 PLANS_COMPOSE := docker-compose.agent-native-plans.yml
 PLANS_ENV := .env.agent-native
 
-.PHONY: help sync sync-api init tripll lint typecheck test check deps-audit log-redact-check pullfrog-ref-check review serve status-watch orchestrator-watch \
+.PHONY: help sync sync-api init tripll lint typecheck test check ci-affected ci-changed partial-ci deps-audit log-redact-check pullfrog-ref-check review serve status-watch orchestrator-watch \
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
@@ -327,6 +327,16 @@ setup: ## Fresh checkout: sync deps + install git hooks (CI bootstrap entry poin
 
 build: ## Build wheel + sdist into dist/
 	$(UV) build
+
+export TRIPLL_CI_BASE ?= $(or $(BASE),origin/main)
+
+ci-changed: sync ## Partial Python gate (ruff, mypy, scoped pytest); set TRIPLL_CI_BASE or BASE=
+	$(UV_RUN) run python scripts/ci_changed.py
+
+ci-affected: sync ## Path-aware partial gate (Python + mapped make targets); set TRIPLL_CI_BASE or BASE=
+	$(UV_RUN) run python scripts/ci_affected.py
+
+partial-ci: ci-affected ## Alias for ci-affected (per-wave local gate)
 
 ci: check deps-audit build ## Full local gate mirrored by GitHub Actions (check + deps-audit + build)
 
