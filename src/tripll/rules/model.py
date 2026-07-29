@@ -50,6 +50,7 @@ class Rule:
         body (str): Prose constraint markdown (after frontmatter).
         executable (str | None): Executable backend hint (``ast-grep``) when set.
         severity (str | None): Violation severity when executable.
+        pattern (str | None): Structural ``ast-grep`` pattern when executable (W4).
     """
 
     rule_id: str
@@ -59,6 +60,7 @@ class Rule:
     body: str = ""
     executable: str | None = None
     severity: str | None = None
+    pattern: str | None = None
 
 
 def parse_rule_markdown(text: str) -> Rule:
@@ -100,6 +102,7 @@ def parse_rule_markdown(text: str) -> Rule:
         scope = [scope_raw.strip()]
     executable = meta.get("executable")
     severity = meta.get("severity")
+    pattern_raw = meta.get("pattern")
     return Rule(
         rule_id=rule_id.strip(),
         state=state,
@@ -108,6 +111,7 @@ def parse_rule_markdown(text: str) -> Rule:
         body=body.strip(),
         executable=str(executable).strip() if executable else None,
         severity=str(severity).strip() if severity else None,
+        pattern=str(pattern_raw).strip() if pattern_raw else None,
     )
 
 
@@ -138,6 +142,8 @@ def render_rule_markdown(rule: Rule) -> str:
         lines.append(f"executable: {rule.executable}")
     if rule.severity:
         lines.append(f"severity: {rule.severity}")
+    if rule.pattern:
+        lines.append(f"pattern: {rule.pattern}")
     lines.extend(["---", "", rule.body.rstrip(), ""])
     return "\n".join(lines)
 

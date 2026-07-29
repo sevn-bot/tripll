@@ -66,6 +66,14 @@ PATH_RULES: tuple[PathRule, ...] = (
         "mergecraft-ref-check",
     ),
     PathRule(("CHANGELOG.md",), "changelog-check"),
+    PathRule(
+        (
+            "src/tripll/rules/**",
+            ".tripll/rules/**",
+            "Makefile",
+        ),
+        "rules-check",
+    ),
 )
 
 # ``make`` target order when multiple path rules fire (stable, tier-ish).
@@ -74,6 +82,7 @@ TARGET_ORDER: tuple[str, ...] = (
     "log-redact-check",
     "about-site-check",
     "changelog-check",
+    "rules-check",
 )
 
 

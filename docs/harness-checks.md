@@ -1,10 +1,10 @@
-# Harness checks — five failures a bigger model cannot fix
+# Harness checks — six failures a bigger model cannot fix
 
 Code factory L1 treats agent failures as **harness** problems first. The design cites
 [@nykdotdev — *How to Actually Debug Agent Failures*](https://x.com/nykdotdev/status/2079510947270631538)
 and implements the checks in `src/tripll/harness/`.
 
-## The five harness failures
+## The six harness failures
 
 | # | Failure | Symptom | L1 mitigation |
 |---|---------|---------|---------------|
@@ -13,6 +13,7 @@ and implements the checks in `src/tripll/harness/`.
 | 3 | **Tool boundary leak** | Agent edits forbidden paths | `harness/boundary.py` — 8-layer scope enforcement |
 | 4 | **Self-reported done** | Agent claims success without evidence | `harness/contracts.py` — outcome contracts; `unverified` when graders cannot run |
 | 5 | **Duplicate side effects** | Two PRs / double push on retry | `loops/idempotency.py` — decide/commit split, idempotency keys before external actions |
+| 6 | **Structural scope breach** | Agent writes forbidden *shape* (e.g. `import logging`) in allowed paths | `harness/boundary.py` — `detect_structural_scope_breach`; `make rules-check` |
 
 ## Four gates (before dispatch)
 
@@ -22,6 +23,14 @@ Every wave dispatch passes:
 2. **Environment fingerprint** — recorded on the attempt row for L2 telemetry seams.
 3. **Tool boundary** — owned vs forbidden paths from the compiled plan.
 4. **Outcome contract** — wave declares graders; verifier runs in an **isolated** context (D17).
+
+## Structural rules (W4, R29)
+
+Path scope answers *may this wave touch this file?* Executable rules answer *may this wave write
+this shape?* Active rules under `.tripll/rules/` carry optional `pattern:` frontmatter; `make
+rules-check` and the wave post-attempt gate run them via `src/tripll/rules/executable.py`.
+`ast-grep` is an optional extra (`uv sync --extra rules`); when the binary is absent the gate
+warns and falls back to structural line matching, or prose-only when no pattern is declared.
 
 ## Outcome contracts and `unverified`
 
@@ -77,6 +86,7 @@ not authoritative.
 tripll graph extract --repo .          # refresh Code KG
 tripll findings sync --pr <n>            # ingest CI + review into Finding nodes
 tripll pr shepherd <run-id>              # PR fix loop (stops at merge gate)
+make rules-check                         # executable structural rules gate
 make check                               # lint + typecheck + about-site + test
 ```
 

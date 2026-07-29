@@ -51,8 +51,12 @@ api = [
 kg = [
     "networkx>=3.4",
 ]
+# Optional ast-grep CLI for executable structural rules (W4); absent binary degrades gracefully.
+rules = [
+    "ast-grep-cli>=0.30.0",
+]
 all = [
-    "tripll[graph,kg,api,obs]",
+    "tripll[graph,kg,api,obs,rules]",
 ]
 dev = [
     "pytest==9.1.1",

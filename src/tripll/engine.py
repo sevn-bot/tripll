@@ -92,6 +92,7 @@ from tripll.git_commit import commit_and_push_wave
 from tripll.harness.boundary import (
     assert_verify_isolation,
     build_verify_dispatch,
+    detect_structural_scope_breach,
     materialize_verify_worktree,
     remove_verify_worktree,
 )
@@ -3079,8 +3080,21 @@ class Engine:
                         node.forbidden_paths,
                         owned_paths=node.owned_paths,
                     )
+                    structural = detect_structural_scope_breach(
+                        worktree.path,
+                        repo_root=self.repo_root,
+                    )
+                    if structural:
+                        breach = sorted(set(breach) | set(structural))
                     if breach:
-                        self.wtm.revert(worktree, breach)
+                        revert_paths = sorted(
+                            {
+                                item.split(":", 1)[0] if ":" in item else item
+                                for item in breach
+                                if item.strip()
+                            }
+                        )
+                        self.wtm.revert(worktree, revert_paths)
                         evidence = f"scope breach reverted: {breach}"
                         async with self._ledger_lock:
                             self._end_attempt_with_usage(

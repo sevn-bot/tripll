@@ -7,8 +7,9 @@ Exports:
     pack — scope-aware brief packing under a token budget.
     promote — finding → proposed rule; operator promote/retire (R27).
     postmortem — contract vs attempt reconciliation (RULE-03).
+    executable — ast-grep structural rules and ``make rules-check`` (W4).
 """
 
 from __future__ import annotations
 
-__all__ = ["derive", "model", "pack", "postmortem", "promote", "store"]
+__all__ = ["derive", "executable", "model", "pack", "postmortem", "promote", "store"]
