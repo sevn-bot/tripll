@@ -9,9 +9,9 @@ UV_RUN ?= env -u VIRTUAL_ENV $(UV)
 RUFF ?= $(UV_RUN) run ruff
 MYPY ?= $(UV_RUN) run mypy
 
-# pullfrog-py ref for local `make review` — pinned to the same SHA as
-# .github/workflows/pullfrog.yml (override: TRIPLL_PULLFROG_PY_REF=main).
-PULLFROG_PY_REF ?= $(if $(TRIPLL_PULLFROG_PY_REF),$(TRIPLL_PULLFROG_PY_REF),0d40626097fd92976425f7eacd2e213ee1f6d5d5)
+# mergeCraft ref for local `make review` — pinned to the same SHA as
+# .github/workflows/mergecraft.yml (override: TRIPLL_MERGECRAFT_REF=pre-0.0.1).
+MERGECRAFT_REF ?= $(if $(TRIPLL_MERGECRAFT_REF),$(TRIPLL_MERGECRAFT_REF),b8e83a82e97ed537706d9a712e59af9ef031588f)
 
 # Default runs/ relative to this directory (override: TRIPLL_RUNS=… make …)
 export TRIPLL_RUNS := $(abspath runs)
@@ -72,7 +72,7 @@ _TRIPLL_RESUME_FLAGS := \
 PLANS_COMPOSE := docker-compose.agent-native-plans.yml
 PLANS_ENV := .env.agent-native
 
-.PHONY: help sync sync-api init tripll lint typecheck test check ci-steps ci-resume ci-reset ci-affected ci-changed partial-ci deps-audit log-redact-check pullfrog-ref-check review serve status-watch orchestrator-watch \
+.PHONY: help sync sync-api init tripll lint typecheck test check ci-steps ci-resume ci-reset ci-affected ci-changed partial-ci deps-audit log-redact-check mergecraft-ref-check review serve status-watch orchestrator-watch \
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
@@ -302,12 +302,12 @@ log-redact-check: sync ## Validate log-hide-keys.toml + redaction unit tests
 deps-audit: sync ## OSV vulnerability scan of uv.lock (dev+api+obs extras; fails on known CVEs)
 	bash scripts/deps_audit.sh
 
-check: lint typecheck log-redact-check pullfrog-ref-check about-site-check test ## Lint + typecheck + log redact + pullfrog pin + about-site drift + test (required gate)
+check: lint typecheck log-redact-check mergecraft-ref-check about-site-check test ## Lint + typecheck + log redact + mergeCraft pin + about-site drift + test (required gate)
 
-pullfrog-ref-check: sync ## Fail when pullfrog-py pin drifts between pullfrog.yml and PULLFROG_PY_REF
-	$(UV_RUN) run --extra dev python scripts/check_pullfrog_ref_parity.py
+mergecraft-ref-check: sync ## Fail when mergeCraft pin drifts between mergecraft.yml and MERGECRAFT_REF
+	$(UV_RUN) run --extra dev python scripts/check_mergecraft_ref_parity.py
 
-review: ## Advisory offline review vs origin/main via pullfrog-py (needs CLAUDE_CODE_OAUTH_TOKEN in `.env`)
+review: ## Advisory offline review vs origin/main via mergeCraft (needs CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY in `.env`)
 	@set -a; \
 	if [ -f .env ]; then . ./.env; fi; \
 	set +a; \
@@ -316,9 +316,9 @@ review: ## Advisory offline review vs origin/main via pullfrog-py (needs CLAUDE_
 		exit 0; \
 	fi; \
 	base="$${TRIPLL_CI_BASE:-origin/main}"; \
-	echo "Running pullfrog-py diff-review (base=$$base, ref=$(PULLFROG_PY_REF))…"; \
-	$(UV) tool run --python 3.14 --from git+https://github.com/alexhawat/pullfrog-py@$(PULLFROG_PY_REF) \
-		pfpy diff-review --base "$$base"
+	echo "Running mergeCraft diff-review (base=$$base, ref=$(MERGECRAFT_REF))…"; \
+	$(UV) tool run --python 3.14 --from git+https://github.com/alexhawat/mergeCraft@$(MERGECRAFT_REF) \
+		mergecraft diff-review --base "$$base"
 
 setup: ## Fresh checkout: sync deps + install git hooks (CI bootstrap entry point)
 	$(UV_RUN) sync --extra dev --extra api --extra obs
@@ -340,7 +340,7 @@ partial-ci: ci-affected ## Alias for ci-affected (per-wave local gate)
 
 # Ordered expansion of the pre-merge gate (consumed by scripts/ci_resume.sh).
 # Keep in sync with check (lint … test) + deps-audit + build.
-CI_STEPS := lint typecheck log-redact-check pullfrog-ref-check about-site-check test deps-audit build
+CI_STEPS := lint typecheck log-redact-check mergecraft-ref-check about-site-check test deps-audit build
 
 ci-steps: ## Print ordered ci-resume step list (consumed by ci-resume)
 	@echo $(CI_STEPS)

@@ -42,9 +42,9 @@ def test_match_path_rules_log_redact() -> None:
     assert targets == ["log-redact-check"]
 
 
-def test_match_path_rules_pullfrog() -> None:
-    targets = match_path_rules([".github/workflows/pullfrog.yml"])
-    assert targets == ["pullfrog-ref-check"]
+def test_match_path_rules_mergecraft() -> None:
+    targets = match_path_rules([".github/workflows/mergecraft.yml"])
+    assert targets == ["mergecraft-ref-check"]
 
 
 def test_match_path_rules_changelog() -> None:

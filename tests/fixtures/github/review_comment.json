@@ -2,8 +2,8 @@
   "id": 5678,
   "path": "src/tripll/demo.py",
   "line": 10,
-  "body": "Please remove the unused import.",
-  "user": {"login": "pullfrog"},
+  "body": "_Functional Correctness_ | _Major_ | _Quick win_\n\nPlease remove the unused import.\n\n```suggestion\nfrom tripll import used\n```",
+  "user": {"login": "mergecraft[bot]"},
   "commit_id": "abc123def456",
   "html_url": "https://github.com/sevn-bot/tripll/pull/1#discussion_r5678"
 }

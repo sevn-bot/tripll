@@ -317,7 +317,7 @@ def build_exits_panel(
             1,
             "Goal met",
             "fired" if 1 in fired else "pending",
-            "CI + pullfrog-approval",
+            "CI + mergecraft-approval",
             1.0 if 1 in fired else 0.0,
         ),
         row(

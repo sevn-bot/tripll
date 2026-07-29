@@ -1401,7 +1401,7 @@ class Engine:
         record: bool = True,
     ) -> dict[str, Any]:
         """Assemble the ``evaluate_exit`` context for Engine terminal checks."""
-        from tripll.github.reviews import pullfrog_success_from_check_runs
+        from tripll.github.reviews import review_success_from_check_runs
 
         check_runs = self._load_check_runs_for_run(run_id)
         pr_state, issue_state = self._external_event_state(run_id)
@@ -1412,7 +1412,7 @@ class Engine:
             "cost_usd": get_run_cost(lc, run_id),
             "budget_usd": self.cost_budget_usd,
             "spent_usd": get_run_cost(lc, run_id),
-            "pullfrog_success": pullfrog_success_from_check_runs(check_runs),
+            "review_success": review_success_from_check_runs(check_runs),
             "outcome_satisfied": outcome_satisfied,
             "ci_green": ci_green,
             "pr_state": pr_state,

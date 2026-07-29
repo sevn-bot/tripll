@@ -14,7 +14,7 @@ review-comment chains remain metadata/CLI until a later wave extends the loop.
 |-------|-------|
 | **class** | infra/executing |
 | **edits** | git refs and GitHub state via idempotent commits only |
-| **done** | checks green + `pullfrog-approval` → park at merge gate; or exit with receipt |
+| **done** | checks green + `mergecraft-approval` → park at merge gate; or exit with receipt |
 
 CLI: `tripll pr shepherd|status|approve-merge`
 

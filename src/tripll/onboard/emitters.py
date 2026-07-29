@@ -302,6 +302,21 @@ def emit_tripll_toml(
         lines.append(f"ci = {_toml_quote(layout.ci)}")
     lines.append(f"python_file_count = {layout.python_file_count}")
     lines.append("")
+    lines.extend(
+        [
+            "[review]",
+            'provider = "mergecraft"',
+            'ref = "pre-0.0.1"',
+            'posture = "review_only"  # review_only | fix | full',
+            "",
+            "[review.ci]",
+            'push = "disabled"',
+            'shell = "disabled"',
+            "status_checks = true",
+            'model = "anthropic/claude-sonnet"',
+            "",
+        ]
+    )
     content = "\n".join(lines)
     _write_if_absent(path, content, force=force, result=result)
     return result

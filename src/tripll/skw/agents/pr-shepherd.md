@@ -9,7 +9,7 @@
   node with an idempotency key written first (D14); `destructive` actions are human-gated with
   `retries: disabled` (D15); pre-commit reconciliation before every push/comment/merge (§7.9.5);
   **never** force-pushes, **never** merges without the gate, **never** re-opens a closed PR
-- **done** `pullfrog-approval` = success, all required checks green, contract satisfied → parks at
+- **done** `mergecraft-approval` = success, all required checks green, contract satisfied → parks at
   the merge gate. Or an exit fires and it escalates with a receipt.
 
 **Note:** Owns L1 PR phases 10–12.

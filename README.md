@@ -102,8 +102,9 @@ Graph-packed briefs are the default dispatch path; use `--grep-brief` for legacy
 See [`docs/graph-serving.md`](docs/graph-serving.md) and [`docs/ontology.md`](docs/ontology.md).
 
 **No API keys in tripll** — auth lives in backend toolchains (`claude`, `cursor-agent`).
-PR review CI uses optional `CLAUDE_CODE_OAUTH_TOKEN` (`.github/workflows/pullfrog.yml`).
-Local advisory review: `make review`.
+PR review CI uses optional `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`
+(`.github/workflows/mergecraft.yml` — [mergeCraft](https://github.com/alexhawat/mergeCraft)).
+Local advisory review: `make review` or `tripll review diff`.
 
 ---
 
@@ -708,9 +709,9 @@ All targets run from **this directory** (the `tripll` checkout). Variables:
 | `make approve-run RUN=<id>` | Mark Pre-0 approved after decisions |
 | `make resume-run RUN=<id>` | Resume a paused run (`BACKEND=` optional) |
 | `make tripll ARGS='…'` | Any subcommand (`approve`, `resume`, `plan`, …) |
-| `make check` | Lint + typecheck + pullfrog pin + about-site + test |
+| `make check` | Lint + typecheck + mergeCraft pin + about-site + test |
 | `make bench` | Replay sealed brief-packing benchmark (tier 2; see `bench/`) |
-| `make review` | Advisory pullfrog-py diff review vs `origin/main` |
+| `make review` | Advisory mergeCraft diff review vs `origin/main` |
 | `make about-site` | Regenerate `about-tripll/` HTML from `_sources/` |
 | `make seed-orchestrator-smoke-set` | Copy W0 orchestrator example → `runs/input/orchestrator-mode-smoke/` |
 | `make smoke-orchestrator-w0` | Orchestrator W0 smoke — validate + plan + pytest |

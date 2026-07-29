@@ -39,7 +39,7 @@ Ontology: `src/tripll/ontology/ontology.yaml`. Docs: [`docs/ontology.md`](ontolo
 
 | # | Name | Fires when | Engine |
 |---|------|------------|--------|
-| 1 | goal_met | Outcome contract + CI green + `pullfrog-approval` success | **Engine-live** |
+| 1 | goal_met | Outcome contract + CI green + `mergecraft-approval` success | **Engine-live** |
 | 2 | turn_cap | `max_attempts=5` exhausted (impl waves) | **Engine-live** |
 | 3 | budget_cap | `TRIPLL_COST_BUDGET_USD` exceeded | **Engine-live** |
 | 4 | wall_clock | Per-wave limit or run deadline | **Engine-live** |

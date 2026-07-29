@@ -1,19 +1,19 @@
 # ADR 007 — Exit table: wire or fail (R8)
 
-**Status:** Accepted (2026-07-26, Wave W0)  
+**Status:** Accepted (2026-07-26, Wave W0)
 **Decisions:** R8
 
 ## Context
 
 `loops/exits.py` implements a complete eight-exit evaluator with unit tests, but the
 Engine re-implements budget and no-progress inline and never calls `evaluate_exit`.
-Exit 1 `goal_met` reads `pullfrog_success` from context, yet no production path sets
+Exit 1 `goal_met` reads `review_success` from context, yet no production path sets
 that key (`exits.py:168` is the sole occurrence). The design note advertises all eight
 exits; shrinking the public table mid-remediation would hide unfinished wiring.
 
 ## Decision
 
-1. **Wire or fail.** W7 must connect `github/reviews.py::pullfrog_merge_signal` and the
+1. **Wire or fail.** W7 must connect `github/reviews.py::review_merge_signal` and the
    Engine dispatch path to `evaluate_exit` so exits 1, 4, 7, and 8 fire from the main
    loop and are recorded on the run.
 2. **Withdrawal is forbidden.** Removing `goal_met` from the advertised exit table is

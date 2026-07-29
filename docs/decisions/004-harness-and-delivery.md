@@ -20,7 +20,7 @@ external actions. Self-reported completion and shared context violate the harnes
 3. **PR delivery loop** (P13/D11). L1 delivers branch → PR → fix loop until green → **human merge
    gate**. Auto-merge never default.
 4. **Review ingestion** (P14/D12–D13). GitHub check-runs, logs, and review threads normalize to
-   `Finding` nodes. Rejected findings export to `.pullfrog/learnings.md`. No pullfrog-py upstream change.
+   `Finding` nodes. Rejected findings export to `.mergecraft/learnings.md`. No mergeCraft upstream change.
 5. **Idempotency** (P15/D14–D15). Decide/commit split; idempotency key written before external
    mutation; six pre-commit reconciliation checks. `destructive` actions require human approval and
    `retries: disabled`.

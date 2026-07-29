@@ -105,7 +105,7 @@ def triage_and_export(
     if edges:
         store.upsert_edges(edges)
     if state == "rejected":
-        path = learnings_path or Path(".pullfrog/learnings.md")
+        path = learnings_path or Path(".mergecraft/learnings.md")
         all_findings = list_findings_from_store(store)
         export_learnings(all_findings, path=path)
     return updated
