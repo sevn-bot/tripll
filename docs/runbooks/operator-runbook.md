@@ -636,6 +636,30 @@ of silently regressing latency.
 
 ---
 
+## Dependency vulnerability scanning
+
+CI runs **`make deps-audit`** as part of **`make ci`**. The target exports pinned
+packages from **`uv.lock`** (same extras as bootstrap: `dev`, `api`, `obs`) and
+audits them against the [OSV](https://osv.dev/) database via **`pip-audit`**.
+
+```bash
+make deps-audit    # standalone scan (needs network for OSV API)
+make ci            # includes deps-audit after make check
+```
+
+The gate **fails when any known vulnerability** is reported for a locked dependency.
+To ignore a specific CVE temporarily (e.g. while waiting on an upstream fix), pass
+`--ignore-vuln <ID>` through the script:
+
+```bash
+bash scripts/deps_audit.sh --ignore-vuln GHSA-xxxx-yyyy-zzzz
+```
+
+Prefer bumping the affected package in `pyproject.toml` and re-locking with `uv lock`
+over long-lived ignores.
+
+---
+
 ## Git safety (git clean guard)
 
 tripll ships a repo-local `bin/git` wrapper that blocks `git clean -x` and `git clean -X`.

@@ -72,7 +72,7 @@ _TRIPLL_RESUME_FLAGS := \
 PLANS_COMPOSE := docker-compose.agent-native-plans.yml
 PLANS_ENV := .env.agent-native
 
-.PHONY: help sync sync-api init tripll lint typecheck test check log-redact-check pullfrog-ref-check review serve status-watch orchestrator-watch \
+.PHONY: help sync sync-api init tripll lint typecheck test check deps-audit log-redact-check pullfrog-ref-check review serve status-watch orchestrator-watch \
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
@@ -299,6 +299,9 @@ log-redact-check: sync ## Validate log-hide-keys.toml + redaction unit tests
 	@test -f config/log-hide-keys.toml || (echo "Missing config/log-hide-keys.toml" >&2; exit 1)
 	$(UV_RUN) run --extra dev pytest tests/test_log_redact.py -v --tb=short
 
+deps-audit: sync ## OSV vulnerability scan of uv.lock (dev+api+obs extras; fails on known CVEs)
+	bash scripts/deps_audit.sh
+
 check: lint typecheck log-redact-check pullfrog-ref-check about-site-check test ## Lint + typecheck + log redact + pullfrog pin + about-site drift + test (required gate)
 
 pullfrog-ref-check: sync ## Fail when pullfrog-py pin drifts between pullfrog.yml and PULLFROG_PY_REF
@@ -325,7 +328,7 @@ setup: ## Fresh checkout: sync deps + install git hooks (CI bootstrap entry poin
 build: ## Build wheel + sdist into dist/
 	$(UV) build
 
-ci: check build ## Full local gate mirrored by GitHub Actions (check + build)
+ci: check deps-audit build ## Full local gate mirrored by GitHub Actions (check + deps-audit + build)
 
 about-site: ## Regenerate the about-tripll/ help site from _sources + _templates
 	$(UV_RUN) run --extra dev python scripts/build_about_site.py

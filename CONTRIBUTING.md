@@ -27,7 +27,8 @@ Everything runs through **Make** (mirrors CI):
 | `make typecheck` | `mypy --strict` on `src/tripll` |
 | `make test` | `pytest` |
 | `make check` | lint + typecheck + log-redact gate + test (**required gate**) |
-| `make ci` | `make check` + `uv build` (full local mirror of GitHub Actions) |
+| `make deps-audit` | OSV vulnerability scan of `uv.lock` (dev + api + obs extras) |
+| `make ci` | `make check` + `make deps-audit` + `uv build` (full local mirror of GitHub Actions) |
 
 Run `make check` (or `make ci`) before opening a PR.
 
