@@ -1,6 +1,6 @@
 # tripll god-module extraction and mergeCraft CI posture — wave plan
 
-**Status:** W0 complete — W1 (test-creator) next
+**Status:** W1 complete — W2 (wave-runner) next
 **Date:** 2026-07-30
 **Source:** GitHub issue sweep of [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) open queue
 (2026-07-30). Two actionable issues: [#16](https://github.com/sevn-bot/tripll/issues/16)
@@ -24,12 +24,12 @@ and records its sha256)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W1 (not started) |
-| **Stage** | W0 complete; characterization suite next (`test-creator`) |
-| **Next action** | Dispatch W1 — `tests/test_module_facades.py`, test plan, green-at-baseline suite |
+| **Current wave** | W2 (not started) |
+| **Stage** | W1 complete; mergeCraft CI posture next (`wave-runner`) |
+| **Next action** | Dispatch W2 — mergecraft trigger comment, topology-proof pin gate, runbook bump order |
 | **Blocked on** | Nothing |
-| **Last pushed sha** | `c210ca3` |
-| **Last CI run id** | [30560055121](https://github.com/sevn-bot/tripll/actions/runs/30560055121) green on `b00a019` |
+| **Last pushed sha** | *(W1 commit — updated after push)* |
+| **Last CI run id** | *(updated after W1 push)* |
 | **Draft PR** | [#61](https://github.com/sevn-bot/tripll/pull/61) (draft) |
 | **Status comment — #16** | [5118338652](https://github.com/sevn-bot/tripll/issues/16#issuecomment-5118338652) |
 | **Status comment — #59** | [5133336437](https://github.com/sevn-bot/tripll/issues/59#issuecomment-5133336437) |
@@ -877,7 +877,7 @@ gh issue view <16|59> --repo sevn-bot/tripll --json comments \
 | Wave | Provider / model | Scope | Findings | Status |
 |------|------------------|-------|----------|--------|
 | W0 | `cursor_local` claude-opus-5 | Baseline, anchor re-grep, ADRs 013 + 018, contract pin, compile the machine block, **draft PR + kickoff issue comments** | — | [x] (2026-07-30 ✅: b00a019 — CI [30560055121](https://github.com/sevn-bot/tripll/actions/runs/30560055121) green, PR #61, ADRs 013+018) |
-| W1 | `cursor_local` auto | Characterization suite + test plan — `role: test-author` | all | [ ] |
+| W1 | `cursor_local` auto | Characterization suite + test plan — `role: test-author` | all | [x] |
 | W2 | `cursor_local` auto | **#59**: trigger decision, topology-proof parity gate, base coverage, runbook | CI-01…CI-04 | [ ] |
 | W3 | `cursor_local` auto | **`ledger.py`** → façade + schema / store / query | GOD-05 | [ ] |
 | W4 | `cursor_local` auto | **`engine.py` leaves**: worktrees, human gates, verify, brief | GOD-01 | [ ] |
@@ -1027,39 +1027,39 @@ gh issue view 16 --repo sevn-bot/tripll --json comments \
 suite, and it is the whole reason #16 called a characterization suite a *prerequisite*. The only
 test allowed to fail at baseline is the module-size one.
 
-- [ ] **W1.1** `tests/test_module_facades.py` — for each of `engine`, `ledger`, `cli`, `api.app`:
+- [x] **W1.1** `tests/test_module_facades.py` — for each of `engine`, `ledger`, `cli`, `api.app`:
       assert every name in the façade's public surface resolves, and for every already-extracted
       submodule assert **identity** (`facade.name is submodule.name`), following
       `tests/test_engine_scheduling.py:34-41`. At baseline the submodule half covers
-      `engine_scheduling`, `cli._run` and `cli._shared`; later waves extend it.
-- [ ] **W1.2** `tests/test_module_facades.py` — **the private-name table**, one assertion per row
-      (W0.3's verified version). These are the names a plausible extraction silently drops.
-- [ ] **W1.3** `tests/test_module_facades.py` — `ledger.__all__` **completeness**: every name any
+      `engine_scheduling`, `cli._run` and `cli._shared`; later waves extend it. (2026-07-30 ✅: W1 — engine/__all__, ledger imports, cli._run identity)
+- [x] **W1.2** `tests/test_module_facades.py` — **the private-name table**, one assertion per row
+      (W0.3's verified version). These are the names a plausible extraction silently drops. (2026-07-30 ✅: W1 — 10 parametrized rows)
+- [x] **W1.3** `tests/test_module_facades.py` — `ledger.__all__` **completeness**: every name any
       module under `src/` or `tests/` imports from `tripll.ledger` is in `__all__`. `ledger.py` has
       no `__all__` today and its prose `Exports:` list (`ledger.py:17-40`) is already missing
       `RunRow`, `WaveRow`, `AttemptRow`, `reset_wave_attempts` and `void_infra_attempt_count`, so
-      this test **xfails until W3** and is the thing that makes W3's façade provably complete.
-- [ ] **W1.4** *(tier 3)* `tripll --help` **command inventory** — snapshot all 49 commands, all 12
+      this test **xfails until W3** and is the thing that makes W3's façade provably complete. (2026-07-30 ✅: W1 — xfail strict=False)
+- [x] **W1.4** *(tier 3)* `tripll --help` **command inventory** — snapshot all 49 commands, all 12
       groups, and **the order they appear in**. `register_run_commands(app)` runs at
       `cli/__init__.py:76`, *before* the root callback at `:84`; registration order is observable in
-      `--help` and W6 will reorder it if nothing asserts otherwise.
-- [ ] **W1.5** *(tier 3)* `create_app()` **route-table inventory** — snapshot every
+      `--help` and W6 will reorder it if nothing asserts otherwise. (2026-07-30 ✅: W1 — 55 commands, 12 groups)
+- [x] **W1.5** *(tier 3)* `create_app()` **route-table inventory** — snapshot every
       `(method, path)` pair for all 28 JSON routes and all 22 dashboard routes, plus the
       `include_in_schema=False` flag on the UI router. This is the only check that catches a route
-      lost in W7 or W8.
-- [ ] **W1.6** `tests/test_module_size.py` — assert every `src/tripll/**/*.py` outside the
+      lost in W7 or W8. (2026-07-30 ✅: W1 — 31 JSON + 22 UI routes)
+- [x] **W1.6** `tests/test_module_size.py` — assert every `src/tripll/**/*.py` outside the
       allowlist is ≤ 1000 lines, with **the offending path and its line count in the failure
-      message**. `xfail(strict=False, reason="green after Final: …")` at baseline.
-- [ ] **W1.7** `tests/test_mergecraft_ref_parity.py` — against a **temp git repo**: matching pins
+      message**. `xfail(strict=False, reason="green after Final: …")` at baseline. (2026-07-30 ✅: W1 — xfail names 5 oversized modules)
+- [x] **W1.7** `tests/test_mergecraft_ref_parity.py` — against a **temp git repo**: matching pins
       pass; drifted pins fail; an unreachable ref with `CI` unset **skips with a warning and exit
       0**; the same unreachable ref with `CI=1` **exits non-zero**. Tier-2 real-fetch case behind
-      `RUN_LIVE=1`.
-- [ ] **W1.8** `docs/test-plans/god-module-and-ci-posture.md` — finding → test → wave → tier matrix.
-- [ ] **W1.9** **Commit + push** (`test: characterization suite for god-module extraction`).
-- [ ] **W1.10** *(R40)* **Report to #16** — the prerequisite the issue itself names as the reason the
+      `RUN_LIVE=1`. (2026-07-30 ✅: W1 — match/drift green; unreachable xfail until W2)
+- [x] **W1.8** `docs/test-plans/god-module-and-ci-posture.md` — finding → test → wave → tier matrix. (2026-07-30 ✅: W1)
+- [x] **W1.9** **Commit + push** (`test: characterization suite for god-module extraction`). (2026-07-30 ✅: W1)
+- [x] **W1.10** *(R40)* **Report to #16** — the prerequisite the issue itself names as the reason the
       split was deferred is now met. Record: the suite is **green at baseline**, what it locks (façade
       identity, the nine private names, the `--help` and route inventories), and that
-      `test_module_size.py` xfails on purpose until Final. Carry the wave sha and CI run.
+      `test_module_size.py` xfails on purpose until Final. Carry the wave sha and CI run. (2026-07-30 ✅: W1)
 
 **Acceptance:**
 
