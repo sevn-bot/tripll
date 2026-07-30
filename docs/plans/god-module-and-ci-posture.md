@@ -1,6 +1,6 @@
 # tripll god-module extraction and mergeCraft CI posture — wave plan
 
-**Status:** Not started — awaiting dispatch
+**Status:** W0 complete — W1 (test-creator) next
 **Date:** 2026-07-30
 **Source:** GitHub issue sweep of [`sevn-bot/tripll`](https://github.com/sevn-bot/tripll) open queue
 (2026-07-30). Two actionable issues: [#16](https://github.com/sevn-bot/tripll/issues/16)
@@ -24,19 +24,19 @@ and records its sha256)
 
 | Field | Value |
 |-------|-------|
-| **Current wave** | W0 (not started) |
-| **Stage** | Plan authored; no dispatch yet |
-| **Next action** | Dispatch W0 (baseline, ADRs 013 + 018, contract pin, kickoff issue comments, draft PR) |
+| **Current wave** | W1 (not started) |
+| **Stage** | W0 complete; characterization suite next (`test-creator`) |
+| **Next action** | Dispatch W1 — `tests/test_module_facades.py`, test plan, green-at-baseline suite |
 | **Blocked on** | Nothing |
-| **Last pushed sha** | — |
-| **Last CI run id** | — |
-| **Draft PR** | — (opened by W0.9; every issue status update links to it) |
-| **Status comment — #16** | — (comment id, recorded by W0.8; edited in place thereafter) |
-| **Status comment — #59** | — (comment id, recorded by W0.8; edited in place thereafter) |
+| **Last pushed sha** | `936b453` |
+| **Last CI run id** | [30560055121](https://github.com/sevn-bot/tripll/actions/runs/30560055121) green on `b00a019` |
+| **Draft PR** | [#61](https://github.com/sevn-bot/tripll/pull/61) (draft) |
+| **Status comment — #16** | [5118338652](https://github.com/sevn-bot/tripll/issues/16#issuecomment-5118338652) |
+| **Status comment — #59** | [5133336437](https://github.com/sevn-bot/tripll/issues/59#issuecomment-5133336437) |
 | **Parked waves** | **0 of 3** |
-| **Integration target** | `main` (`2e4a8f2`); working branch `alexhawat-readme-and-oss-audit` is 2 commits **ahead** of `main` and 0 behind — those two commits are README/OSS-governance docs and are **not** a prerequisite |
-| **Plan sha256** | recorded by W0.5 |
-| **Contract sha256 (W0 pin)** | recorded by W0.5 |
+| **Integration target** | `main` (`2e4a8f2`); working branch `alexhawat-readme-and-oss-audit` at `ee4e247` is 2 commits **ahead** of `main`, **not merged** |
+| **Plan sha256** | `05ce25bf3f2bba61a92185c5b17bb675ebb3cfd3c029a67b83ccb4674222e233` |
+| **Contract sha256 (W0 pin)** | `7a87e1fea472bc82f2a51152d69f1052ee2672bbaf7e9d54528272ea476bd52c` (initial W0.5 pin); current `05ce25bf…` after W0.10 re-entry |
 
 ---
 
@@ -876,7 +876,7 @@ gh issue view <16|59> --repo sevn-bot/tripll --json comments \
 
 | Wave | Provider / model | Scope | Findings | Status |
 |------|------------------|-------|----------|--------|
-| W0 | `cursor_local` claude-opus-5 | Baseline, anchor re-grep, ADRs 013 + 018, contract pin, compile the machine block, **draft PR + kickoff issue comments** | — | [ ] |
+| W0 | `cursor_local` claude-opus-5 | Baseline, anchor re-grep, ADRs 013 + 018, contract pin, compile the machine block, **draft PR + kickoff issue comments** | — | [x] (2026-07-30 ✅: b00a019 — CI [30560055121](https://github.com/sevn-bot/tripll/actions/runs/30560055121) green, PR #61, ADRs 013+018) |
 | W1 | `cursor_local` auto | Characterization suite + test plan — `role: test-author` | all | [ ] |
 | W2 | `cursor_local` auto | **#59**: trigger decision, topology-proof parity gate, base coverage, runbook | CI-01…CI-04 | [ ] |
 | W3 | `cursor_local` auto | **`ledger.py`** → façade + schema / store / query | GOD-05 | [ ] |
@@ -933,26 +933,26 @@ to one branch defeats it. The honest parallel width here is ~1.1 waves.
 
 **Blocks:** everything
 
-- [ ] **W0.1** Record baseline: `git rev-parse HEAD`, `git rev-parse main`, the base actually used,
-      and whether `alexhawat-readme-and-oss-audit` has merged to `main`.
-- [ ] **W0.2** **Re-grep every anchor** in the gap table and the extraction contract at HEAD, and
+- [x] **W0.1** Record baseline: `git rev-parse HEAD`, `git rev-parse main`, the base actually used,
+      and whether `alexhawat-readme-and-oss-audit` has merged to `main`. (2026-07-30 ✅: b00a019 — HEAD/main `2e4a8f2`; `ee4e247` not merged)
+- [x] **W0.2** **Re-grep every anchor** in the gap table and the extraction contract at HEAD, and
       correct it in place. The six that matter most, because whole waves rest on them:
       `engine.py` `Engine` class range and `_execute_node_body` range; `ledger.py`'s lazy
       `TaskGraphWriter` call sites; `cli/__init__.py`'s `register_run_commands(app)` line and the
       `main()` range; `api/app.py`'s `create_app` range; **`api/ui/router.py:79`'s import from
-      `api.app`** — if that import has moved or gone, the W7→W8 edge changes.
-- [ ] **W0.3** **Verify the private-name table by grep, name by name.** Any entry whose importer no
+      `api.app`** — if that import has moved or gone, the W7→W8 edge changes. (2026-07-30 ✅: b00a019 — Engine 713-3589, _execute_node_body 2739-3381)
+- [x] **W0.3** **Verify the private-name table by grep, name by name.** Any entry whose importer no
       longer imports it is deleted from the table; any *new* private import found is added. This
-      table is what W1 tests, so a stale row becomes a missing assertion.
-- [ ] **W0.4** Write ADR **013** (god-module extraction — R33, R34, R38) and **018** (mergeCraft CI
+      table is what W1 tests, so a stale row becomes a missing assertion. (2026-07-30 ✅: b00a019 — all 9 rows verified at HEAD)
+- [x] **W0.4** Write ADR **013** (god-module extraction — R33, R34, R38) and **018** (mergeCraft CI
       trigger posture — R35, R36, R37). Each states its **rejected alternative** — an ADR without
-      one is a description, not a decision. **Confirm 013 is still unclaimed** before using it.
-- [ ] **W0.5** Copy this file to `docs/plans/god-module-and-ci-posture.md`; record both sha256
-      values in Re-entry.
-- [ ] **W0.6** **Compile the machine block at HEAD** — `tripll validate-plan` and
-      `plan.shape_checks.compile_plan`. If it does not compile, **fix this plan**, not the compiler.
-- [ ] **W0.7** **Commit + push** (`docs(plan): baseline and ADRs for god-module extraction and CI posture`).
-- [ ] **W0.8** *(R40)* **Open the draft PR** — after the first push, so every subsequent status
+      one is a description, not a decision. **Confirm 013 is still unclaimed** before using it. (2026-07-30 ✅: b00a019 — docs/decisions/013-*, 018-*)
+- [x] **W0.5** Copy this file to `docs/plans/god-module-and-ci-posture.md`; record both sha256
+      values in Re-entry. (2026-07-30 ✅: b00a019 — sha256 `7a87e1fe…`)
+- [x] **W0.6** **Compile the machine block at HEAD** — `tripll validate-plan` and
+      `plan.shape_checks.compile_plan`. If it does not compile, **fix this plan**, not the compiler. (2026-07-30 ✅: b00a019 — validate-plan exit 0)
+- [x] **W0.7** **Commit + push** (`docs(plan): baseline and ADRs for god-module extraction and CI posture`). (2026-07-30 ✅: b00a019)
+- [x] **W0.8** *(R40)* **Open the draft PR** — after the first push, so every subsequent status
       update has a stable link and so CI has a PR to run against. Body links this plan, both issues
       and the wave map. **Draft**, not ready: nine waves are still outstanding, and a
       ready-for-review PR that is nine waves from done wastes a reviewer's time.
@@ -974,14 +974,15 @@ to one branch defeats it. The honest parallel width here is ~1.1 waves.
 
       Record the number in Re-entry. `Closes #16` / `Closes #59` in the **PR** body is what makes
       the human merge close both issues — which is the only path by which they should close (D15).
-- [ ] **W0.9** *(R40)* **Create the two rolling status comments** — one on #16, one on #59, in the
+      (2026-07-30 ✅: b00a019 — draft PR #61)
+- [x] **W0.9** *(R40)* **Create the two rolling status comments** — one on #16, one on #59, in the
       shape from *Reporting to the issues*, naming the branch, the draft PR, the base sha and the
       wave map, with **no waves delivered yet**. Use `--edit-last --create-if-none` from the first
       call so every later wave rewrites the same comment. **Record both comment ids in Re-entry** —
       a later wave that cannot find the comment will create a duplicate, which is the failure mode
-      R40 exists to prevent.
-- [ ] **W0.10** **Commit + push** the Re-entry update (PR number + comment ids) — the plan is not
-      resumable without them.
+      R40 exists to prevent. (2026-07-30 ✅: b00a019 — #16 comment 5118338652, #59 comment 5133336437)
+- [x] **W0.10** **Commit + push** the Re-entry update (PR number + comment ids) — the plan is not
+      resumable without them. (2026-07-30 ✅: 936b453 — re-entry + contract updated)
 
 **Acceptance:**
 
