@@ -14,6 +14,7 @@ Exports:
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from tripll.graph import Batch, RunGraph, WaveNode, paths_overlap
@@ -175,3 +176,23 @@ def orchestrator_serial_nodes(graph: RunGraph) -> list[WaveNode]:
         if node.node_id not in seen:
             ordered.append(node)
     return ordered
+
+
+_DEFAULT_MAX_PARALLEL = 3
+
+
+def max_parallel_from_env() -> int:
+    """Read ``TRIPLL_MAX_PARALLEL`` from the environment (default 3).
+
+    Returns:
+        int: Maximum number of nodes to run concurrently within a batch.
+
+    Examples:
+        >>> isinstance(max_parallel_from_env(), int)
+        True
+    """
+    try:
+        v = int(os.environ.get("TRIPLL_MAX_PARALLEL", _DEFAULT_MAX_PARALLEL))
+        return max(1, v)
+    except (ValueError, TypeError):
+        return _DEFAULT_MAX_PARALLEL

@@ -7,11 +7,13 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Changed
+- [2026-07-30] God-module extraction (#16, W8): split 22 dashboard routes from `api/ui/router.py` into `api/ui/_routes_{runs,agents,fragments}.py` with shared helpers in `api/ui/_helpers.py`; `make_ui_router()` unchanged surface (no URL or template changes)
 - [2026-07-29] Final AI-layer compounding gate: xfail reconciliation (24 removed), `plan` callback accepts interspersed `--runs-root` after W6 subcommand (Typer fix)
 - [2026-07-29] **Breaking:** replace pullfrog-py with [mergeCraft@pre-0.0.1](https://github.com/alexhawat/mergeCraft) — workflow `.github/workflows/mergecraft.yml`, config `.mergecraft/`, learnings `.mergecraft/learnings.md`, check `mergecraft-approval`, exit context `review_success`, `make review` / `mergecraft-ref-check`, and `tripll review diff|watch|init|dispatch`. Configurable `[review].posture` (`review_only` default; `fix`/`full` enable mode dispatch)
 - [2026-07-29] God-module extraction (#16): run / inject / reconcile-graph CLI commands moved to `tripll.cli._run`; shared helpers to `tripll.cli._shared` (no CLI behavior change)
 
 ### Added
+- [2026-07-30] Module-size gate (GOD-06, Final): `scripts/check_module_size.py`, `make module-size-check` wired into `ci-resume` and `ci-affected`; allowlists `inject.py` and `skw/render.py` (not in #16 scope)
 - [2026-07-29] Tracker protocol and idempotent plan publish: `src/tripll/trackers/{base,github,publish}.py`, `src/tripll/github/issues.py`, and `tripll plan publish --tracker github --parent <ref>` with pre-read idempotence (R30, ADR 016)
 - [2026-07-29] Calibration loop (R28 advisory): `src/tripll/calibrate/{predict,score,routing,sync}.py`, `compile_plan` PREDICTED metrics, `tripll calibrate --run`, REALIZED `attempts_to_green` / `first_attempt_pass_rate`, Brier scoring, and calibration section in `report.md`
 - [2026-07-29] Executable structural rules: `src/tripll/rules/executable.py`, committed `.tripll/rules/no-stdlib-logging.md`, `make rules-check` gate wired into `ci-affected` and `ci-resume`, and structural scope breaches via `harness/boundary.py`

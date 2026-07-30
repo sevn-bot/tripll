@@ -328,9 +328,9 @@ def test_launch_form_redirects(client: TestClient, tmp_rr: RunsRoot, tmp_path: P
         )
     (run_dir / "engine.pid").write_text(str(os.getpid()), encoding="utf-8")
 
-    with patch("tripll.api.ui.router.subprocess.Popen") as mock_popen:
+    with patch("tripll.api.ui._routes_runs.subprocess.Popen") as mock_popen:
         mock_popen.return_value = MagicMock(pid=55555)
-        with patch("tripll.api.ui.router.asyncio.sleep"):
+        with patch("tripll.api.ui._routes_runs.asyncio.sleep"):
             r = client.post(
                 "/launch",
                 data={"input_path": str(input_dir), "profile_id": "go"},
@@ -503,11 +503,11 @@ def test_worktree_fragment_mocked_git(
         head_sha="a" * 40,
     )
     monkeypatch.setattr(
-        "tripll.api.ui.router.collect_worktree_status",
+        "tripll.api._worktree_status.collect_worktree_status",
         lambda _path: fake,
     )
     monkeypatch.setattr(
-        "tripll.api.ui.router.resolve_wave_worktree_path",
+        "tripll.api._worktree_status.resolve_wave_worktree_path",
         lambda *_a, **_k: tmp_path / "wt",
     )
 
