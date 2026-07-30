@@ -28,7 +28,7 @@ and records its sha256)
 | **Stage** | W0 complete; characterization suite next (`test-creator`) |
 | **Next action** | Dispatch W1 — `tests/test_module_facades.py`, test plan, green-at-baseline suite |
 | **Blocked on** | Nothing |
-| **Last pushed sha** | `936b453` |
+| **Last pushed sha** | `c210ca3` |
 | **Last CI run id** | [30560055121](https://github.com/sevn-bot/tripll/actions/runs/30560055121) green on `b00a019` |
 | **Draft PR** | [#61](https://github.com/sevn-bot/tripll/pull/61) (draft) |
 | **Status comment — #16** | [5118338652](https://github.com/sevn-bot/tripll/issues/16#issuecomment-5118338652) |
@@ -982,7 +982,7 @@ to one branch defeats it. The honest parallel width here is ~1.1 waves.
       a later wave that cannot find the comment will create a duplicate, which is the failure mode
       R40 exists to prevent. (2026-07-30 ✅: b00a019 — #16 comment 5118338652, #59 comment 5133336437)
 - [x] **W0.10** **Commit + push** the Re-entry update (PR number + comment ids) — the plan is not
-      resumable without them. (2026-07-30 ✅: 936b453 — re-entry + contract updated)
+      resumable without them. (2026-07-30 ✅: c210ca3 — re-entry + contract updated)
 
 **Acceptance:**
 
