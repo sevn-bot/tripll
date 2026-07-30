@@ -328,7 +328,6 @@ def test_private_name_table_resolves(module: Any, name: str) -> None:
     _assert_resolves(module, name)
 
 
-@pytest.mark.xfail(reason="green after W3: ledger.__all__ completeness", strict=False)
 def test_ledger_all_contains_every_imported_name() -> None:
     """``ledger.__all__`` must list every externally imported name (W3 façade contract)."""
     imported = _collect_imported_ledger_names(roots=[_REPO_ROOT / "src", _REPO_ROOT / "tests"])

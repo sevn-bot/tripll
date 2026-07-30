@@ -72,7 +72,7 @@ _TRIPLL_RESUME_FLAGS := \
 PLANS_COMPOSE := docker-compose.agent-native-plans.yml
 PLANS_ENV := .env.agent-native
 
-.PHONY: help sync sync-api init tripll lint typecheck test check ci-steps ci-resume ci-reset ci-affected ci-changed partial-ci deps-audit log-redact-check mergecraft-ref-check rules-check review serve status-watch orchestrator-watch \
+.PHONY: help sync sync-api init tripll lint typecheck test check ci-steps ci-resume ci-reset ci-affected ci-changed partial-ci deps-audit log-redact-check mergecraft-ref-check module-size-check rules-check review serve status-watch orchestrator-watch \
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
@@ -307,6 +307,9 @@ check: lint typecheck log-redact-check mergecraft-ref-check about-site-check tes
 mergecraft-ref-check: sync ## Fail when mergeCraft pin drifts between mergecraft.yml and MERGECRAFT_REF
 	$(UV_RUN) run --extra dev python scripts/check_mergecraft_ref_parity.py
 
+module-size-check: sync ## Fail when any non-allowlisted src/tripll module exceeds 1000 lines
+	$(UV_RUN) run --extra dev python scripts/check_module_size.py
+
 rules-check: sync ## Run active executable rules; non-zero on structural violation (W4)
 	$(UV_RUN) run python -m tripll.rules.executable
 
@@ -343,7 +346,7 @@ partial-ci: ci-affected ## Alias for ci-affected (per-wave local gate)
 
 # Ordered expansion of the pre-merge gate (consumed by scripts/ci_resume.sh).
 # Keep in sync with check (lint … test) + deps-audit + build.
-CI_STEPS := lint typecheck log-redact-check mergecraft-ref-check about-site-check rules-check test deps-audit build
+CI_STEPS := lint typecheck log-redact-check mergecraft-ref-check module-size-check about-site-check rules-check test deps-audit build
 
 ci-steps: ## Print ordered ci-resume step list (consumed by ci-resume)
 	@echo $(CI_STEPS)

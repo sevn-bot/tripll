@@ -617,7 +617,7 @@ def _build_worktree_fragment_context(
     node_id: str,
 ) -> dict[str, Any] | None:
     """Build template context for ``_worktree_panel.html`` (W3.4)."""
-    from tripll.api.ui.router import collect_worktree_status, resolve_wave_worktree_path
+    from tripll.api._worktree_status import collect_worktree_status, resolve_wave_worktree_path
 
     ledger_path = _find_ledger(rr, run_id)
     if ledger_path is None:

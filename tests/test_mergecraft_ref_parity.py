@@ -76,7 +76,6 @@ def test_drifted_pins_fail_temp_repo(
     assert parity.main() == 1
 
 
-@pytest.mark.xfail(reason="green after W2: unreachable ref skips offline", strict=False)
 def test_unreachable_ref_offline_skips_with_warning(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -95,7 +94,6 @@ def test_unreachable_ref_offline_skips_with_warning(
     assert "warn" in captured.err.lower() or "skip" in captured.err.lower()
 
 
-@pytest.mark.xfail(reason="green after W2: unreachable ref fails under CI", strict=False)
 def test_unreachable_ref_ci_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

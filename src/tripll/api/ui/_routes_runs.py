@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import subprocess
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -16,7 +18,6 @@ from tripll.api._inject import parse_owned_paths, run_hotfix_inject
 from tripll.api._runs import RunSummary, _list_all_runs
 from tripll.api.deps import _read_config, _tripll_argv
 from tripll.api.ui._helpers import _build_run_detail_context, _ui_context
-from tripll.api.ui.router import asyncio, subprocess
 from tripll.inject import InjectError
 from tripll.pipeline import RunsRoot  # noqa: TC001
 from tripll.profiles import control_plane_db_path, get_profile, list_profiles, open_profile_store
@@ -133,7 +134,7 @@ def make_runs_router(templates: Jinja2Templates) -> APIRouter:
             "--runs-root",
             str(rr.root),
         ]
-        subprocess.Popen(
+        subprocess.Popen(  # noqa: ASYNC220
             argv,
             start_new_session=True,
             stdout=subprocess.DEVNULL,

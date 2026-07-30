@@ -38,7 +38,6 @@ def _oversized_outside_allowlist() -> list[tuple[str, int]]:
     return sorted(violations, key=lambda item: (-item[1], item[0]))
 
 
-@pytest.mark.xfail(reason="green after Final: make module-size-check gate", strict=False)
 def test_module_size_under_limit_outside_allowlist() -> None:
     """Every ``src/tripll/**/*.py`` outside the allowlist is ≤ 1000 lines."""
     violations = _oversized_outside_allowlist()
