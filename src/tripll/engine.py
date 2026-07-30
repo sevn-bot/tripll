@@ -64,22 +64,16 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import shutil
-import subprocess
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from tripll.adapters.pools import ProviderPoolRegistry, pools_from_plan
 from tripll.adapters.quota import quota_message
-from tripll.brief import (
-    enrich_brief_with_graph_pack,
-    enrich_brief_with_rules_pack,
-    extract_wave_summary,
-    render_json_brief,
-    write_brief,
-)
+from tripll.brief import extract_wave_summary, write_brief
+from tripll.engine_brief import append_external_upload_dirs, brief_for, safe_node_id
+from tripll.engine_human_gates import _resolve_grep_brief, complete_human_gate_waves
 from tripll.engine_scheduling import (
     can_run_concurrently,
     human_gate_node_ids,
@@ -88,14 +82,21 @@ from tripll.engine_scheduling import (
     ready_nodes,
     select_concurrent_set,
 )
-from tripll.git_commit import commit_and_push_wave
-from tripll.harness.boundary import (
-    assert_verify_isolation,
-    build_verify_dispatch,
-    detect_structural_scope_breach,
-    materialize_verify_worktree,
-    remove_verify_worktree,
+from tripll.engine_verify import (
+    VERIFY_ONLY_RETRIES,
+    run_isolated_verify,
+    run_quality_gauntlet,
+    verify_with_retries,
 )
+from tripll.engine_worktrees import (
+    GitWorktreeManager,
+    MakeVerifier,
+    SingleBranchWorktreeManager,
+    Verifier,
+    WorktreeManager,
+)
+from tripll.git_commit import commit_and_push_wave
+from tripll.harness.boundary import detect_structural_scope_breach
 from tripll.harness.fingerprint import (
     capture_env_fingerprint,
     fingerprint_hash,
@@ -129,17 +130,8 @@ from tripll.report import sync_report, write_report
 from tripll.worktrees import (
     Worktree,
     WorktreeError,
-    allocate_feature_branch_worktree,
-    allocate_worktree,
     changed_paths,
-    checkpoint_message,
-    checkpoint_worktree,
-    cleanup_worktree,
-    detect_scope_breach,
-    recover_worktree,
-    revert_breach,
     stage_dispatch_context,
-    staged_wave_plan_path,
 )
 
 __all__ = [
@@ -167,66 +159,6 @@ if TYPE_CHECKING:
     from tripll.graph import OrchestratorConfig, RunGraph, WaveNode
     from tripll.ledger import AttemptOutcome, RunState
     from tripll.pipeline import RunsRoot
-
-
-def _resolve_grep_brief(grep_brief: bool | None) -> bool:
-    """Default graph-packed briefs when the kg extra is installed (P2.3)."""
-    if grep_brief is not None:
-        return grep_brief
-    from tripll.plan.code_graph import kg_extra_available
-
-    return not kg_extra_available()
-
-
-def complete_human_gate_waves(
-    lc: LedgerConnection,
-    run_id: str,
-    graph: RunGraph,
-    *,
-    done: set[str],
-    blocked: list[str],
-    results: dict[str, NodeResult],
-) -> None:
-    """Mark human-gate batch waves done without agent dispatch (after Pre-0 approve).
-
-    Args:
-        lc (LedgerConnection): Open run ledger.
-        run_id (str): Run identifier.
-        graph (RunGraph): Parsed execution graph.
-        done (set[str]): Mutable set of completed node ids (updated in place).
-        blocked (list[str]): Mutable list of blocked node ids (may be cleared).
-        results (dict[str, NodeResult]): Mutable per-node results (updated in place).
-
-    Examples:
-        >>> complete_human_gate_waves.__name__
-        'complete_human_gate_waves'
-    """
-    for node_id in sorted(human_gate_node_ids(graph)):
-        if node_id in done:
-            continue
-        row = get_wave(lc, run_id, node_id)
-        if row.state == "blocked":
-            transition_wave(lc, run_id, node_id, "queued")
-            row = get_wave(lc, run_id, node_id)
-        if row.state != "done":
-            transition_wave(lc, run_id, node_id, "done")
-        done.add(node_id)
-        if node_id in blocked:
-            blocked.remove(node_id)
-        results[node_id] = NodeResult(
-            node_id,
-            "done",
-            row.attempt_count,
-            "human gate — operator decisions only (no agent dispatch)",
-        )
-        append_event(
-            lc,
-            run_id=run_id,
-            node_id=node_id,
-            phase="done",
-            last_action="human gate cleared (Pre-0 approved)",
-        )
-        logger.info("engine: {} node {} — human gate auto-completed (no dispatch)", run_id, node_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,381 +203,6 @@ class RunResult:
     cost_pending: bool = False
 
 
-# ---------------------------------------------------------------------------
-# Worktree / verify injection points
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-
-
-class WorktreeManager(Protocol):
-    """Protocol for worktree allocation, checkpoint, cleanup, and scope checks."""
-
-    def allocate(self, run_id: str, lane_id: str, wave_id: str) -> Worktree:
-        """Allocate (or reuse) a worktree for a lane-wave.
-
-        Args:
-            run_id (str): Run identifier.
-            lane_id (str): Lane id.
-            wave_id (str): Wave id.
-
-        Returns:
-            Worktree: Allocated worktree handle.
-
-        Examples:
-            >>> WorktreeManager.allocate.__name__
-            'allocate'
-        """
-        ...
-
-    def checkpoint(
-        self,
-        worktree: Worktree,
-        *,
-        run_id: str,
-        node_id: str,
-        attempt: int,
-    ) -> str | None:
-        """Commit all worktree changes for *attempt*; return commit SHA or None.
-
-        Args:
-            worktree (Worktree): Lane worktree.
-            run_id (str): Run identifier.
-            node_id (str): Wave node id.
-            attempt (int): Attempt number (1-based).
-
-        Returns:
-            str | None: Commit SHA when changes were committed.
-
-        Examples:
-            >>> WorktreeManager.checkpoint.__name__
-            'checkpoint'
-        """
-        ...
-
-    def recover(self, worktree: Worktree, *, run_id: str, node_id: str) -> str | None:
-        """Commit orphaned work in *worktree* after a crash.
-
-        Args:
-            worktree (Worktree): Lane worktree.
-            run_id (str): Run identifier.
-            node_id (str): Wave node id.
-
-        Returns:
-            str | None: Commit SHA when recovery committed changes.
-
-        Examples:
-            >>> WorktreeManager.recover.__name__
-            'recover'
-        """
-        ...
-
-    def cleanup(self, worktree: Worktree) -> None:
-        """Remove the worktree after a successful wave.
-
-        Args:
-            worktree (Worktree): Lane worktree to remove.
-
-        Examples:
-            >>> WorktreeManager.cleanup.__name__
-            'cleanup'
-        """
-        ...
-
-    def scope_breach(
-        self,
-        worktree: Worktree,
-        forbidden: list[str],
-        *,
-        owned_paths: list[str] | None = None,
-    ) -> list[str]:
-        """Return changed paths under any forbidden path.
-
-        Args:
-            worktree (Worktree): Lane worktree.
-            forbidden (list[str]): Paths the wave may not edit.
-            owned_paths (list[str] | None): Optional owned-path hint for detection.
-
-        Returns:
-            list[str]: Repo-relative breached paths (empty when clean).
-
-        Examples:
-            >>> WorktreeManager.scope_breach.__name__
-            'scope_breach'
-        """
-        ...
-
-    def revert(self, worktree: Worktree, files: list[str]) -> None:
-        """Revert breached files in *worktree*.
-
-        Args:
-            worktree (Worktree): Lane worktree.
-            files (list[str]): Repo-relative paths to revert.
-
-        Examples:
-            >>> WorktreeManager.revert.__name__
-            'revert'
-        """
-        ...
-
-
-class Verifier(Protocol):
-    """Protocol for running a node's verify targets."""
-
-    def verify(self, worktree_path: Path, targets: list[str]) -> tuple[bool, str]:
-        """Run *targets* in *worktree_path*; return ``(ok, evidence)``.
-
-        Args:
-            worktree_path (Path): Lane worktree root.
-            targets (list[str]): Makefile targets (e.g. ``make lint``).
-
-        Returns:
-            tuple[bool, str]: Success flag and evidence string.
-
-        Examples:
-            >>> Verifier.verify.__name__
-            'verify'
-        """
-        ...
-
-
-class GitWorktreeManager:
-    """Real git-backed worktree manager (production path).
-
-    Args:
-        repo_root (Path): The sevn.bot checkout.
-        runs_root (RunsRoot): Runs root (for per-run worktree dirs).
-        base_ref (str): Git ref to branch from.
-    """
-
-    def __init__(self, repo_root: Path, runs_root: RunsRoot, *, base_ref: str = "HEAD") -> None:
-        """Store repo and runs-root paths for worktree allocation."""
-        self.repo_root = repo_root
-        self.runs_root = runs_root
-        self.base_ref = base_ref
-
-    def allocate(self, run_id: str, lane_id: str, wave_id: str) -> Worktree:
-        """Allocate a git worktree for *lane_id*:*wave_id* under the run."""
-        return allocate_worktree(
-            self.repo_root,
-            self.runs_root.worktrees_dir(run_id),
-            run_id=run_id,
-            lane_id=lane_id,
-            wave_id=wave_id,
-            base_ref=self.base_ref,
-        )
-
-    def checkpoint(
-        self,
-        worktree: Worktree,
-        *,
-        run_id: str,
-        node_id: str,
-        attempt: int,
-    ) -> str | None:
-        """Checkpoint *worktree* changes for attempt *attempt*."""
-        msg = checkpoint_message(run_id=run_id, node_id=node_id, attempt=attempt)
-        return checkpoint_worktree(worktree.path, message=msg)
-
-    def recover(self, worktree: Worktree, *, run_id: str, node_id: str) -> str | None:
-        """Recover orphaned work in *worktree* after a crash."""
-        return recover_worktree(worktree.path, run_id=run_id, node_id=node_id)
-
-    def cleanup(self, worktree: Worktree) -> None:
-        """Remove *worktree* from disk and prune the git worktree entry."""
-        cleanup_worktree(self.repo_root, worktree)
-
-    def scope_breach(
-        self,
-        worktree: Worktree,
-        forbidden: list[str],
-        *,
-        owned_paths: list[str] | None = None,
-    ) -> list[str]:
-        """Detect forbidden-path edits in *worktree*."""
-        return detect_scope_breach(worktree.path, forbidden, owned_paths=owned_paths)
-
-    def revert(self, worktree: Worktree, files: list[str]) -> None:
-        """Revert *files* in *worktree* after a scope breach."""
-        revert_breach(worktree.path, files)
-
-
-class MakeVerifier:
-    """Real verifier that runs each make target inside the worktree.
-
-    Uses the main checkout toolchain (``UV_PROJECT``) so worktrees do not build a
-    stale local ``.venv``. ``typecheck`` is scoped to ``src/sevn`` files changed
-    on the lane branch (not full-repo ``mypy``).
-
-    Args:
-        repo_root (Path): sevn.bot checkout (toolchain + ``UV_PROJECT`` target).
-        timeout_s (int): Per-target subprocess timeout.
-    """
-
-    def __init__(self, *, repo_root: Path, timeout_s: int = 1800) -> None:
-        """Store toolchain root and per-target timeout."""
-        self.repo_root = repo_root.resolve()
-        self.timeout_s = timeout_s
-
-    def _toolchain_env(self) -> dict[str, str]:
-        """Return subprocess env with ``UV_PROJECT`` pointed at the main checkout."""
-        env = os.environ.copy()
-        env.pop("VIRTUAL_ENV", None)
-        env["UV_PROJECT"] = str(self.repo_root)
-        return env
-
-    def _run(
-        self,
-        argv: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-    ) -> subprocess.CompletedProcess[str]:
-        """Run *argv* in *cwd* with *env* and capture output."""
-        return subprocess.run(
-            argv,
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=self.timeout_s,
-            env=env,
-        )
-
-    def _merge_base(self, worktree_path: Path, env: dict[str, str]) -> str:
-        """Return a merge-base ref for diffing ``src/sevn`` changes on the lane branch."""
-        refs: list[str] = []
-        sym = self._run(
-            ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-            cwd=worktree_path,
-            env=env,
-        )
-        if sym.returncode == 0 and sym.stdout.strip():
-            refs.append(sym.stdout.strip().removeprefix("origin/"))
-        refs.extend(["main", "master", "test-pre"])
-        seen: set[str] = set()
-        for ref in refs:
-            if ref in seen:
-                continue
-            seen.add(ref)
-            proc = self._run(
-                ["git", "merge-base", "HEAD", ref],
-                cwd=worktree_path,
-                env=env,
-            )
-            if proc.returncode == 0 and proc.stdout.strip():
-                return proc.stdout.strip()
-        return "HEAD~1"
-
-    def _changed_src_sevn(self, worktree_path: Path, env: dict[str, str]) -> list[str]:
-        """List changed or untracked ``src/sevn`` Python files on the lane branch."""
-        base = self._merge_base(worktree_path, env)
-        proc = self._run(
-            ["git", "diff", "--name-only", base, "--", "src/sevn"],
-            cwd=worktree_path,
-            env=env,
-        )
-        if proc.returncode != 0:
-            return []
-        paths = {line.strip() for line in proc.stdout.splitlines() if line.strip().endswith(".py")}
-        untracked = self._run(
-            [
-                "git",
-                "ls-files",
-                "--others",
-                "--exclude-standard",
-                "--",
-                "src/sevn",
-            ],
-            cwd=worktree_path,
-            env=env,
-        )
-        if untracked.returncode == 0:
-            paths.update(
-                line.strip()
-                for line in untracked.stdout.splitlines()
-                if line.strip().endswith(".py")
-            )
-        return sorted(paths)
-
-    def _verify_typecheck(self, worktree_path: Path, env: dict[str, str]) -> tuple[bool, str]:
-        """Run scoped ``mypy`` on changed ``src/sevn`` files only."""
-        files = self._changed_src_sevn(worktree_path, env)
-        if not files:
-            return True, "typecheck skipped (no src/sevn changes on branch)"
-        uv = shutil.which("uv") or "uv"
-        proc = self._run(
-            [uv, "run", "mypy", *files],
-            cwd=worktree_path,
-            env=env,
-        )
-        if proc.returncode != 0:
-            detail = (proc.stderr or proc.stdout or "")[-1000:]
-            return False, f"make typecheck failed: {detail}"
-        return True, f"typecheck ok ({len(files)} files)"
-
-    def verify(self, worktree_path: Path, targets: list[str]) -> tuple[bool, str]:
-        """Run each make target in *worktree_path*; return ``(ok, evidence)``."""
-        make = shutil.which("make") or "make"
-        env = self._toolchain_env()
-        for target in targets:
-            tgt = target.removeprefix("make ").strip()
-            try:
-                if tgt == "typecheck":
-                    ok, ev = self._verify_typecheck(worktree_path, env)
-                    if not ok:
-                        return False, ev
-                    continue
-                proc = self._run([make, tgt], cwd=worktree_path, env=env)
-            except subprocess.TimeoutExpired:
-                return False, f"{target} timed out after {self.timeout_s}s"
-            if proc.returncode != 0:
-                detail = (proc.stderr or proc.stdout or "")[-1000:]
-                return False, f"{target} failed: {detail}"
-        return True, "all verify targets passed"
-
-
-class SingleBranchWorktreeManager(GitWorktreeManager):
-    """Reuse one integration worktree on the orchestrator feature branch (D8)."""
-
-    def __init__(
-        self,
-        repo_root: Path,
-        runs_root: RunsRoot,
-        *,
-        feature_branch: str,
-        base_ref: str = "HEAD",
-    ) -> None:
-        """Store *feature_branch* for single-worktree orchestrator mode."""
-        super().__init__(repo_root, runs_root, base_ref=base_ref)
-        self.feature_branch = feature_branch
-        self._shared: Worktree | None = None
-
-    def allocate(self, run_id: str, lane_id: str, wave_id: str) -> Worktree:
-        """Reuse the shared integration worktree when already allocated."""
-        if self._shared is not None:
-            return Worktree(
-                path=self._shared.path,
-                branch=self._shared.branch,
-                lane_id=lane_id,
-                wave_id=wave_id,
-            )
-        path = self.runs_root.worktrees_dir(run_id) / "integration"
-        wt = allocate_feature_branch_worktree(
-            self.repo_root,
-            path,
-            branch=self.feature_branch,
-            base_ref=self.base_ref,
-        )
-        self._shared = wt
-        return Worktree(path=wt.path, branch=wt.branch, lane_id=lane_id, wave_id=wave_id)
-
-    def cleanup(self, worktree: Worktree) -> None:
-        """No-op — integration worktree persists across orchestrator waves."""
-        return None
-
-
 def _initial_orchestrator_rows(cfg: OrchestratorConfig) -> list[StatusRow]:
     """Build initial orchestrator status rows for each serial wave."""
     branch = cfg.feature_branch or "—"
@@ -662,7 +219,7 @@ _COST_MARKER = "cost-budget-paused.md"
 _PAUSE_MARKER = "pause-requested.md"
 _REVIEW_GATE_MARKER = "review-gate-pending.md"
 _REVIEW_GATE_APPROVED = "review-gate-approved"
-_VERIFY_ONLY_RETRIES = 2
+_VERIFY_ONLY_RETRIES = VERIFY_ONLY_RETRIES
 
 
 def _orchestrator_agent_enabled() -> bool:
@@ -1522,19 +1079,7 @@ class Engine:
 
     def _verify_with_retries(self, worktree_path: Path, targets: list[str]) -> tuple[bool, str]:
         """Run verify targets with transient-flap retries (verify-only, no re-dispatch)."""
-        evidence = ""
-        for attempt in range(_VERIFY_ONLY_RETRIES + 1):
-            ok, evidence = self.verifier.verify(worktree_path, targets)
-            if ok:
-                return True, evidence
-            if attempt < _VERIFY_ONLY_RETRIES:
-                logger.info(
-                    "engine: verify retry {}/{} — {}",
-                    attempt + 1,
-                    _VERIFY_ONLY_RETRIES,
-                    evidence[:120],
-                )
-        return False, evidence
+        return verify_with_retries(self.verifier, worktree_path, targets)
 
     def _run_isolated_verify(
         self,
@@ -1547,30 +1092,17 @@ class Engine:
         transcript: str = "",
     ) -> tuple[bool, str]:
         """Dispatch isolated verify and always clean up the verify worktree."""
-        verify_path: Path | None = None
-        implementer = {
-            "process_id": os.getpid(),
-            "worktree": str(implementer_worktree),
-            "transcript": transcript or None,
-        }
-        verify_ctx = build_verify_dispatch(
-            implementer=implementer,
-            wave={"node_id": node.node_id, "commit_sha": commit_sha or "HEAD"},
-            runs_root=self.runs_root.run_dir(run_id) / "verify-wts",
+        return run_isolated_verify(
+            verifier=self.verifier,
+            repo_root=self.repo_root,
+            runs_root=self.runs_root,
+            run_id=run_id,
+            node=node,
+            implementer_worktree=implementer_worktree,
+            commit_sha=commit_sha,
+            targets=targets,
+            transcript=transcript,
         )
-        assert_verify_isolation(implementer=implementer, verifier=verify_ctx)
-        run_path = implementer_worktree
-        if commit_sha and commit_sha not in {"", "unknown", "HEAD"}:
-            try:
-                run_path = materialize_verify_worktree(self.repo_root, verify_ctx)
-                verify_path = run_path
-            except RuntimeError as exc:
-                logger.warning("engine: isolated verify worktree failed — {}", exc)
-        try:
-            return self._verify_with_retries(run_path, targets)
-        finally:
-            if verify_path is not None:
-                remove_verify_worktree(self.repo_root, verify_path)
 
     async def _run_quality_gauntlet(
         self,
@@ -1581,64 +1113,16 @@ class Engine:
         outcome: dict[str, object],
     ) -> tuple[bool, str]:
         """Run optional quality inner loop before isolated verify (D26-D28)."""
-        from tripll.harness.quality_dispatch import (
-            build_smoothing_brief,
-            dispatch_smoothing_pass,
-            resolve_quality_adapter,
-            run_quality_gauntlet_live,
-        )
-
-        run_dir = self.runs_root.run_dir(run_id)
-        quality_raw = outcome.get("quality_gauntlet")
-        quality = quality_raw if isinstance(quality_raw, dict) else {}
-        reference_raw = outcome.get("reference")
-        reference = reference_raw if isinstance(reference_raw, dict) else {}
-
-        result = await run_quality_gauntlet_live(
-            repo_root=self.repo_root,
-            run_dir=run_dir,
-            run_id=run_id,
-            worktree=worktree.path,
-            node=node,
-            outcome=dict(outcome),
-            commit_sha=self._last_checkpoint_sha,
+        return await run_quality_gauntlet(
             adapter=self.adapter,
+            repo_root=self.repo_root,
+            runs_root=self.runs_root,
+            last_checkpoint_sha=self._last_checkpoint_sha,
+            run_id=run_id,
+            node=node,
+            worktree=worktree,
+            outcome=outcome,
         )
-        if result.state == "skipped":
-            return True, ""
-        if result.state == "unverified":
-            return False, "; ".join(result.reasons) or "quality gauntlet unverified"
-        if not result.passed:
-            return False, "; ".join(result.reasons) or "quality gauntlet failed"
-
-        evidence = f"quality gauntlet passed ({len(result.rounds)} round(s))"
-        if bool(quality.get("smoothing")):
-            smooth_adapter = resolve_quality_adapter(
-                run_dir=run_dir,
-                agent="smoothing-pass",
-                adapter_override=self.adapter,
-            )
-            smooth_brief = build_smoothing_brief(
-                run_id=run_id,
-                node_id=node.node_id,
-                wave_id=node.wave_id,
-                owned_paths=list(node.owned_paths),
-                worktree_path=worktree.path,
-                run_dir=run_dir,
-                quality_rounds=len(result.rounds),
-                reference_path=str(reference.get("path") or ""),
-            )
-            smooth_ok, smooth_evidence = await dispatch_smoothing_pass(
-                adapter=smooth_adapter,
-                brief=smooth_brief,
-                worktree_path=worktree.path,
-                run_dir=run_dir,
-                timeout_s=node.wall_clock_limit_s,
-            )
-            if not smooth_ok:
-                return False, smooth_evidence or "smoothing-pass failed"
-            evidence = f"{evidence}; {smooth_evidence}"
-        return True, evidence
 
     def _end_attempt_with_usage(
         self,
@@ -2833,7 +2317,7 @@ class Engine:
                     brief["reasoning_effort"] = node.reasoning_effort
                 write_brief(brief, self.runs_root.briefs_dir(run_id))
                 log_path = self.runs_root.logs_dir(run_id) / (
-                    f"{_safe(node.node_id)}-attempt{attempt}.log"
+                    f"{safe_node_id(node.node_id)}-attempt{attempt}.log"
                 )
                 if attempt == 1 and attempts_used == 0:
                     logger.info(
@@ -3480,26 +2964,7 @@ class Engine:
             >>> "workspace_scope" in b
             True
         """
-        from tripll.plan_paths import normalize_plan_refs
-
-        repo_root = worktree_path.resolve()
-        staged_dir = repo_root / "plan" / "tripll"
-        external_dirs: list[str] = []
-        if staged_dir.is_dir():
-            for path in sorted(staged_dir.glob("*.md")):
-                _, dirs = normalize_plan_refs(path.read_text(encoding="utf-8"), repo_root)
-                external_dirs.extend(dirs)
-        if not external_dirs:
-            return brief
-        scope_raw = brief.get("workspace_scope")
-        scope = [str(x) for x in scope_raw] if isinstance(scope_raw, list) else []
-        seen = set(scope)
-        for directory in external_dirs:
-            if directory not in seen:
-                seen.add(directory)
-                scope.append(directory)
-        brief["workspace_scope"] = scope
-        return brief
+        return append_external_upload_dirs(brief, worktree_path)
 
     def _brief_for(
         self,
@@ -3512,92 +2977,19 @@ class Engine:
         attempt: int = 1,
     ) -> dict[str, object]:
         """Build the JSON dispatch brief for *node*, including retry directives."""
-        plan_worktree_path = str(staged_wave_plan_path(worktree.path, node.plan_file, node.wave_id))
-        brief = render_json_brief(
-            node,
+        return brief_for(
             run_id=run_id,
-            branch=worktree.branch,
-            worktree_path=str(worktree.path),
-            plan_worktree_path=plan_worktree_path,
-            model=node.model,
-            orchestrator=graph.orchestrator,
-            role_dispatch=self._role_dispatch_effective,
-            outcome_contract=node.outcome_contract,
-        )
-        if node.reasoning_effort:
-            brief["reasoning_effort"] = node.reasoning_effort
-        if node.max_budget_usd is not None:
-            brief["max_budget_usd"] = node.max_budget_usd
-        if node.provider:
-            brief["provider"] = node.provider
-        brief = self._append_external_upload_dirs(brief, worktree.path)
-        orch_cfg = graph.orchestrator
-        if orch_cfg and orch_cfg.enabled and self._wave_commit_shas:
-            brief["prior_wave_commits"] = dict(self._wave_commit_shas)
-        if prior_failures:
-            directives = brief["agent_directives"]
-            if isinstance(directives, list):
-                directives.append(
-                    "Prior attempt failures — correct these: " + " | ".join(prior_failures)
-                )
-                directives.append(
-                    f"Prior work is checkpointed on branch `{worktree.branch}`; "
-                    "continue from the current checkout — do not reset or delete "
-                    "unrelated files."
-                )
-                brief["agent_directives"] = directives
-        elif attempt > 1:
-            directives = brief["agent_directives"]
-            if isinstance(directives, list):
-                directives.append(
-                    f"Continue from checkpointed work on branch `{worktree.branch}`; "
-                    "do not reset or delete unrelated files."
-                )
-                brief["agent_directives"] = directives
-        graph_db = self.runs_root.graph_db_path(run_id)
-        if not graph_db.is_file():
-            graph_db = self.repo_root / ".tripll" / "graph.db"
-        at_sha = self._last_checkpoint_sha or "HEAD"
-        targets = list(node.owned_paths)
-        brief = enrich_brief_with_graph_pack(
-            brief,
-            wave_targets=targets,
-            graph_store=str(graph_db),
-            at_sha=at_sha,
-            grep_brief=self._grep_brief,
-            run_dir=worktree.path.parent.parent / "brief-spill",
-        )
-        brief = enrich_brief_with_rules_pack(
-            brief,
+            graph=graph,
+            node=node,
+            worktree=worktree,
+            prior_failures=prior_failures,
             repo_root=self.repo_root,
-            wave_targets=targets,
+            runs_root=self.runs_root,
+            role_dispatch_effective=self._role_dispatch_effective,
+            grep_brief=self._grep_brief,
+            wave_commit_shas=self._wave_commit_shas,
+            pools=self._pools,
+            default_provider=self._default_provider,
+            last_checkpoint_sha=self._last_checkpoint_sha,
+            attempt=attempt,
         )
-        from tripll.plan.code_graph import kg_extra_available, routing_hints_for_wave
-
-        if kg_extra_available() and graph_db.is_file():
-            provider = node.provider or self._default_provider
-            provider_cfg = self._pools.configs.get(provider) if self._pools else None
-            brief["routing_hints"] = routing_hints_for_wave(
-                targets=targets,
-                graph_store=str(graph_db),
-                provider=provider,
-                provider_config=provider_cfg,
-                repo=self.repo_root.name,
-            )
-        return brief
-
-
-def _safe(node_id: str) -> str:
-    """Return a filename-safe form of *node_id*.
-
-    Args:
-        node_id (str): Raw node id.
-
-    Returns:
-        str: Sanitised id.
-
-    Examples:
-        >>> _safe("telemetry:W0->Final")
-        'telemetry_W0-Final'
-    """
-    return node_id.replace(":", "_").replace("/", "_").replace(">", "")
