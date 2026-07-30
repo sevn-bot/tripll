@@ -25,18 +25,18 @@
 propose but never promote (R27).</p>
 
 <h2>New user path</h2>
-<p>Start here if you have only <code>pip install tripll</code> or <code>uv tool install tripll</code>
-and want to reach a started run without reading source:</p>
-<pre><code>uv tool install tripll        # or: pip install tripll
-tripll setup                  # once per machine
-tripll doctor                 # confirm backends + layout
-cd ~/code/my-project && tripll init     # brownfield
-# — or —
-tripll new my-project && cd my-project  # greenfield
-tripll doctor
-tripll rules derive           # optional: cited rules from evaluation
-tripll validate-plan docs/plans/*-wave-plan.md
-make run-set SET=my-set       # or tripll run runs/input/my-set</code></pre>
+<p>tripll is <strong>not published on PyPI</strong> — there is no <code>pip install tripll</code>
+or <code>uv tool install tripll</code>. Install from a clone and drive it with
+<code>uv run tripll</code> and <code>make</code>:</p>
+<pre><code>git clone https://github.com/sevn-bot/tripll &amp;&amp; cd tripll
+make setup                              # install the CLI (uv sync) + git hooks
+uv run tripll setup                     # once per machine — providers, models, tracing
+uv run tripll doctor                    # confirm backends + layout
+export TRIPLL_REPO_ROOT=~/code/my-project   # the repo to automate
+uv run tripll init                      # brownfield (or: uv run tripll new my-project)
+uv run tripll rules derive              # optional: cited rules from evaluation
+make plan-set SET=my-set                # validate + build the RunGraph (no dispatch)
+make run-set  SET=my-set                # start the run → stops at the Pre-0 gate</code></pre>
 <p>Full walkthrough: <a href="../docs/runbooks/onboarding-runbook.md">onboarding runbook</a>
 · <a href="../docs/runbooks/rules-runbook.md">rules runbook</a> (in-repo).</p>
 

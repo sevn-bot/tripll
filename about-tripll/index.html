@@ -40,8 +40,12 @@ compounds lessons into rules, calibration, and scoped brief context.</p>
 </ol>
 
 <h2>First commands</h2>
-<pre><code>uv tool install tripll && tripll setup && tripll doctor
-cd ~/code/my-project && tripll init</code></pre>
+<p>tripll is <strong>not on PyPI</strong> — install from a clone and drive it with
+<code>uv run tripll</code> and <code>make</code>:</p>
+<pre><code>git clone https://github.com/sevn-bot/tripll &amp;&amp; cd tripll
+make setup                 # install the CLI (uv sync) + git hooks
+uv run tripll setup        # providers, models, tracing
+uv run tripll doctor       # confirm backends + layout</code></pre>
 
 <h2>Where to go next</h2>
 <ul>

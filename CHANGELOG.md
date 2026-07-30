@@ -7,11 +7,13 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Changed
+- [2026-07-30] Rewrote `README.md` with a numbered 6-step quickstart and a dedicated **Authentication** section (subscription `claude setup-token` / `CLAUDE_CODE_OAUTH_TOKEN` recommended, `ANTHROPIC_API_KEY` fallback). Corrected the install path — tripll is not published on PyPI, so `pip install tripll` / `uv tool install tripll` were removed in favour of clone + `make setup` + `uv run tripll` (also fixed in the `about-tripll/` site sources). `tripll doctor`/`setup` now hint `claude setup-token` for headless auth. Hardened GitHub Actions: SHA-pinned third-party actions and added least-privilege `permissions` to `ci.yml`
 - [2026-07-29] Final AI-layer compounding gate: xfail reconciliation (24 removed), `plan` callback accepts interspersed `--runs-root` after W6 subcommand (Typer fix)
 - [2026-07-29] **Breaking:** replace pullfrog-py with [mergeCraft@pre-0.0.1](https://github.com/alexhawat/mergeCraft) — workflow `.github/workflows/mergecraft.yml`, config `.mergecraft/`, learnings `.mergecraft/learnings.md`, check `mergecraft-approval`, exit context `review_success`, `make review` / `mergecraft-ref-check`, and `tripll review diff|watch|init|dispatch`. Configurable `[review].posture` (`review_only` default; `fix`/`full` enable mode dispatch)
 - [2026-07-29] God-module extraction (#16): run / inject / reconcile-graph CLI commands moved to `tripll.cli._run`; shared helpers to `tripll.cli._shared` (no CLI behavior change)
 
 ### Added
+- [2026-07-30] Open-source governance files: `SECURITY.md` (coordinated disclosure via GitHub private vulnerability reporting), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `.github/CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE.md`, issue forms (`.github/ISSUE_TEMPLATE/{bug_report,feature_request}.yml` + `config.yml` with a security contact link), and a SHA-pinned `.github/workflows/codeql.yml` (Python + Actions) code-scanning workflow
 - [2026-07-29] Tracker protocol and idempotent plan publish: `src/tripll/trackers/{base,github,publish}.py`, `src/tripll/github/issues.py`, and `tripll plan publish --tracker github --parent <ref>` with pre-read idempotence (R30, ADR 016)
 - [2026-07-29] Calibration loop (R28 advisory): `src/tripll/calibrate/{predict,score,routing,sync}.py`, `compile_plan` PREDICTED metrics, `tripll calibrate --run`, REALIZED `attempts_to_green` / `first_attempt_pass_rate`, Brier scoring, and calibration section in `report.md`
 - [2026-07-29] Executable structural rules: `src/tripll/rules/executable.py`, committed `.tripll/rules/no-stdlib-logging.md`, `make rules-check` gate wired into `ci-affected` and `ci-resume`, and structural scope breaches via `harness/boundary.py`
