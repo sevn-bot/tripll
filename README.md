@@ -37,8 +37,9 @@ uv run tripll setup
 uv run tripll doctor
 
 # 6. Point at the repo you want to automate, then plan + run a wave set
-make init                                        # create runs/{input,processing,…}
 export TRIPLL_REPO_ROOT=~/code/my-project        # the target checkout to dispatch against
+uv run tripll init                               # brownfield onboarding on the target (idempotent)
+mkdir -p runs/input                              # wave sets live in this tripll checkout
 # drop a wave-plan set into runs/input/<set>/ (see "Input shapes"), then:
 make plan-set SET=<set>                           # validate + build the RunGraph (no dispatch)
 make run-set  SET=<set>                           # start the run → stops at the Pre-0 human gate
@@ -153,7 +154,7 @@ Run all commands from this directory (the `tripll` checkout).
 ```bash
 cp .env.example .env    # optional: TRIPLL_RUNS, TRIPLL_DEBUG
 make setup              # uv sync (dev/api/obs/graph) + git hooks
-make init               # once: creates runs/{input,processing,processed,failed}/
+make init               # once: init this tripll checkout (includes runs/ layout)
 ```
 
 ### Optional extras
