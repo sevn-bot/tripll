@@ -28,8 +28,8 @@ and records its sha256)
 | **Stage** | W1 complete; mergeCraft CI posture next (`wave-runner`) |
 | **Next action** | Dispatch W2 — mergecraft trigger comment, topology-proof pin gate, runbook bump order |
 | **Blocked on** | Nothing |
-| **Last pushed sha** | *(W1 commit — updated after push)* |
-| **Last CI run id** | *(updated after W1 push)* |
+| **Last pushed sha** | `33aaad4` |
+| **Last CI run id** | [30560683682](https://github.com/sevn-bot/tripll/actions/runs/30560683682) green on `33aaad4` |
 | **Draft PR** | [#61](https://github.com/sevn-bot/tripll/pull/61) (draft) |
 | **Status comment — #16** | [5118338652](https://github.com/sevn-bot/tripll/issues/16#issuecomment-5118338652) |
 | **Status comment — #59** | [5133336437](https://github.com/sevn-bot/tripll/issues/59#issuecomment-5133336437) |
@@ -877,7 +877,7 @@ gh issue view <16|59> --repo sevn-bot/tripll --json comments \
 | Wave | Provider / model | Scope | Findings | Status |
 |------|------------------|-------|----------|--------|
 | W0 | `cursor_local` claude-opus-5 | Baseline, anchor re-grep, ADRs 013 + 018, contract pin, compile the machine block, **draft PR + kickoff issue comments** | — | [x] (2026-07-30 ✅: b00a019 — CI [30560055121](https://github.com/sevn-bot/tripll/actions/runs/30560055121) green, PR #61, ADRs 013+018) |
-| W1 | `cursor_local` auto | Characterization suite + test plan — `role: test-author` | all | [x] |
+| W1 | `cursor_local` auto | Characterization suite + test plan — `role: test-author` | all | [x] (2026-07-30 ✅: 33aaad4 — CI [30560683682](https://github.com/sevn-bot/tripll/actions/runs/30560683682) green) |
 | W2 | `cursor_local` auto | **#59**: trigger decision, topology-proof parity gate, base coverage, runbook | CI-01…CI-04 | [ ] |
 | W3 | `cursor_local` auto | **`ledger.py`** → façade + schema / store / query | GOD-05 | [ ] |
 | W4 | `cursor_local` auto | **`engine.py` leaves**: worktrees, human gates, verify, brief | GOD-01 | [ ] |
