@@ -48,8 +48,9 @@ Ontology: `src/tripll/ontology/ontology.yaml`. Docs: [`docs/ontology.md`](ontolo
 | 7 | error_threshold | Circuit breaker per `(agent, problem_type)` | **Engine-live** |
 | 8 | external_event | PR merged/closed or source issue closed | **Engine-live** |
 
-Implementation: `src/tripll/loops/exits.py` (`evaluate_exit`); the Engine routes
-terminal decisions through it and records ``exit_fired`` events on the ledger.
+Implementation: `src/tripll/loops/exits.py` (`evaluate_exit`); routing lives in
+`src/tripll/engine_exits.py` and is reached through the `Engine` façade, which records
+``exit_fired`` events on the ledger.
 Dashboard shows caps near firing and marks fired exits (§12).
 
 ### 0.4 Telemetry seams (§12 — L2 inputs, recorded in v1)
