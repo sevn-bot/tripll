@@ -42,6 +42,9 @@ stopped."
 
 - Server-rendered Jinja templates under `src/tripll/api/ui/`, progressively
   enhanced with htmx; live regions subscribe to the SSE event feed.
+- Dashboard routes live in `api/ui/_routes_{runs,agents,fragments}.py` with shared
+  context helpers in `api/ui/_helpers.py`; `make_ui_router()` in `router.py` registers
+  all 22 handlers on one flat `APIRouter` (same URLs and templates as before W8).
 - **Zero Node/JS build toolchain.** Static assets (htmx, minimal CSS) vendored or
   CDN-pinned. Keeps parity with sevn's Python-only / `uv` posture.
 

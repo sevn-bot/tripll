@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Changed
+- [2026-07-30] God-module extraction (#16, W8): split 22 dashboard routes from `api/ui/router.py` into `api/ui/_routes_{runs,agents,fragments}.py` with shared helpers in `api/ui/_helpers.py`; `make_ui_router()` unchanged surface (no URL or template changes)
 - [2026-07-29] Final AI-layer compounding gate: xfail reconciliation (24 removed), `plan` callback accepts interspersed `--runs-root` after W6 subcommand (Typer fix)
 - [2026-07-29] **Breaking:** replace pullfrog-py with [mergeCraft@pre-0.0.1](https://github.com/alexhawat/mergeCraft) — workflow `.github/workflows/mergecraft.yml`, config `.mergecraft/`, learnings `.mergecraft/learnings.md`, check `mergecraft-approval`, exit context `review_success`, `make review` / `mergecraft-ref-check`, and `tripll review diff|watch|init|dispatch`. Configurable `[review].posture` (`review_only` default; `fix`/`full` enable mode dispatch)
 - [2026-07-29] God-module extraction (#16): run / inject / reconcile-graph CLI commands moved to `tripll.cli._run`; shared helpers to `tripll.cli._shared` (no CLI behavior change)
