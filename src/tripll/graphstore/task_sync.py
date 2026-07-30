@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from tripll.graphstore import EdgeInput, NodeInput, SqliteGraphStore
+from tripll.graphstore import EdgeInput, GraphStore, NodeInput, SqliteGraphStore
 
 if TYPE_CHECKING:
     from tripll.graph import RunGraph
@@ -312,3 +312,172 @@ class TaskGraphWriter:
                 )
         self._store.upsert_nodes(nodes)
         self._store.upsert_edges(edges)
+
+
+def sync_rule_to_store(
+    rule: Any,
+    *,
+    store: GraphStore | str,
+    repo: str,
+    finding: dict[str, Any] | None = None,
+) -> str:
+    """Upsert a repo-scoped Rule node and optional Finding edges (W3.1, R26).
+
+    Args:
+        rule: :class:`tripll.rules.model.Rule` instance.
+        store (GraphStore | str): Graph store or SQLite path.
+        repo (str): Repository slug for natural key ``{repo}#{rule_id}``.
+        finding (dict[str, Any] | None): Source finding for ``PROMOTED_FROM`` / ``PREVENTS``.
+
+    Returns:
+        str: Graph node id ``finding:Rule:{repo}#{rule_id}``.
+    """
+    from tripll.rules.model import Rule
+
+    if not isinstance(rule, Rule):
+        msg = f"sync_rule_to_store expected Rule, got {type(rule).__name__}"
+        raise TypeError(msg)
+
+    graph = store if isinstance(store, SqliteGraphStore) else SqliteGraphStore(str(store))
+    natural_key = f"{repo}#{rule.rule_id}"
+    node_id = f"finding:Rule:{natural_key}"
+    base = _prov(source="rules.promote", evidence=f"rule:{rule.rule_id}")
+    props = {
+        "rule_id": rule.rule_id,
+        "state": rule.state,
+        "origin": rule.origin,
+        "scope": rule.scope,
+        "executable": rule.executable,
+        "severity": rule.severity,
+    }
+    graph.upsert_nodes(
+        [
+            NodeInput(
+                node_id=node_id,
+                layer="finding",
+                kind="Rule",
+                natural_key=natural_key,
+                repo=repo,
+                props=json.dumps(props),
+                **base,
+            )
+        ]
+    )
+
+    if finding is not None:
+        run_id = str(finding.get("run_id") or "local")
+        finding_id = str(finding.get("finding_id") or "")
+        if finding_id:
+            finding_nid = f"finding:Finding:{run_id}#{finding_id}"
+            edges: list[EdgeInput] = []
+            for predicate in ("PREVENTS", "PROMOTED_FROM"):
+                edges.append(
+                    EdgeInput(
+                        edge_id=f"{predicate.lower()}:{node_id}:{finding_nid}",
+                        predicate=predicate,
+                        src=node_id,
+                        dst=finding_nid,
+                        **base,
+                    )
+                )
+            graph.upsert_edges(edges)
+
+    return node_id
+
+
+def sync_calibration_experiment(
+    *,
+    store: GraphStore | str,
+    run_id: str,
+    calibration: dict[str, Any],
+) -> None:
+    """Write Hypothesis, Experiment, and PREDICTED Metric nodes for a run (W5.2).
+
+    Args:
+        store (GraphStore | str): Graph store or SQLite path.
+        run_id (str): Run identifier.
+        calibration (dict[str, Any]): Output of :func:`tripll.calibrate.predict.build_wave_predictions`.
+    """
+    graph = store if isinstance(store, SqliteGraphStore) else SqliteGraphStore(str(store))
+    version = str(calibration.get("predictor_version") or "linear-v1")
+    base = _prov(source="calibrate", evidence=f"run:{run_id}")
+
+    hypothesis_key = f"{run_id}#first-pass"
+    hypothesis_id = f"finding:Hypothesis:{hypothesis_key}"
+    experiment_key = f"{run_id}#calibration"
+    experiment_id = f"finding:Experiment:{experiment_key}"
+
+    nodes: list[NodeInput] = [
+        NodeInput(
+            node_id=hypothesis_id,
+            layer="finding",
+            kind="Hypothesis",
+            natural_key=hypothesis_key,
+            repo=None,
+            props=json.dumps(
+                {
+                    "statement": "Each wave passes on the first dispatch attempt.",
+                    "run_id": run_id,
+                }
+            ),
+            **base,
+        ),
+        NodeInput(
+            node_id=experiment_id,
+            layer="finding",
+            kind="Experiment",
+            natural_key=experiment_key,
+            repo=None,
+            props=json.dumps(
+                {
+                    "run_id": run_id,
+                    "predictor_version": version,
+                }
+            ),
+            **base,
+        ),
+    ]
+    edges: list[EdgeInput] = []
+
+    for wave_id, payload in (calibration.get("waves") or {}).items():
+        if not isinstance(payload, dict):
+            continue
+        probability = payload.get("first_pass_probability")
+        if probability is None:
+            continue
+        metric_key = f"{run_id}#{wave_id}#first_pass_probability#{version}"
+        metric_id = f"finding:Metric:{metric_key}"
+        nodes.append(
+            NodeInput(
+                node_id=metric_id,
+                layer="finding",
+                kind="Metric",
+                natural_key=metric_key,
+                repo=None,
+                props=json.dumps(
+                    {
+                        "name": "first_pass_probability",
+                        "version": version,
+                        "value": float(probability),
+                        "wave_id": wave_id,
+                        "node_id": payload.get("node_id"),
+                        "run_id": run_id,
+                    }
+                ),
+                **base,
+            )
+        )
+        edges.append(
+            EdgeInput(
+                edge_id=f"predicted:{experiment_id}:{metric_id}",
+                predicate="PREDICTED",
+                src=experiment_id,
+                dst=metric_id,
+                **base,
+            )
+        )
+
+    if nodes:
+        graph.upsert_nodes(nodes)
+    if edges:
+        graph.upsert_edges(edges)

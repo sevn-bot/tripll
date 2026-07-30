@@ -15,6 +15,7 @@ __all__ = [
     "assert_verify_isolation",
     "build_verify_dispatch",
     "classify_action",
+    "detect_structural_scope_breach",
     "materialize_verify_worktree",
     "remove_verify_worktree",
     "require_approval",
@@ -173,3 +174,40 @@ def remove_verify_worktree(repo_root: Path, worktree_path: Path) -> None:
         text=True,
         check=False,
     )
+
+
+def detect_structural_scope_breach(
+    worktree_path: Path,
+    *,
+    repo_root: Path | None = None,
+    rules_dir: Path | None = None,
+) -> list[str]:
+    """Return structural (shape) violations as scope-breach evidence (ADR 017).
+
+    Uses the same executable-rules engine as ``make rules-check``, scoped to the
+    worktree checkout. Absent ``ast-grep`` degrades to structural fallback or
+    prose-only with no crash.
+
+    Args:
+        worktree_path (Path): Lane worktree root to scan.
+        repo_root (Path | None): Repo root for config and rules dir resolution.
+        rules_dir (Path | None): Override rules directory (default from config).
+
+    Returns:
+        list[str]: Violation strings suitable for ledger ``scope_breach`` evidence.
+
+    Examples:
+        >>> detect_structural_scope_breach(Path("."))  # doctest: +SKIP
+        []
+    """
+    from tripll.config import load_config
+    from tripll.rules.executable import run_executable_rules
+
+    root = (repo_root or worktree_path).resolve()
+    wt = worktree_path.resolve()
+    cfg = load_config(repo_root=root)
+    if cfg.rules.executable == "off":
+        return []
+    resolved_rules = (rules_dir or (root / cfg.rules.dir)).resolve()
+    result = run_executable_rules(rules_dir=resolved_rules, repo_root=wt)
+    return list(result.violations)

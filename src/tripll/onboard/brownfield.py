@@ -16,7 +16,12 @@ from tripll.extract.pipeline import extract_repo
 from tripll.graphstore import SqliteGraphStore
 from tripll.onboard.detect import RepoLayout, detect_repo_layout
 from tripll.onboard.doctor import build_doctor_report
-from tripll.onboard.emitters import EmitResult, emit_doc_skeletons, emit_tripll_toml
+from tripll.onboard.emitters import (
+    EmitResult,
+    emit_doc_skeletons,
+    emit_rules_artifacts,
+    emit_tripll_toml,
+)
 from tripll.onboard.evaluate import write_evaluation
 from tripll.pipeline import RunsRoot, default_runs_root
 from tripll.repo_root import resolve_repo_root
@@ -102,6 +107,7 @@ def run_brownfield_init(
 
     toml_result = emit_tripll_toml(root, layout, cfg.repo, force=force)
     docs_result = emit_doc_skeletons(root, cfg.repo, layout, force=force)
+    rules_result = emit_rules_artifacts(root, force=force)
 
     graph_counts = _refresh_code_graph(root, repo_name=layout.repo_name)
     from tripll.review import scaffold_mergecraft
@@ -132,6 +138,7 @@ def run_brownfield_init(
     messages.extend(scaffold_msgs)
     messages.extend(docs_result.drift)
     messages.extend(toml_result.drift)
+    messages.extend(rules_result.drift)
 
     return BrownfieldResult(
         repo_root=root,

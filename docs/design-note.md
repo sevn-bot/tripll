@@ -21,7 +21,7 @@ derived — recovery replays from the ledger.
 |-------|----------|-------|
 | `code` | Modules, symbols, tests, specs, requirements, CI checks | `.tripll/graph.db` |
 | `task` | Plans, waves, attempts, gates, PRs, env fingerprints | same DB + ledger |
-| `finding` | CI failures, review comments, verifier outcomes | same DB |
+| `finding` | CI failures, review comments, verifier outcomes, **Rules** (repo-scoped) | same DB |
 
 Ontology: `src/tripll/ontology/ontology.yaml`. Docs: [`docs/ontology.md`](ontology.md),
 [`docs/graph-serving.md`](graph-serving.md), [`docs/harness-checks.md`](harness-checks.md).
@@ -60,6 +60,15 @@ scope breaches, grader results, findings raised/fixed.
 Per run: attempts-to-green, first-attempt pass rate, escalations, **exit fired** (via
 ``exit_fired`` ledger events), findings by kind,
 stale-finding rate, human gate wait, total cost, graph-brief vs grep-brief (D23).
+
+**Calibration loop (W5, R28 advisory).** At compile time, ``compile_plan`` emits a
+``first_pass_probability`` Metric per wave under an ``Experiment`` node
+(``Hypothesis`` → ``Experiment`` → ``PREDICTED`` / ``REALIZED`` in the finding layer).
+After the run, ``tripll calibrate --run <id>`` reads ``ledger.attempts``, writes REALIZED
+``attempts_to_green`` and ``first_attempt_pass_rate`` Metrics, and reports a Brier score per
+predictor version — or **uncalibrated** when fewer than three prior runs exist. Predictions are
+scored and surfaced in ``report.md``; they never change routing, model selection, attempt budget,
+or gate behaviour.
 
 ### 0.5 Migration (§13)
 

@@ -1096,13 +1096,21 @@ def _print_graph_summary(input_path: Path, graph: object, *, run_id: str, mode: 
 # plan
 # ---------------------------------------------------------------------------
 
+plan_app = typer.Typer(
+    name="plan",
+    help="Parse wave-plan inputs and publish breakdowns to trackers.",
+    invoke_without_command=True,
+)
+app.add_typer(plan_app, name="plan")
 
-@app.command()
-def plan(
+
+@plan_app.callback(context_settings={"allow_interspersed_args": True})
+def plan_cmd(
+    ctx: typer.Context,
     input_path: Annotated[
-        Path,
+        Path | None,
         typer.Argument(help="Path to the parallel-wave set or plain wave folder."),
-    ],
+    ] = None,
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", help="Print the derived graph without executing."),
@@ -1124,6 +1132,11 @@ def plan(
 
     Use ``--write-manifest`` to regenerate ``parallel-wave.md`` deterministically.
     """
+    if ctx.invoked_subcommand is not None:
+        return
+    if input_path is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(2)
     _ = runs_root
     if not input_path.exists():
         typer.echo(f"Input path not found: {input_path}", err=True)
@@ -1150,6 +1163,57 @@ def plan(
         _print_graph_summary(input_path, graph, run_id=run_id, mode=mode)
 
 
+@plan_app.command("publish")
+def plan_publish_cmd(
+    plan_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to a wave-plan markdown file.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    tracker: Annotated[
+        str,
+        typer.Option("--tracker", help="Tracker backend (github)."),
+    ] = "github",
+    parent: Annotated[
+        str,
+        typer.Option("--parent", help="Parent epic ref (e.g. issue number)."),
+    ] = "",
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Write local artifact only; skip tracker mutations."),
+    ] = False,
+    repo: Annotated[
+        str | None,
+        typer.Option("--repo", help="GitHub owner/repo override for github tracker."),
+    ] = None,
+) -> None:
+    """Publish a plan breakdown to a tracker (local artifact → summary → tickets)."""
+    if not parent.strip():
+        typer.echo("--parent is required", err=True)
+        raise typer.Exit(2)
+    if tracker != "github":
+        typer.echo(f"Unsupported tracker: {tracker!r} (only github is implemented)", err=True)
+        raise typer.Exit(2)
+
+    from tripll.trackers.github import GitHubTracker
+    from tripll.trackers.publish import publish_plan_breakdown
+
+    backend = GitHubTracker(repo=repo)
+    result = publish_plan_breakdown(
+        tracker=backend,
+        plan_path=plan_path,
+        parent_ref=parent.strip(),
+        dry_run=dry_run,
+    )
+    typer.echo(f"artifact: {result.artifact_path}")
+    if result.summary_ref:
+        typer.echo(f"summary: {result.summary_ref}")
+    typer.echo(f"created {result.created}, skipped {result.skipped}")
+
+
 # ---------------------------------------------------------------------------
 # Entrypoint (plan command continued above)
 # ---------------------------------------------------------------------------
@@ -1172,6 +1236,13 @@ findings_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(findings_app, name="findings")
+
+rules_app = typer.Typer(
+    name="rules",
+    help="Derived rules and on-demand context modules (W2).",
+    no_args_is_help=True,
+)
+app.add_typer(rules_app, name="rules")
 
 review_app = typer.Typer(
     name="review",
@@ -1555,9 +1626,145 @@ def findings_export_learnings(
         rows = list_findings_from_store(store)
     finally:
         store.close()
-    path = export_learnings(rows, path=learnings)
+    from tripll.repo_root import resolve_repo_root
+    from tripll.rules.store import RuleStore
+
+    active_rules = RuleStore(resolve_repo_root()).list_active()
+    path = export_learnings(rows, path=learnings, active_rules=active_rules)
     rejected = sum(1 for r in rows if r.get("state") == "rejected")
     typer.echo(f"exported {rejected} rejected finding(s) → {path}")
+
+
+@rules_app.command("derive")
+def rules_derive(
+    repo_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repo-root",
+            help="Repository root (default: resolved git root or CWD).",
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing rule/context markdown."),
+    ] = False,
+) -> None:
+    """Derive cited rules and context modules from evaluation findings (CTX-01, R32)."""
+    from tripll.rules.derive import derive_rules
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    result = derive_rules(root, force=force)
+    typer.echo(f"Derived rules for {root}")
+    typer.echo(f"  rules:   {len(result.rules_written)} file(s) under .tripll/rules/")
+    typer.echo(f"  context: {len(result.context_written)} file(s) under .tripll/context/")
+    if result.skipped:
+        typer.echo(f"  skipped: {', '.join(result.skipped)}")
+
+
+@rules_app.command("list")
+def rules_list(
+    state: Annotated[
+        str | None,
+        typer.Option("--state", help="Filter by lifecycle state (proposed, active, retired)."),
+    ] = None,
+    repo_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repo-root",
+            help="Repository root (default: resolved git root or CWD).",
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = None,
+) -> None:
+    """List rules from ``.tripll/rules/`` (operator visibility; proposed rules do not pack)."""
+    from tripll.rules.store import RuleStore
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    store = RuleStore(root)
+    rules = store.list_rules(state=state)
+    if not rules:
+        typer.echo(
+            f"No rules found under {store.rules_path}" + (f" (state={state})" if state else "")
+        )
+        return
+    for rule in rules:
+        typer.echo(f"{rule.rule_id}\t{rule.state}\t{rule.origin}")
+
+
+@rules_app.command("promote")
+def rules_promote(
+    rule_id: Annotated[str, typer.Argument(help="Rule slug to activate (operator-only, R27).")],
+    repo_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repo-root",
+            help="Repository root (default: resolved git root or CWD).",
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = None,
+) -> None:
+    """Promote a proposed rule to active (operator-only — no agent path, R27)."""
+    from tripll.rules.operator import require_operator
+    from tripll.rules.promote import promote_rule
+    from tripll.rules.store import RuleStore
+
+    try:
+        require_operator(f"tripll rules promote {rule_id}")
+    except PermissionError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    store = RuleStore(root)
+    active = promote_rule(rule_id, store=store)
+    typer.echo(f"promoted {active.rule_id} → {active.state}")
+
+
+@rules_app.command("retire")
+def rules_retire(
+    rule_id: Annotated[str, typer.Argument(help="Rule slug to retire.")],
+    repo_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repo-root",
+            help="Repository root (default: resolved git root or CWD).",
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = None,
+) -> None:
+    """Retire an active or proposed rule (operator-only)."""
+    from tripll.rules.operator import require_operator
+    from tripll.rules.promote import retire_rule
+    from tripll.rules.store import RuleStore
+
+    try:
+        require_operator(f"tripll rules retire {rule_id}")
+    except PermissionError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    root = (repo_root or resolve_repo_root()).resolve()
+    store = RuleStore(root)
+    retired = retire_rule(rule_id, store=store)
+    typer.echo(f"retired {retired.rule_id} → {retired.state}")
+
+
+@app.command("calibrate")
+def calibrate_cmd(
+    run_id: Annotated[str, typer.Option("--run", help="Run id to score against the ledger.")],
+    runs_root: RunsRootOpt = None,
+) -> None:
+    """Score predicted first-pass probability against ledger attempts (W5, R28 advisory)."""
+    from tripll.calibrate.score import calibrate_run, format_calibration_report
+
+    rr = _resolve_runs_root(runs_root)
+    report = calibrate_run(run_id=run_id, runs_root=rr.root, write_realized=True)
+    typer.echo(format_calibration_report(report), nl=False)
 
 
 @graph_app.command("query")

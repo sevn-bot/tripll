@@ -75,6 +75,7 @@ from tripll.adapters.pools import ProviderPoolRegistry, pools_from_plan
 from tripll.adapters.quota import quota_message
 from tripll.brief import (
     enrich_brief_with_graph_pack,
+    enrich_brief_with_rules_pack,
     extract_wave_summary,
     render_json_brief,
     write_brief,
@@ -91,6 +92,7 @@ from tripll.git_commit import commit_and_push_wave
 from tripll.harness.boundary import (
     assert_verify_isolation,
     build_verify_dispatch,
+    detect_structural_scope_breach,
     materialize_verify_worktree,
     remove_verify_worktree,
 )
@@ -840,6 +842,15 @@ class Engine:
             )
         finally:
             task_writer.close()
+
+        from tripll.calibrate.sync import sync_run_calibration_metadata
+
+        sync_run_calibration_metadata(
+            run_id=run_id,
+            run_dir=run_dir,
+            graph_db_path=graph_db,
+            repo_root=self.repo_root,
+        )
 
         with open_ledger(self.runs_root.ledger_path(run_id)) as lc:
             insert_run(
@@ -2671,7 +2682,59 @@ class Engine:
             wave_id=node.wave_id,
             lane=node.lane,
         ):
-            return await self._execute_node_body(lc, run_id, graph, node)
+            result = await self._execute_node_body(lc, run_id, graph, node)
+            try:
+                self._finalize_wave_compounding(lc, run_id, node, result)
+            except Exception as exc:
+                logger.debug(
+                    "engine: {} {} compounding finalize failed: {}",
+                    run_id,
+                    node.node_id,
+                    exc,
+                    exc_info=True,
+                )
+            return result
+
+    _COMPOUNDING_TERMINAL_OUTCOMES = frozenset(
+        {"done", "failed", "blocked", "scope_breach", "unverified", "timed_out"}
+    )
+
+    def _finalize_wave_compounding(
+        self,
+        lc: LedgerConnection,
+        run_id: str,
+        node: WaveNode,
+        result: NodeResult,
+    ) -> None:
+        """Write wave postmortem and optionally propose rules after terminal outcome (W3)."""
+        if result.state not in self._COMPOUNDING_TERMINAL_OUTCOMES:
+            return
+        from tripll.config import load_config
+        from tripll.ledger import list_attempts
+        from tripll.rules.postmortem import finalize_wave_compounding
+
+        cfg = load_config(repo_root=self.repo_root)
+        if not cfg.rules.enabled:
+            return
+        attempts = list_attempts(lc, run_id, node.node_id)
+        outcome_contract = node.outcome_contract if isinstance(node.outcome_contract, dict) else {}
+        required = outcome_contract.get("required")
+        contract = {
+            "required": list(required) if isinstance(required, list) else [],
+            "forbidden": list(node.forbidden_paths),
+            "targets": list(node.owned_paths) or list(node.verify_targets),
+        }
+        finalize_wave_compounding(
+            run_id=run_id,
+            node_id=node.node_id,
+            wave_id=node.wave_id,
+            contract=contract,
+            attempts=attempts,
+            wave_outcome=result.state,
+            runs_root=self.runs_root.root,
+            repo_root=self.repo_root,
+            rules_config=cfg.rules,
+        )
 
     async def _execute_node_body(
         self, lc: LedgerConnection, run_id: str, graph: RunGraph, node: WaveNode
@@ -3078,8 +3141,21 @@ class Engine:
                         node.forbidden_paths,
                         owned_paths=node.owned_paths,
                     )
+                    structural = detect_structural_scope_breach(
+                        worktree.path,
+                        repo_root=self.repo_root,
+                    )
+                    if structural:
+                        breach = sorted(set(breach) | set(structural))
                     if breach:
-                        self.wtm.revert(worktree, breach)
+                        revert_paths = sorted(
+                            {
+                                item.split(":", 1)[0] if ":" in item else item
+                                for item in breach
+                                if item.strip()
+                            }
+                        )
+                        self.wtm.revert(worktree, revert_paths)
                         evidence = f"scope breach reverted: {breach}"
                         async with self._ledger_lock:
                             self._end_attempt_with_usage(
@@ -3490,6 +3566,11 @@ class Engine:
             at_sha=at_sha,
             grep_brief=self._grep_brief,
             run_dir=worktree.path.parent.parent / "brief-spill",
+        )
+        brief = enrich_brief_with_rules_pack(
+            brief,
+            repo_root=self.repo_root,
+            wave_targets=targets,
         )
         from tripll.plan.code_graph import kg_extra_available, routing_hints_for_wave
 

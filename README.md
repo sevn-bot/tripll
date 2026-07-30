@@ -4,9 +4,27 @@
   <img src="about-tripll/assets/logo.svg" alt="tripll" width="128" height="128" />
 </p>
 
-Headless parallel wave-plan execution pipeline. Parse wave plans into a **RunGraph**,
-dispatch each wave to an agent backend, stop at human gates, retry failures, and optionally
-integrate batches on one branch.
+**Why tripll?** Most wave-plan automation teaches you *how* to dispatch before it explains
+*why* — and every failed run evaporates when the archive closes. The problem is not missing
+agents or plans; it is that **nothing durable survives a run**. A wave fails five times, a
+human fixes it, and the next dispatch starts from the same priors instead of the lesson.
+
+tripll is a headless, parallel **wave-plan execution pipeline** that compounds what each run
+learns: findings become **rules**, rules pack into the next brief, executable patterns fail
+`make rules-check`, and calibration scores predicted difficulty against the ledger.
+
+```bash
+uv tool install tripll && tripll setup && tripll doctor
+```
+
+From a target checkout, onboard and validate before your first dispatch:
+
+```bash
+cd ~/code/my-project && tripll init && tripll validate-plan docs/plans/*-wave-plan.md
+```
+
+See the [product pipeline diagram](about-tripll/assets/pipeline.html) and the
+[rules runbook](docs/runbooks/rules-runbook.md) for the compounding loop end to end.
 
 ---
 
@@ -45,7 +63,8 @@ Pre-0 when tier-4 canaries pass — documented in
 
 Deep dives: [`docs/design-note.md`](docs/design-note.md) ·
 [`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md) ·
-[`docs/runbooks/onboarding-runbook.md`](docs/runbooks/onboarding-runbook.md).
+[`docs/runbooks/onboarding-runbook.md`](docs/runbooks/onboarding-runbook.md) ·
+[`docs/runbooks/rules-runbook.md`](docs/runbooks/rules-runbook.md).
 
 ---
 
@@ -58,6 +77,10 @@ Drop a folder of plan files into `runs/input/`, and `tripll` will:
 3. Stop at the **Pre-0 human gate** until you approve.
 4. Retry failed waves (**5 attempts** for impl waves, then escalate).
 5. Optionally **integrate** each batch on one branch (`--integrate`).
+6. **Compound** — resolved findings propose rules; operators promote; active rules pack into
+   the next brief and may fail `make rules-check` when executable.
+
+Interactive diagram: [`about-tripll/assets/pipeline.html`](about-tripll/assets/pipeline.html).
 
 ---
 

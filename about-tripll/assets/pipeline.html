@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tripll — product pipeline</title>
+<style>
+body{font-family:ui-sans-serif,system-ui,sans-serif;margin:24px;background:#faf9f7;color:#1a1a1a}
+h1{font-size:1.35rem;margin:0 0 4px}
+.meta{color:#555;font-size:.9rem;margin-bottom:20px}
+.layout{display:grid;grid-template-columns:1fr 320px;gap:24px;max-width:1100px}
+.flow{display:flex;flex-direction:column;gap:10px}
+.loop{border:1px dashed #7c9cff;border-radius:12px;padding:14px;background:#f8faff}
+.loop h2{font-size:.95rem;margin:0 0 10px;color:#334}
+.node{border:1px solid #d4d0c8;border-radius:10px;padding:12px 14px;background:#fff}
+.node-validate,.node-verify,.node-commit,.node-cross-check{background:#f3f2ef}
+.node-review,.node-generate{border-color:#7c9cff}
+.node-review-gate{border-color:#e6a700;background:#fff9e6}
+.node-wave{border-color:#111}
+.head{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.kind{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#666}
+.title{font-weight:600}
+.arrow{text-align:center;color:#999;font-size:.85rem}
+.loop-arrow{text-align:center;color:#7c9cff;font-size:.82rem;margin:4px 0}
+</style>
+</head>
+<body>
+<h1>tripll product pipeline</h1>
+<p class="meta">plan → RunGraph → lanes → gates → integrate · compounding loop (W2–W6)</p>
+<div class="layout">
+<div class="flow">
+<section class="node node-validate">
+<div class="head">
+<div><div class="kind">validate</div>
+<div class="title">plans — Wave-plan set</div></div>
+</div></section>
+<div class="arrow">↓</div>
+<section class="node node-wave">
+<div class="head">
+<div><div class="kind">wave</div>
+<div class="title">rungraph — RunGraph compile</div></div>
+</div></section>
+<div class="arrow">↓</div>
+<section class="node node-wave">
+<div class="head">
+<div><div class="kind">wave</div>
+<div class="title">lanes — Lanes &amp; batches</div></div>
+</div></section>
+<div class="arrow">↓</div>
+<section class="node node-review-gate">
+<div class="head">
+<div><div class="kind">review_gate</div>
+<div class="title">pre0 — Pre-0 human gate</div></div>
+</div></section>
+<div class="arrow">↓</div>
+<section class="node node-wave">
+<div class="head">
+<div><div class="kind">wave</div>
+<div class="title">dispatch — Dispatch waves</div></div>
+</div></section>
+<div class="arrow">↓</div>
+<section class="node node-verify">
+<div class="head">
+<div><div class="kind">verify</div>
+<div class="title">verify — Verify &amp; retry</div></div>
+</div></section>
+<div class="arrow">↓</div>
+<section class="node node-commit">
+<div class="head">
+<div><div class="kind">commit</div>
+<div class="title">integrate — Integrate batches</div></div>
+</div></section>
+</div>
+<aside class="loop">
+<h2>Compounding loop</h2>
+<div class="flow">
+<section class="node node-review">
+<div class="head">
+<div><div class="kind">review</div>
+<div class="title">finding — Finding (run failure)</div></div>
+</div></section>
+<div class="loop-arrow">↻</div>
+<section class="node node-generate">
+<div class="head">
+<div><div class="kind">generate</div>
+<div class="title">propose — Propose Rule</div></div>
+</div></section>
+<div class="loop-arrow">↻</div>
+<section class="node node-review-gate">
+<div class="head">
+<div><div class="kind">review_gate</div>
+<div class="title">promote — Operator promote (R27)</div></div>
+</div></section>
+<div class="loop-arrow">↻</div>
+<section class="node node-cross-check">
+<div class="head">
+<div><div class="kind">cross_check</div>
+<div class="title">pack — Pack into next brief</div></div>
+</div></section>
+<div class="loop-arrow">↻</div>
+<section class="node node-verify">
+<div class="head">
+<div><div class="kind">verify</div>
+<div class="title">rules_check — make rules-check</div></div>
+</div></section>
+</div>
+</aside>
+</div>
+</body>
+</html>

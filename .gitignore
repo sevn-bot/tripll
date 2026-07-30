@@ -1,6 +1,10 @@
-# tripll runtime artefacts — not committed
+# tripll runtime artefacts — not committed (rules/context are committed exceptions)
 runs/
-.tripll/
+.tripll/*
+!.tripll/rules/
+!.tripll/rules/**
+!.tripll/context/
+!.tripll/context/**
 
 # Secrets (keep *.example tracked)
 .env

@@ -141,6 +141,8 @@ layers:
         natural_key: "{run_id}#{hypothesis_id}"
       Experiment:
         natural_key: "{run_id}#{experiment_id}"
+      Rule:
+        natural_key: "{repo}#{rule_id}"
     predicates:
       RAISED_BY:
         domain: Finding
@@ -172,3 +174,9 @@ layers:
       REALIZED:
         domain: Experiment
         range: Metric
+      PREVENTS:
+        domain: Rule
+        range: Finding
+      PROMOTED_FROM:
+        domain: Rule
+        range: Finding

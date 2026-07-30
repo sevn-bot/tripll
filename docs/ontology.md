@@ -30,11 +30,13 @@ Sync: `src/tripll/graphstore/task_sync.py`
 
 ### `finding` — CI and review outcomes
 
-| Kind | Source |
-|------|--------|
-| `Finding` | GitHub check-runs, review comments, verifier output |
+| Kind | Source | Natural key |
+|------|--------|-------------|
+| `Finding` | GitHub check-runs, review comments, verifier output | `{run_id}#{finding_id}` |
+| `Rule` | Promoted findings, derived constraints (W3) | `{repo}#{rule_id}` |
 
-Predicates: `ABOUT` (→ symbol), `RAISED_BY`, `FIXED_BY`, `SUPERSEDES`.
+Predicates: `ABOUT` (→ symbol), `RAISED_BY`, `FIXED_BY`, `SUPERSEDES`, `PREVENTS` (Rule → Finding),
+`PROMOTED_FROM` (Rule → Finding).
 
 Ingestion: `src/tripll/github/` · CLI: `tripll findings sync|list|triage`
 

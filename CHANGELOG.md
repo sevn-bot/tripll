@@ -7,10 +7,16 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Changed
-- [2026-07-29] **Breaking:** replace pullfrog-py with [mergeCraft@pre-0.0.1](https://github.com/alexhawat/mergeCraft) — workflow `.github/workflows/mergecraft.yml`, config `.mergecraft/`, learnings `.mergecraft/learnings.md`, check `mergecraft-approval`, exit context `review_success`, `make review` / `mergecraft-ref-check`, and `tripll review diff|watch|init|dispatch`. Configurable `[review].posture` (`review_only` default; `fix`/`full` enable mode dispatch).
+- [2026-07-29] Final AI-layer compounding gate: xfail reconciliation (24 removed), `plan` callback accepts interspersed `--runs-root` after W6 subcommand (Typer fix)
+- [2026-07-29] **Breaking:** replace pullfrog-py with [mergeCraft@pre-0.0.1](https://github.com/alexhawat/mergeCraft) — workflow `.github/workflows/mergecraft.yml`, config `.mergecraft/`, learnings `.mergecraft/learnings.md`, check `mergecraft-approval`, exit context `review_success`, `make review` / `mergecraft-ref-check`, and `tripll review diff|watch|init|dispatch`. Configurable `[review].posture` (`review_only` default; `fix`/`full` enable mode dispatch)
 - [2026-07-29] God-module extraction (#16): run / inject / reconcile-graph CLI commands moved to `tripll.cli._run`; shared helpers to `tripll.cli._shared` (no CLI behavior change)
 
 ### Added
+- [2026-07-29] Tracker protocol and idempotent plan publish: `src/tripll/trackers/{base,github,publish}.py`, `src/tripll/github/issues.py`, and `tripll plan publish --tracker github --parent <ref>` with pre-read idempotence (R30, ADR 016)
+- [2026-07-29] Calibration loop (R28 advisory): `src/tripll/calibrate/{predict,score,routing,sync}.py`, `compile_plan` PREDICTED metrics, `tripll calibrate --run`, REALIZED `attempts_to_green` / `first_attempt_pass_rate`, Brier scoring, and calibration section in `report.md`
+- [2026-07-29] Executable structural rules: `src/tripll/rules/executable.py`, committed `.tripll/rules/no-stdlib-logging.md`, `make rules-check` gate wired into `ci-affected` and `ci-resume`, and structural scope breaches via `harness/boundary.py`
+- [2026-07-29] Bug-to-rule loop: `Rule` graph nodes (`{repo}#{rule_id}`), wave postmortem, `tripll rules promote|retire|list`, finding→proposed promotion with `finding://` provenance, and active-rules section in learnings export
+- [2026-07-29] Derived rules and on-demand context modules: `tripll rules derive`, `.tripll/rules/` + `.tripll/context/` on `tripll init`, origin validator, scoped brief packing under `[rules].pack_budget_tokens`, and `[rules]` config table
 - [2026-07-29] Incremental CI: `make ci-affected` and `make ci-changed` (path-aware partial gate vs `origin/main`; Python ruff/mypy/pytest plus mapped make targets such as `about-site-check` and `log-redact-check`). **`make ci-resume`** is the resumable pre-merge gate (replaces monolithic `make ci`; GitHub Actions and local Final waves)
 
 ## [0.0.0] - 2026-07-29

@@ -25,8 +25,11 @@ from tripll.skw.wave_model import WavePlan
 __all__ = [
     "PipelineStep",
     "build_pipeline_steps",
+    "build_product_pipeline_steps",
     "render_pipeline_html",
+    "render_product_pipeline_html",
     "sync_pipeline_artifacts",
+    "sync_product_pipeline_artifact",
 ]
 
 
@@ -272,6 +275,134 @@ def render_pipeline_html(
 
     parts.extend(["</div>", "</body>", "</html>"])
     return "\n".join(parts) + "\n"
+
+
+def build_product_pipeline_steps() -> list[PipelineStep]:
+    """Build the tripll product spine for adoption diagrams (W7.2).
+
+    Returns:
+        list[PipelineStep]: Plan → RunGraph → lanes → gates → integrate, plus compounding nodes.
+
+    Examples:
+        >>> len(build_product_pipeline_steps()) >= 8  # doctest: +SKIP
+        True
+    """
+    return [
+        PipelineStep(kind="validate", step_id="plans", title="Wave-plan set"),
+        PipelineStep(kind="wave", step_id="rungraph", title="RunGraph compile"),
+        PipelineStep(kind="wave", step_id="lanes", title="Lanes & batches"),
+        PipelineStep(kind="review_gate", step_id="pre0", title="Pre-0 human gate"),
+        PipelineStep(kind="wave", step_id="dispatch", title="Dispatch waves"),
+        PipelineStep(kind="verify", step_id="verify", title="Verify & retry"),
+        PipelineStep(kind="commit", step_id="integrate", title="Integrate batches"),
+        PipelineStep(kind="review", step_id="finding", title="Finding (run failure)"),
+        PipelineStep(kind="generate", step_id="propose", title="Propose Rule"),
+        PipelineStep(kind="review_gate", step_id="promote", title="Operator promote (R27)"),
+        PipelineStep(kind="cross_check", step_id="pack", title="Pack into next brief"),
+        PipelineStep(kind="verify", step_id="rules_check", title="make rules-check"),
+    ]
+
+
+def render_product_pipeline_html(*, steps: list[PipelineStep] | None = None) -> str:
+    """Render the tripll product pipeline with the compounding loop (W7.2).
+
+    Args:
+        steps (list[PipelineStep] | None): Override step list; defaults to
+            :func:`build_product_pipeline_steps`.
+
+    Returns:
+        str: Self-contained HTML document (no external asset fetch).
+
+    Examples:
+        >>> "compounding" in render_product_pipeline_html().lower()  # doctest: +SKIP
+        True
+    """
+    spine = steps if steps is not None else build_product_pipeline_steps()
+    main_steps = spine[:7]
+    loop_steps = spine[7:]
+    parts: list[str] = [
+        "<!DOCTYPE html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="utf-8">',
+        "<title>tripll — product pipeline</title>",
+        "<style>",
+        "body{font-family:ui-sans-serif,system-ui,sans-serif;margin:24px;background:#faf9f7;color:#1a1a1a}",
+        "h1{font-size:1.35rem;margin:0 0 4px}",
+        ".meta{color:#555;font-size:.9rem;margin-bottom:20px}",
+        ".layout{display:grid;grid-template-columns:1fr 320px;gap:24px;max-width:1100px}",
+        ".flow{display:flex;flex-direction:column;gap:10px}",
+        ".loop{border:1px dashed #7c9cff;border-radius:12px;padding:14px;background:#f8faff}",
+        ".loop h2{font-size:.95rem;margin:0 0 10px;color:#334}",
+        ".node{border:1px solid #d4d0c8;border-radius:10px;padding:12px 14px;background:#fff}",
+        ".node-validate,.node-verify,.node-commit,.node-cross-check{background:#f3f2ef}",
+        ".node-review,.node-generate{border-color:#7c9cff}",
+        ".node-review-gate{border-color:#e6a700;background:#fff9e6}",
+        ".node-wave{border-color:#111}",
+        ".head{display:flex;justify-content:space-between;gap:12px;align-items:baseline}",
+        ".kind{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#666}",
+        ".title{font-weight:600}",
+        ".arrow{text-align:center;color:#999;font-size:.85rem}",
+        ".loop-arrow{text-align:center;color:#7c9cff;font-size:.82rem;margin:4px 0}",
+        "</style>",
+        "</head>",
+        "<body>",
+        "<h1>tripll product pipeline</h1>",
+        '<p class="meta">plan → RunGraph → lanes → gates → integrate · compounding loop (W2–W6)</p>',
+        '<div class="layout">',
+        '<div class="flow">',
+    ]
+
+    for index, step in enumerate(main_steps):
+        if index > 0:
+            parts.append('<div class="arrow">↓</div>')
+        parts.append(f'<section class="{_kind_class(step.kind)}">')
+        parts.append('<div class="head">')
+        parts.append(f'<div><div class="kind">{html.escape(step.kind)}</div>')
+        parts.append(
+            f'<div class="title">{html.escape(step.step_id)} — {html.escape(step.title)}</div></div>'
+        )
+        parts.append("</div></section>")
+
+    parts.extend(
+        [
+            "</div>",
+            '<aside class="loop">',
+            "<h2>Compounding loop</h2>",
+            '<div class="flow">',
+        ]
+    )
+    for index, step in enumerate(loop_steps):
+        if index > 0:
+            parts.append('<div class="loop-arrow">↻</div>')
+        parts.append(f'<section class="{_kind_class(step.kind)}">')
+        parts.append('<div class="head">')
+        parts.append(f'<div><div class="kind">{html.escape(step.kind)}</div>')
+        parts.append(
+            f'<div class="title">{html.escape(step.step_id)} — {html.escape(step.title)}</div></div>'
+        )
+        parts.append("</div></section>")
+    parts.extend(["</div>", "</aside>", "</div>", "</body>", "</html>"])
+    return "\n".join(parts) + "\n"
+
+
+def sync_product_pipeline_artifact(out_path: Path) -> Path:
+    """Write the committed product pipeline HTML (W7.2).
+
+    Args:
+        out_path (Path): Destination file (e.g. ``about-tripll/assets/pipeline.html``).
+
+    Returns:
+        Path: Written HTML path.
+
+    Examples:
+        >>> sync_product_pipeline_artifact(Path("/tmp/pipeline.html"))  # doctest: +SKIP
+        PosixPath('/tmp/pipeline.html')
+    """
+    out_path = out_path.resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(render_product_pipeline_html(), encoding="utf-8")
+    return out_path
 
 
 def _enrich_builder_json(builder: PipelineBuilder, steps: list[PipelineStep]) -> dict[str, Any]:

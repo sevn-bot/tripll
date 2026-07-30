@@ -18,8 +18,13 @@
     </nav>
     <main class="main">
       <h1>tripll</h1>
-<p class="summary">A headless, parallel wave-plan execution pipeline. Drop a set of plan files in, and tripll dispatches each wave to an agent backend in dependency order — with human gates, retries, and branch integration.</p><div class="body"><p><strong>tripll</strong> turns a folder of wave-plan files into a deterministic execution
-graph and runs it end to end against a target git repository — no chat session required.</p>
+<p class="summary">A headless wave-plan pipeline that compounds what each run learns — rules, calibration, and brief context — so the next wave cannot repeat the same mistake.</p><div class="body"><p><strong>Why tripll?</strong> Wave automation usually teaches <em>how</em> to dispatch before
+it explains <em>why</em>. The problem is that failed runs evaporate when archives close — nothing
+durable survives. <strong>tripll</strong> executes wave plans in parallel <strong>and</strong>
+compounds lessons into rules, calibration, and scoped brief context.</p>
+
+<p><a href="assets/pipeline.html">Product pipeline diagram</a> ·
+<a href="../docs/runbooks/rules-runbook.md">Rules runbook</a> (in-repo)</p>
 
 <h2>What it does</h2>
 <ol>
@@ -30,12 +35,18 @@ graph and runs it end to end against a target git repository — no chat session
   <li>Stop at the <strong>Pre-0 human gate</strong> until you approve.</li>
   <li>Retry failed waves before escalating.</li>
   <li>Optionally <strong>integrate</strong> each batch onto a single branch.</li>
+  <li><strong>Compound</strong> — findings propose rules; operators promote (R27); active rules
+    pack into the next brief and may fail <code>make rules-check</code>.</li>
 </ol>
+
+<h2>First commands</h2>
+<pre><code>uv tool install tripll && tripll setup && tripll doctor
+cd ~/code/my-project && tripll init</code></pre>
 
 <h2>Where to go next</h2>
 <ul>
   <li><a href="getting-started.html">Getting started</a> — install, init, and start your first run.</li>
-  <li><a href="architecture.html">Architecture</a> — the graph model and execution engine.</li>
+  <li><a href="architecture.html">Architecture</a> — the graph model, compounding loop, and execution engine.</li>
   <li><a href="cli.html">CLI &amp; Make</a> — commands and environment variables.</li>
   <li><a href="dashboard.html">Dashboard</a> — the control plane and live feed.</li>
 </ul>

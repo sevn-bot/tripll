@@ -11,6 +11,8 @@ Exports:
     render_human_brief — build the wave-runner Quick-start text for a node.
     render_dispatch_prompt — human-readable agent prompt from a brief dict.
     write_brief — write a JSON brief to disk and return its path.
+    enrich_brief_with_graph_pack — attach AST-derived subgraph (D23).
+    enrich_brief_with_rules_pack — attach rules+context pack beside graph pack (W2).
 """
 
 from __future__ import annotations
@@ -45,6 +47,11 @@ PACK_INSUFFICIENCY_MARKER = "graph_pack_insufficient"
 PACKED_INSUFFICIENCY_DIRECTIVE = (
     "Packed context insufficient — limited exploration within workspace_scope paths "
     "is allowed; do not run repo-wide grep, graphify, or architecture tours."
+)
+
+RULES_PACKED_DIRECTIVE = (
+    "Use the rules and context section below for binding constraints and tacit knowledge; "
+    "the graph pack remains the structural channel."
 )
 
 AGENT_DIRECTIVES: list[str] = [
@@ -168,6 +175,54 @@ def enrich_brief_with_graph_pack(
         brief[PACK_INSUFFICIENCY_MARKER] = True
         if directives and PACKED_INSUFFICIENCY_DIRECTIVE not in directives:
             brief["agent_directives"] = [*directives, PACKED_INSUFFICIENCY_DIRECTIVE]
+    return brief
+
+
+def enrich_brief_with_rules_pack(
+    brief: dict[str, object],
+    *,
+    repo_root: Path,
+    wave_targets: list[str],
+) -> dict[str, object]:
+    """Attach rules+context pack beside the graph pack (CTX-02, R31).
+
+    The graph pack stays the structural channel; rules and context are a second,
+    labelled section so ``--grep-brief`` A/B replay isolates graph contribution (D23).
+
+    Args:
+        brief (dict[str, object]): Dispatch brief dict (mutated in place).
+        repo_root (Path): Target repository root for rule store lookup.
+        wave_targets (list[str]): Wave owned-path targets for scope intersection.
+
+    Returns:
+        dict[str, object]: The same *brief* with optional ``rules_pack`` text.
+    """
+    from tripll.config import load_config
+    from tripll.rules.pack import pack_rules_for_brief
+    from tripll.rules.store import RuleStore
+
+    cfg = load_config(repo_root=repo_root)
+    if not cfg.rules.enabled:
+        return brief
+
+    store = RuleStore(
+        repo_root,
+        rules_dir=repo_root / cfg.rules.dir,
+        context_dir=repo_root / cfg.rules.context_dir,
+    )
+    packed = pack_rules_for_brief(
+        rules=store.list_active(),
+        context_modules=store.list_context_modules(),
+        wave_targets=wave_targets,
+        budget_tokens=cfg.rules.pack_budget_tokens,
+    )
+    if not packed:
+        return brief
+
+    brief["rules_pack"] = packed
+    directives = _brief_str_list(brief, "agent_directives")
+    if directives and RULES_PACKED_DIRECTIVE not in directives:
+        brief["agent_directives"] = [*directives, RULES_PACKED_DIRECTIVE]
     return brief
 
 
@@ -423,6 +478,9 @@ def render_dispatch_prompt(brief: dict[str, object]) -> str:
         triple_table = str(graph_pack.get("triple_table") or "").strip()
         if triple_table:
             lines += ["", triple_table]
+    rules_pack = brief.get("rules_pack")
+    if isinstance(rules_pack, str) and rules_pack.strip():
+        lines += ["", rules_pack.strip()]
     handoff = brief.get("handoff_in")
     if isinstance(handoff, dict) and handoff:
         lines += ["", format_handoff_block(handoff)]
