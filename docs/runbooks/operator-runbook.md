@@ -410,6 +410,12 @@ Widen mergeCraft modes via `tripll.toml` `[review].posture` (`review_only` defau
 `fix` / `full` enable Fix / AddressReviews / Build via `workflow_dispatch`).
 Auth helpers: `mergecraft auth claude` / `mergecraft auth codex` (documented upstream).
 
+**mergeCraft pin bump order (ADR 018 / R36):** `make mergecraft-ref-check` reads the workflow
+action pin from the **default-branch ref** (`origin/main` via `git show`), not the working tree.
+When bumping mergeCraft, merge the workflow pin change to the default branch **first**, then bump
+`MERGECRAFT_REF` in the `Makefile`. Reversing that order fails the gate mid-bump — the Makefile
+default will match your branch while CI still resolves the old pin from `main`.
+
 ### Quality gauntlet (optional, D26–D28)
 
 Waves with plan v3 `[waves.outcome.reference]` and `[waves.outcome.quality_gauntlet].enabled = true`

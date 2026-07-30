@@ -3,11 +3,17 @@
 # Auto-reviews PRs on open / ready / new commits. Auth: CLAUDE_CODE_OAUTH_TOKEN
 # and/or ANTHROPIC_API_KEY. Skips gracefully when neither is present (e.g. fork PRs).
 # Default posture: review-only (push/shell disabled). Widen via tripll.toml [review].
+#
+# Trigger posture (ADR 018 / R35): keep `pull_request` (option a). GitHub does not run this
+# workflow when `refs/pull/N/merge` cannot be built, so a conflicted PR would carry a
+# permanently missing check that does not re-fire after the conflict is resolved. Therefore
+# **`mergeCraft review` must stay non-required** in every branch ruleset until trigger posture
+# is revisited (e.g. `pull_request_target` once the review becomes required).
 name: mergeCraft
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main]  # main-only (CI-03 / ADR 018): stacked wave/* and feat/* PRs get no review
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
