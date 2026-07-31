@@ -17,7 +17,13 @@ h1{font-size:1.35rem;margin:0 0 4px}
 .line{display:inline-block;width:26px;margin-right:6px;vertical-align:middle;border-top:2px solid #6f6a5e}
 .line-conditional{border-top-style:dashed}
 .line-optional{border-top-style:dotted}
-.graph{max-width:100%;height:auto;background:#fff;border:1px solid #e6e2d9;border-radius:12px}
+.bar{display:flex;gap:8px;align-items:center;margin:0 0 10px}
+.bar button{font:inherit;font-size:.82rem;padding:4px 11px;border-radius:7px;border:1px solid #d9d4c8;background:#fff;color:#2c2a24;cursor:pointer}
+.bar button:hover{background:#f2efe8}
+.bar .level{font-size:.8rem;color:#6f6a5e;min-width:46px}
+.bar .hint{font-size:.78rem;color:#8a8577}
+.canvas{overflow:auto;background:#fff;border:1px solid #e6e2d9;border-radius:12px}
+.graph{max-width:100%;height:auto;display:block}
 .cluster rect{fill:#f4f2ee;stroke:#ddd8cc;stroke-width:1}
 .cluster text{font-size:11px;fill:#6f6a5e;letter-spacing:.09em;text-transform:uppercase}
 .node rect{fill:#fff;stroke:#111;stroke-width:1.5}
@@ -35,6 +41,29 @@ text{font-family:ui-sans-serif,system-ui,sans-serif}
 .elabel,.enote{text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
 .elabel{font-size:10.5px;font-weight:600;fill:#2c2a24}
 .enote{font-size:10px;fill:#6f6a5e}
+.node-open{cursor:pointer}
+.node-open:hover rect{stroke-width:2.5}
+[data-edge]:hover{stroke:#2c2a24;stroke-width:2.6}
+#tip{position:fixed;z-index:20;max-width:320px;padding:9px 11px;border-radius:9px;background:#2c2a24;color:#f7f5f0;font-size:.78rem;line-height:1.42;box-shadow:0 6px 22px rgba(0,0,0,.28);pointer-events:none}
+#tip b{display:block;font-size:.8rem;margin-bottom:2px}
+#tip .cond{color:#f3d38a}
+#tip .flow{margin-top:5px;color:#e2ded4}
+#sheet[hidden],#tip[hidden]{display:none}
+#sheet{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(28,26,22,.42)}
+#sheet .card{position:relative;width:min(560px,100%);max-height:82vh;overflow:auto;background:#fff;border:1px solid #e6e2d9;border-radius:16px;padding:22px 24px;box-shadow:0 18px 48px rgba(0,0,0,.22)}
+#sheet h2{font-size:1.12rem;margin:0 6px 6px 0;display:inline-block}
+#sheet .badge{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:99px;border:1px solid #d9d4c8;color:#6f6a5e;vertical-align:2px}
+#sheet .lede{margin:10px 0 0;font-size:.9rem;line-height:1.55;color:#3b3830}
+#sheet .rows{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:14px 0 0;font-size:.84rem}
+#sheet .rows dt{color:#6f6a5e}
+#sheet .rows dd{margin:0;color:#2c2a24;font-weight:500}
+#sheet .group{margin:16px 0 0;font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:#8a8577}
+#sheet .agent{margin:14px 0 0;padding:13px 15px;border:1px solid #ece8df;border-radius:11px;background:#faf9f7}
+#sheet .agent h3{margin:0;font-size:.93rem}
+#sheet .agent .lede{margin:6px 0 0;font-size:.85rem}
+#sheet .close{position:absolute;top:14px;right:14px;font:inherit;font-size:1rem;line-height:1;padding:5px 9px;border-radius:8px;border:1px solid #e6e2d9;background:#fff;color:#6f6a5e;cursor:pointer}
+#sheet .close:hover{background:#f2efe8}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95em}
 </style>
 </head>
 <body>
@@ -49,7 +78,15 @@ text{font-family:ui-sans-serif,system-ui,sans-serif}
 <span><span class="line line-conditional"></span>Conditional / feedback</span>
 <span><span class="line line-optional"></span>Optional / side path</span>
 </div>
-<svg class="graph" viewBox="0 0 1596 1772" width="1596" height="1772" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agents, system phases, and human gates are nodes; edges are control transitions">
+<div class="bar">
+<button id="zoom-out" type="button">&minus; Zoom out</button>
+<button id="zoom-in" type="button">+ Zoom in</button>
+<button id="zoom-fit" type="button">Fit</button>
+<span class="level" id="zoom-level">100%</span>
+<span class="hint">Click a node for its agent note · hover an edge for the flow</span>
+</div>
+<div class="canvas">
+<svg class="graph" id="graph" viewBox="0 0 1596 1772" width="1596" height="1772" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agents, system phases, and human gates are nodes; edges are control transitions">
 <defs>
 <marker id="arrow-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
 <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f6a5e"></path>
@@ -73,228 +110,356 @@ text{font-family:ui-sans-serif,system-ui,sans-serif}
 <rect x="114" y="1032" width="1020" height="550" rx="12"></rect>
 <text x="126" y="1050">PR + compounding loop</text>
 </g>
-<path class="edge edge-primary" d="M 304 56 L 364 56" marker-end="url(#arrow-primary)"><title>inputs → graph-extractor</title></path>
+<path class="edge edge-primary" data-edge="0" d="M 304 56 L 364 56" marker-end="url(#arrow-primary)"><title>Goal / repo → graph-extractor · repo scan
+The repo is handed to the graph pass; nothing is written to the working tree yet.</title></path>
 <text class="elabel" x="334" y="47">repo scan</text>
-<path class="edge edge-primary" d="M 536 56 L 596 56" marker-end="url(#arrow-primary)"><title>graph-extractor → graph-librarian</title></path>
-<path class="edge edge-primary" d="M 768 56 L 828 56" marker-end="url(#arrow-primary)"><title>graph-librarian → graph-fuser</title></path>
-<path class="edge edge-primary" d="M 914 84 C 914 130, 218 130, 218 176" marker-end="url(#arrow-primary)"><title>graph-fuser → spec-cartographer</title></path>
+<path class="edge edge-primary" data-edge="1" d="M 536 56 L 596 56" marker-end="url(#arrow-primary)"><title>graph-extractor → graph-librarian
+Extraction is passed on unfiltered; deciding what matters is the librarian&#x27;s job.</title></path>
+<path class="edge edge-primary" data-edge="2" d="M 768 56 L 828 56" marker-end="url(#arrow-primary)"><title>graph-librarian → graph-fuser
+The curated slice is handed over to be fused into one queryable graph.</title></path>
+<path class="edge edge-primary" data-edge="3" d="M 914 84 C 914 130, 218 130, 218 176" marker-end="url(#arrow-primary)"><title>graph-fuser → spec-cartographer · code KG
+Planning starts from the graph, so the spec cites real symbols instead of guesses.</title></path>
 <text class="elabel" x="566" y="124">code KG</text>
-<path class="edge edge-primary" d="M 304 204 L 364 204" marker-end="url(#arrow-primary)"><title>spec-cartographer → reference-picker</title></path>
-<path class="edge edge-primary" d="M 450 232 C 450 278, 218 278, 218 324" marker-end="url(#arrow-primary)"><title>reference-picker → plan-author</title></path>
+<path class="edge edge-primary" data-edge="4" d="M 304 204 L 364 204" marker-end="url(#arrow-primary)"><title>spec-cartographer → reference-picker
+The draft spec goes to reference selection so each requirement gets an example to imitate.</title></path>
+<path class="edge edge-primary" data-edge="5" d="M 450 232 C 450 278, 218 278, 218 324" marker-end="url(#arrow-primary)"><title>reference-picker → plan-author · spec + refs
+Spec plus references become the planning input; the plan may only cite what was picked here.</title></path>
 <text class="elabel" x="334" y="272">spec + refs</text>
-<path class="edge edge-optional" d="M 798 232 C 798 278, 218 278, 218 324" marker-end="url(#arrow-optional)"><title>build-plan-from-errors → plan-author</title></path>
+<path class="edge edge-optional" data-edge="6" d="M 798 232 C 798 278, 218 278, 218 324" marker-end="url(#arrow-optional)"><title>build-plan-from-errors → plan-author · error bundle
+Repair runs join here, reusing the same planner and the same gates as feature work.</title></path>
 <text class="elabel" x="508" y="272">error bundle</text>
-<path class="edge edge-optional" d="M 1146 232 C 1146 278, 450 278, 450 324" marker-end="url(#arrow-optional)"><title>wave-plan-author → plan-shape-critic</title></path>
+<path class="edge edge-optional" data-edge="7" d="M 1146 232 C 1146 278, 450 278, 450 324" marker-end="url(#arrow-optional)"><title>wave-plan-author → plan-shape-critic · legacy plan
+Legacy plans still have to clear the shape critic before they can be validated.</title></path>
 <text class="elabel" x="798" y="272">legacy plan</text>
-<path class="edge edge-primary" d="M 304 352 L 364 352" marker-end="url(#arrow-primary)"><title>plan-author → plan-shape-critic</title></path>
-<path class="edge edge-primary" d="M 450 380 C 450 426, 218 426, 218 472" marker-end="url(#arrow-primary)"><title>plan-shape-critic → l1-validate</title></path>
+<path class="edge edge-primary" data-edge="8" d="M 304 352 L 364 352" marker-end="url(#arrow-primary)"><title>plan-author → plan-shape-critic
+Every plan is graded before validation; the planner never approves its own shape.</title></path>
+<path class="edge edge-primary" data-edge="9" d="M 450 380 C 450 426, 218 426, 218 472" marker-end="url(#arrow-primary)"><title>plan-shape-critic → L1 validate · shape accepted
+An accepted shape goes to the validator, which checks invariants no critic can eyeball.</title></path>
 <text class="elabel" x="334" y="420">shape accepted</text>
-<path class="edge edge-primary" d="M 304 500 L 480 500" marker-end="url(#arrow-primary)"><title>l1-validate → pre0-gate</title></path>
+<path class="edge edge-primary" data-edge="10" d="M 304 500 L 480 500" marker-end="url(#arrow-primary)"><title>L1 validate → Pre-0 gate · invariants hold
+Validation proves the plan is well-formed; whether it should run is the operator&#x27;s call.</title></path>
 <text class="elabel" x="392" y="491">invariants hold</text>
-<path class="edge edge-primary" d="M 652 500 L 828 500" marker-end="url(#arrow-primary)"><title>pre0-gate → wave-orchestrator</title></path>
+<path class="edge edge-primary" data-edge="11" d="M 652 500 L 828 500" marker-end="url(#arrow-primary)"><title>Pre-0 gate → wave-orchestrator · approved
+Approval releases the graph for dispatch; without it no wave is ever sent to an agent.</title></path>
 <text class="elabel" x="740" y="491">approved</text>
-<path class="edge edge-primary" d="M 914 528 C 914 574, 334 574, 334 620" marker-end="url(#arrow-primary)"><title>wave-orchestrator → test-creator</title></path>
+<path class="edge edge-primary" data-edge="12" d="M 914 528 C 914 574, 334 574, 334 620" marker-end="url(#arrow-primary)"><title>wave-orchestrator → test-creator · dispatch wave
+Each wave starts with its tests, so the first thing an implementer sees is a failing suite.</title></path>
 <text class="elabel" x="624" y="568">dispatch wave</text>
-<path class="edge edge-primary" d="M 420 648 L 596 648" marker-end="url(#arrow-primary)"><title>test-creator → implementer</title></path>
+<path class="edge edge-primary" data-edge="13" d="M 420 648 L 596 648" marker-end="url(#arrow-primary)"><title>test-creator → implementer · RED suite
+The failing suite is the contract: source may change, the tests it must satisfy may not.</title></path>
 <text class="elabel" x="508" y="639">RED suite</text>
-<path class="edge edge-primary" d="M 768 648 L 944 648" marker-end="url(#arrow-primary)"><title>implementer → quality-critic</title></path>
+<path class="edge edge-primary" data-edge="14" d="M 768 648 L 944 648" marker-end="url(#arrow-primary)"><title>implementer → quality-critic · wave commit
+A green suite is necessary but not sufficient — the commit still has to clear the quality bar.</title></path>
 <text class="elabel" x="856" y="639">wave commit</text>
-<path class="edge edge-conditional" d="M 1116 648 L 1292 648" marker-end="url(#arrow-conditional)"><title>quality-critic → smoothing-pass</title></path>
+<path class="edge edge-conditional" data-edge="15" d="M 1116 648 L 1292 648" marker-end="url(#arrow-conditional)"><title>quality-critic → smoothing-pass · large gap
+A broad but stylistic gap gets a dedicated cleanup pass instead of another implementation round.</title></path>
 <text class="elabel" x="1204" y="639">large gap</text>
-<path class="edge edge-conditional" d="M 1030 676 C 1030 708, 682 708, 682 676" marker-end="url(#arrow-conditional)"><title>quality-critic → implementer</title></path>
+<path class="edge edge-conditional" data-edge="16" d="M 1030 676 C 1030 708, 682 708, 682 676" marker-end="url(#arrow-conditional)"><title>quality-critic → implementer · gap → next round
+Substantive gaps go back to the implementer as another round on the same wave, not a new wave.</title></path>
 <text class="elabel" x="856" y="706">gap → next round</text>
-<path class="edge edge-primary" d="M 1030 676 C 1030 722, 1030 722, 1030 768" marker-end="url(#arrow-primary)"><title>quality-critic → wave-verifier</title></path>
+<path class="edge edge-primary" data-edge="17" d="M 1030 676 C 1030 722, 1030 722, 1030 768" marker-end="url(#arrow-primary)"><title>quality-critic → wave-verifier · quality accepted
+Accepted work is verified in isolation, so a pass is reproduced from a clean state.</title></path>
 <text class="elabel" x="1030" y="716">quality accepted</text>
-<path class="edge edge-conditional" d="M 1378 676 C 1378 734, 1030 734, 1030 676" marker-end="url(#arrow-conditional)"><title>smoothing-pass → quality-critic</title></path>
+<path class="edge edge-conditional" data-edge="18" d="M 1378 676 C 1378 734, 1030 734, 1030 676" marker-end="url(#arrow-conditional)"><title>smoothing-pass → quality-critic · re-grade
+The smoothed diff is re-graded; the critic, not the smoother, decides when it is done.</title></path>
 <text class="elabel" x="1204" y="732">re-grade</text>
-<path class="edge edge-conditional" d="M 944 796 C 516 796, 516 648, 596 648" marker-end="url(#arrow-conditional)"><title>wave-verifier → implementer</title></path>
+<path class="edge edge-conditional" data-edge="19" d="M 944 796 C 516 796, 516 648, 596 648" marker-end="url(#arrow-conditional)"><title>wave-verifier → implementer · failed → retry
+A failed verification sends the wave back for another attempt, capped by the retry budget.</title></path>
 <text class="elabel" x="520" y="722">failed → retry</text>
-<path class="edge edge-conditional" d="M 944 796 C 168 796, 168 648, 248 648" marker-end="url(#arrow-conditional)"><title>wave-verifier → test-creator</title></path>
+<path class="edge edge-conditional" data-edge="20" d="M 944 796 C 168 796, 168 648, 248 648" marker-end="url(#arrow-conditional)"><title>wave-verifier → test-creator · wrong test → repair
+When the failure is the test&#x27;s fault rather than the code&#x27;s, repair goes to the test owner.</title></path>
 <text class="elabel" x="172" y="722">wrong test → repair</text>
-<path class="edge edge-primary" d="M 1030 824 C 1030 870, 682 870, 682 916" marker-end="url(#arrow-primary)"><title>wave-verifier → outer-pipeline</title></path>
+<path class="edge edge-primary" data-edge="21" d="M 1030 824 C 1030 870, 682 870, 682 916" marker-end="url(#arrow-primary)"><title>wave-verifier → Outer pipeline · isolated verdict
+A green isolated verdict releases the wave into the shared branch.</title></path>
 <text class="elabel" x="856" y="864">isolated verdict</text>
-<path class="edge edge-primary" d="M 682 972 C 682 1018, 334 1018, 334 1064" marker-end="url(#arrow-primary)"><title>outer-pipeline → pr-shepherd</title></path>
+<path class="edge edge-primary" data-edge="22" d="M 682 972 C 682 1018, 334 1018, 334 1064" marker-end="url(#arrow-primary)"><title>Outer pipeline → pr-shepherd · branch integrated
+With the batch integrated the work leaves the machine and becomes a pull request.</title></path>
 <text class="elabel" x="508" y="1012">branch integrated</text>
-<path class="edge edge-conditional" d="M 682 972 C 682 1018, 1030 1018, 1030 1064" marker-end="url(#arrow-conditional)"><title>outer-pipeline → post-review-wave-generator</title></path>
+<path class="edge edge-conditional" data-edge="23" d="M 682 972 C 682 1018, 1030 1018, 1030 1064" marker-end="url(#arrow-conditional)"><title>Outer pipeline → post-review-wave-generator · changes required
+Review findings that need code become a new wave plan rather than ad-hoc edits.</title></path>
 <text class="elabel" x="856" y="1012">changes required</text>
-<path class="edge edge-conditional" d="M 334 1120 C 334 1166, 218 1166, 218 1212" marker-end="url(#arrow-conditional)"><title>pr-shepherd → ci-investigator</title></path>
+<path class="edge edge-conditional" data-edge="24" d="M 334 1120 C 334 1166, 218 1166, 218 1212" marker-end="url(#arrow-conditional)"><title>pr-shepherd → ci-investigator · CI red
+A red check is investigated before anything changes, so the fix targets the cause.</title></path>
 <text class="elabel" x="276" y="1160">CI red</text>
-<path class="edge edge-conditional" d="M 334 1120 C 334 1166, 566 1166, 566 1212" marker-end="url(#arrow-conditional)"><title>pr-shepherd → review-comment-triager</title></path>
+<path class="edge edge-conditional" data-edge="25" d="M 334 1120 C 334 1166, 566 1166, 566 1212" marker-end="url(#arrow-conditional)"><title>pr-shepherd → review-comment-triager · review comments
+Review comments are handled apart from CI failures; they need judgement, not a rerun.</title></path>
 <text class="elabel" x="450" y="1160">review comments</text>
-<path class="edge edge-conditional" d="M 1116 1092 C 1196 1092, 1196 944, 768 944" marker-end="url(#arrow-conditional)"><title>post-review-wave-generator → outer-pipeline</title></path>
+<path class="edge edge-conditional" data-edge="26" d="M 1116 1092 C 1196 1092, 1196 944, 768 944" marker-end="url(#arrow-conditional)"><title>post-review-wave-generator → Outer pipeline · new waves
+The generated plan re-enters at integration — this is what makes the loop compound.</title></path>
 <text class="elabel" x="1192" y="1018">new waves</text>
 <text class="enote" x="1192" y="1031">next turn</text>
-<path class="edge edge-primary" d="M 218 1268 C 218 1314, 218 1314, 218 1360" marker-end="url(#arrow-primary)"><title>ci-investigator → check-fixer</title></path>
+<path class="edge edge-primary" data-edge="27" d="M 218 1268 C 218 1314, 218 1314, 218 1360" marker-end="url(#arrow-primary)"><title>ci-investigator → check-fixer · finding
+A finding with a root cause is handed to the fixer; investigation and repair stay separate.</title></path>
 <text class="elabel" x="218" y="1308">finding</text>
-<path class="edge edge-conditional" d="M 218 1268 C 218 1314, 914 1314, 914 1360" marker-end="url(#arrow-conditional)"><title>ci-investigator → postmortem</title></path>
+<path class="edge edge-conditional" data-edge="28" d="M 218 1268 C 218 1314, 914 1314, 914 1360" marker-end="url(#arrow-conditional)"><title>ci-investigator → Wave postmortem · finding
+Findings worth remembering also go to the postmortem — this is how the pipeline learns.</title></path>
 <text class="elabel" x="566" y="1308">finding</text>
-<path class="edge edge-primary" d="M 566 1268 C 566 1314, 566 1314, 566 1360" marker-end="url(#arrow-primary)"><title>review-comment-triager → review-comment-fixer</title></path>
+<path class="edge edge-primary" data-edge="29" d="M 566 1268 C 566 1314, 566 1314, 566 1360" marker-end="url(#arrow-primary)"><title>review-comment-triager → review-comment-fixer · actionable
+Only comments classified as actionable become code; the rest are answered in the thread.</title></path>
 <text class="elabel" x="566" y="1308">actionable</text>
-<path class="edge edge-conditional" d="M 132 1388 C 52 1388, 52 1240, 132 1240" marker-end="url(#arrow-conditional)"><title>check-fixer → ci-investigator</title></path>
+<path class="edge edge-conditional" data-edge="30" d="M 132 1388 C 52 1388, 52 1240, 132 1240" marker-end="url(#arrow-conditional)"><title>check-fixer → ci-investigator · re-verify
+The fix is re-investigated rather than assumed: the check has to go green for the stated reason.</title></path>
 <text class="elabel" x="56" y="1314">re-verify</text>
-<path class="edge edge-primary" d="M 218 1416 C 218 1462, 392 1462, 392 1508" marker-end="url(#arrow-primary)"><title>check-fixer → verify-checks</title></path>
+<path class="edge edge-primary" data-edge="31" d="M 218 1416 C 218 1462, 392 1462, 392 1508" marker-end="url(#arrow-primary)"><title>check-fixer → CI green + review clean · checks fixed
+Once the finding is closed the run waits on the full check set, not just the one that failed.</title></path>
 <text class="elabel" x="305" y="1456">checks fixed</text>
-<path class="edge edge-primary" d="M 566 1416 C 566 1462, 392 1462, 392 1508" marker-end="url(#arrow-primary)"><title>review-comment-fixer → verify-checks</title></path>
+<path class="edge edge-primary" data-edge="32" d="M 566 1416 C 566 1462, 392 1462, 392 1508" marker-end="url(#arrow-primary)"><title>review-comment-fixer → CI green + review clean · threads resolved
+Resolved threads join the same wait as CI fixes; both have to settle before the gate.</title></path>
 <text class="elabel" x="479" y="1456">threads resolved</text>
-<path class="edge edge-primary" d="M 392 1564 C 392 1610, 595 1610, 595 1656" marker-end="url(#arrow-primary)"><title>verify-checks → merge-gate</title></path>
-<text class="elabel" x="493" y="1604">gates green</text>
-<path class="edge edge-conditional" d="M 914 1416 C 914 1536, 595 1536, 595 1656" marker-end="url(#arrow-conditional)"><title>postmortem → merge-gate</title></path>
+<path class="edge edge-conditional" data-edge="33" d="M 914 1416 C 914 1536, 595 1536, 595 1656" marker-end="url(#arrow-conditional)"><title>Wave postmortem → Human merge gate · promote (R27)
+Promotion is an operator action; a proposed rule never activates itself.</title></path>
 <text class="elabel" x="754" y="1530">promote (R27)</text>
-<g class="node node-external">
-<title>inputs</title>
+<path class="edge edge-primary" data-edge="34" d="M 392 1564 C 392 1610, 595 1610, 595 1656" marker-end="url(#arrow-primary)"><title>CI green + review clean → Human merge gate · gates green
+Green checks are the precondition for the merge gate, not the merge itself.</title></path>
+<text class="elabel" x="493" y="1604">gates green</text>
+<g class="node node-external node-open" data-node="inputs">
+<title>inputs · click for details</title>
 <rect x="132" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="218" y="54">Goal / repo</text>
 <text class="nnote" x="218" y="70">or error bundle</text>
 </g>
-<g class="node node-agent">
-<title>graph-extractor</title>
+<g class="node node-agent node-open" data-node="graph-extractor">
+<title>graph-extractor · click for details</title>
 <rect x="364" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="450" y="62">graph-extractor</text>
 </g>
-<g class="node node-agent">
-<title>graph-librarian</title>
+<g class="node node-agent node-open" data-node="graph-librarian">
+<title>graph-librarian · click for details</title>
 <rect x="596" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="682" y="62">graph-librarian</text>
 </g>
-<g class="node node-agent">
-<title>graph-fuser</title>
+<g class="node node-agent node-open" data-node="graph-fuser">
+<title>graph-fuser · click for details</title>
 <rect x="828" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="914" y="62">graph-fuser</text>
 </g>
-<g class="node node-agent">
-<title>spec-cartographer</title>
+<g class="node node-agent node-open" data-node="spec-cartographer">
+<title>spec-cartographer · click for details</title>
 <rect x="132" y="176" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="218" y="210">spec-cartographer</text>
 </g>
-<g class="node node-agent">
-<title>reference-picker</title>
+<g class="node node-agent node-open" data-node="reference-picker">
+<title>reference-picker · click for details</title>
 <rect x="364" y="176" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="450" y="210">reference-picker</text>
 </g>
-<g class="node node-agent">
-<title>build-plan-from-errors</title>
+<g class="node node-agent node-open" data-node="build-plan-from-errors">
+<title>build-plan-from-errors · click for details</title>
 <rect x="712" y="176" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="798" y="201">build-plan-</text>
 <text class="nlabel" x="798" y="216">from-errors</text>
 </g>
-<g class="node node-agent">
-<title>wave-plan-author</title>
+<g class="node node-agent node-open" data-node="wave-plan-author">
+<title>wave-plan-author · click for details</title>
 <rect x="1060" y="176" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1146" y="202">wave-plan-author</text>
 <text class="nnote" x="1146" y="218">legacy v1 / v2</text>
 </g>
-<g class="node node-agent">
-<title>plan-author</title>
+<g class="node node-agent node-open" data-node="plan-author">
+<title>plan-author · click for details</title>
 <rect x="132" y="324" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="218" y="358">plan-author</text>
 </g>
-<g class="node node-agent">
-<title>plan-shape-critic</title>
+<g class="node node-agent node-open" data-node="plan-shape-critic">
+<title>plan-shape-critic · click for details</title>
 <rect x="364" y="324" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="450" y="358">plan-shape-critic</text>
 </g>
-<g class="node node-phase">
-<title>l1-validate</title>
+<g class="node node-phase node-open" data-node="l1-validate">
+<title>l1-validate · click for details</title>
 <rect x="132" y="472" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="218" y="498">L1 validate</text>
 <text class="nnote" x="218" y="514">plan invariants</text>
 </g>
-<g class="node node-gate">
-<title>pre0-gate</title>
+<g class="node node-gate node-open" data-node="pre0-gate">
+<title>pre0-gate · click for details</title>
 <rect x="480" y="472" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="566" y="498">Pre-0 gate</text>
 <text class="nnote" x="566" y="514">operator decisions</text>
 </g>
-<g class="node node-agent">
-<title>wave-orchestrator</title>
+<g class="node node-agent node-open" data-node="wave-orchestrator">
+<title>wave-orchestrator · click for details</title>
 <rect x="828" y="472" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="914" y="498">wave-orchestrator</text>
 <text class="nnote" x="914" y="514">optional serial mode</text>
 </g>
-<g class="node node-agent">
-<title>test-creator</title>
+<g class="node node-agent node-open" data-node="test-creator">
+<title>test-creator · click for details</title>
 <rect x="248" y="620" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="334" y="646">test-creator</text>
 <text class="nnote" x="334" y="662">RED baseline</text>
 </g>
-<g class="node node-agent">
-<title>implementer</title>
+<g class="node node-agent node-open" data-node="implementer">
+<title>implementer · click for details</title>
 <rect x="596" y="620" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="682" y="646">implementer</text>
 <text class="nnote" x="682" y="662">wave Wi</text>
 </g>
-<g class="node node-agent">
-<title>quality-critic</title>
+<g class="node node-agent node-open" data-node="quality-critic">
+<title>quality-critic · click for details</title>
 <rect x="944" y="620" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1030" y="654">quality-critic</text>
 </g>
-<g class="node node-agent">
-<title>smoothing-pass</title>
+<g class="node node-agent node-open" data-node="smoothing-pass">
+<title>smoothing-pass · click for details</title>
 <rect x="1292" y="620" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1378" y="646">smoothing-pass</text>
 <text class="nnote" x="1378" y="662">optional</text>
 </g>
-<g class="node node-agent">
-<title>wave-verifier</title>
+<g class="node node-agent node-open" data-node="wave-verifier">
+<title>wave-verifier · click for details</title>
 <rect x="944" y="768" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1030" y="802">wave-verifier</text>
 </g>
-<g class="node node-phase">
-<title>outer-pipeline</title>
+<g class="node node-phase node-open" data-node="outer-pipeline">
+<title>outer-pipeline · click for details</title>
 <rect x="596" y="916" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="682" y="942">Outer pipeline</text>
 <text class="nnote" x="682" y="958">verify → commit → review</text>
 </g>
-<g class="node node-agent">
-<title>pr-shepherd</title>
+<g class="node node-agent node-open" data-node="pr-shepherd">
+<title>pr-shepherd · click for details</title>
 <rect x="248" y="1064" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="334" y="1098">pr-shepherd</text>
 </g>
-<g class="node node-agent">
-<title>post-review-wave-generator</title>
+<g class="node node-agent node-open" data-node="post-review-wave-generator">
+<title>post-review-wave-generator · click for details</title>
 <rect x="944" y="1064" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1030" y="1089">post-review-</text>
 <text class="nlabel" x="1030" y="1104">wave-generator</text>
 </g>
-<g class="node node-agent">
-<title>ci-investigator</title>
+<g class="node node-agent node-open" data-node="ci-investigator">
+<title>ci-investigator · click for details</title>
 <rect x="132" y="1212" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="218" y="1246">ci-investigator</text>
 </g>
-<g class="node node-agent">
-<title>review-comment-triager</title>
+<g class="node node-agent node-open" data-node="review-comment-triager">
+<title>review-comment-triager · click for details</title>
 <rect x="480" y="1212" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="566" y="1237">review-comment-</text>
 <text class="nlabel" x="566" y="1252">triager</text>
 </g>
-<g class="node node-agent">
-<title>check-fixer</title>
+<g class="node node-agent node-open" data-node="check-fixer">
+<title>check-fixer · click for details</title>
 <rect x="132" y="1360" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="218" y="1394">check-fixer</text>
 </g>
-<g class="node node-agent">
-<title>review-comment-fixer</title>
+<g class="node node-agent node-open" data-node="review-comment-fixer">
+<title>review-comment-fixer · click for details</title>
 <rect x="480" y="1360" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="566" y="1385">review-comment-</text>
 <text class="nlabel" x="566" y="1400">fixer</text>
 </g>
-<g class="node node-phase">
-<title>verify-checks</title>
-<rect x="306" y="1508" width="172" height="56" rx="9"></rect>
-<text class="nlabel" x="392" y="1542">CI green + review clean</text>
-</g>
-<g class="node node-phase">
-<title>postmortem</title>
+<g class="node node-phase node-open" data-node="postmortem">
+<title>postmortem · click for details</title>
 <rect x="828" y="1360" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="914" y="1386">Wave postmortem</text>
 <text class="nnote" x="914" y="1402">finding → proposed rule</text>
 </g>
-<g class="node node-gate">
-<title>merge-gate</title>
+<g class="node node-phase node-open" data-node="verify-checks">
+<title>verify-checks · click for details</title>
+<rect x="306" y="1508" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="392" y="1542">CI green + review clean</text>
+</g>
+<g class="node node-gate node-open" data-node="merge-gate">
+<title>merge-gate · click for details</title>
 <rect x="509" y="1656" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="595" y="1682">Human merge gate</text>
 <text class="nnote" x="595" y="1698">operator only (D15)</text>
 </g>
 </svg>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+<div id="sheet" role="dialog" aria-modal="true" hidden>
+<div class="card" id="sheet-card"></div>
+</div>
+<script>
+
+const DATA = {"width": 1596, "styles": {"primary": "Primary flow", "conditional": "Conditional / feedback", "optional": "Optional / side path"}, "nodes": {"inputs": {"label": "Goal / repo", "kind": "External input", "summary": "The starting contract: a goal statement plus the repository as it stands today. On a repair run this is a bundle of failing checks and error output instead.", "facts": [["Harness", "operator input"], ["Produces", "Goal / repo"]], "params": [], "cards": []}, "graph-extractor": {"label": "graph-extractor", "kind": "Agent", "summary": "Walks the repository and extracts raw structure — files, symbols, imports, call edges — without interpreting which of it matters.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"]], "params": [["read_only", "true"]], "cards": []}, "graph-librarian": {"label": "graph-librarian", "kind": "Agent", "summary": "Curates the raw extraction down to the slice that matters for this goal: entry points, owners, tests, and the modules the change will touch.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"]], "params": [], "cards": []}, "graph-fuser": {"label": "graph-fuser", "kind": "Agent", "summary": "Fuses the curated slices into a single code knowledge graph that every later step queries instead of re-reading the repository.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Code KG"], ["Wave", "W-KG"]], "params": [], "cards": []}, "spec-cartographer": {"label": "spec-cartographer", "kind": "Agent", "summary": "Maps the goal onto the graph and writes the spec: what must change, where it lives, and what must stay untouched.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"]], "params": [], "cards": []}, "reference-picker": {"label": "reference-picker", "kind": "Agent", "summary": "Picks the in-repo references each requirement should imitate — the closest existing pattern, the nearest test, the module shape to copy.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Spec + quality refs"], ["Wave", "W-SPEC"]], "params": [], "cards": []}, "build-plan-from-errors": {"label": "build-plan-from-errors", "kind": "Agent", "summary": "Alternate entry point: turns a bundle of failing checks or a bug report straight into a planning input, skipping specification.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"]], "params": [], "cards": []}, "wave-plan-author": {"label": "wave-plan-author", "kind": "Agent", "summary": "Legacy single-shot plan author — tripll's registered `wave-generator` agent — kept for v1/v2 plans that predate the split into planner plus shape critic.", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"]], "params": [["perms", "--force"], ["max_turns", "3"]], "cards": []}, "plan-author": {"label": "plan-author", "kind": "Agent", "summary": "Writes the wave plan: waves and their dependencies, roles, verification commands, and the Pre-0 decisions an operator has to make before dispatch.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"]], "params": [], "cards": []}, "plan-shape-critic": {"label": "plan-shape-critic", "kind": "Agent", "summary": "Grades plan shape — wave size, dependency sanity, tests-first ordering, verifiable exit criteria — and sends the plan back when the shape is wrong.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Validated RunGraph"], ["Wave", "W-PLAN"]], "params": [], "cards": []}, "l1-validate": {"label": "L1 validate", "kind": "System phase", "summary": "`tripll validate` parses the plan into a RunGraph and enforces its invariants: no dependency cycles, no dangling references, a Pre-0 gate present, and verification commands that actually resolve.", "facts": [["Harness", "tripll CLI"]], "params": [["command", "tripll validate"]], "cards": []}, "pre0-gate": {"label": "Pre-0 gate", "kind": "Human / gate", "summary": "The human gate. The operator answers the plan's Pre-0 decisions and approves dispatch; tripll never crosses this line on its own (D15).", "facts": [["Harness", "operator (human)"], ["Produces", "Pre-0 approval"], ["Wave", "W0"]], "params": [], "cards": []}, "wave-orchestrator": {"label": "wave-orchestrator", "kind": "Agent", "summary": "Dispatches waves in dependency order and holds each one until its dependencies are green. tripll's registered `orchestrator` agent; serial mode is opt-in through the orchestrator prompt.", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"]], "params": [["perms", "--force"], ["max_turns", "3"]], "cards": []}, "test-creator": {"label": "test-creator", "kind": "Agent", "summary": "Writes the failing tests for the wave before any implementation exists, and owns those test paths for the rest of the wave. tripll's registered `test-creator` agent, selected by the wave's `role`.", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"], ["Produces", "RED test baseline"], ["Wave", "W1"]], "params": [["perms", "--force"], ["max_turns", "3"]], "cards": []}, "implementer": {"label": "implementer", "kind": "Agent", "summary": "Implements one wave against the RED suite and commits once it goes green. tripll's registered `wave-runner` agent.", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"], ["Produces", "Implemented wave"], ["Wave", "Wi"]], "params": [["perms", "--force"], ["max_turns", "3"]], "cards": []}, "quality-critic": {"label": "quality-critic", "kind": "Agent", "summary": "Grades the wave commit beyond passing tests: structure, naming, dead code, and whether the change follows the references the plan cited. tripll's registered `reviewer` agent (`[pipeline.review]`).", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"], ["Produces", "Quality accepted"], ["Wave", "W-Q"]], "params": [["thinking", "high"]], "cards": []}, "smoothing-pass": {"label": "smoothing-pass", "kind": "Agent", "summary": "Optional cleanup pass over the wave's diff — naming, comment density, idiom — without changing behaviour.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"]], "params": [], "cards": []}, "wave-verifier": {"label": "wave-verifier", "kind": "Agent", "summary": "Re-runs the wave's verification from a clean state and records the verdict, so a wave that only passed on a dirty tree is caught here.", "facts": [["Harness", "tripll CLI + cursor-agent"], ["Model", "auto"], ["Produces", "Isolated verdict"], ["Wave", "W-V"]], "params": [["command", "make ci-affected"]], "cards": []}, "outer-pipeline": {"label": "Outer pipeline", "kind": "System phase", "summary": "tripll's fixed outer loop (`loops/l1_outer.py`): verify the batch, commit, review, and generate remediation waves when review demands them.", "facts": [["Harness", "tripll engine"], ["Produces", "Integrated branch"], ["Wave", "W-FINAL"]], "params": [["nodes", "validate → waves → verify → commit → review → generate"]], "cards": []}, "pr-shepherd": {"label": "pr-shepherd", "kind": "Agent", "summary": "Opens the pull request and keeps it merge-ready: description, linked plan, and the set of checks that have to pass.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Open PR"], ["Wave", "W-REVIEW"]], "params": [], "cards": []}, "post-review-wave-generator": {"label": "post-review-wave-generator", "kind": "Agent", "summary": "Turns review findings into the next wave plan, which re-enters the pipeline as a fresh turn. tripll's registered `post-review-wave-generator` agent.", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"], ["Produces", "New wave plan"], ["Wave", "W-GEN"]], "params": [["max_turns", "3"]], "cards": []}, "ci-investigator": {"label": "ci-investigator", "kind": "Agent", "summary": "Reads the failing check's logs and reports the root cause as a finding, without touching code.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Findings"], ["Wave", "W-CI"]], "params": [["read_only", "true"]], "cards": []}, "review-comment-triager": {"label": "review-comment-triager", "kind": "Agent", "summary": "Sorts review comments into actionable changes, questions to answer, and things to decline, with a stated reason for each.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Findings"], ["Wave", "W-CI"]], "params": [], "cards": []}, "check-fixer": {"label": "check-fixer", "kind": "Agent", "summary": "Applies the narrowest change that resolves one CI finding and pushes it as its own commit.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Fix commit"], ["Wave", "W-CI-FIX"]], "params": [["scope", "one finding"]], "cards": []}, "review-comment-fixer": {"label": "review-comment-fixer", "kind": "Agent", "summary": "Makes the changes review asked for and replies on each thread it resolves.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Fix commit"], ["Wave", "W-CI-FIX"]], "params": [], "cards": []}, "postmortem": {"label": "Wave postmortem", "kind": "System phase", "summary": "Distils findings into proposed rules with citations. Agents may propose; only an operator promotes a rule to active (R27, `tripll rules promote`).", "facts": [["Harness", "tripll CLI"], ["Produces", "Rule / finding memory"], ["Wave", "postmortem"]], "params": [["command", "tripll rules derive"]], "cards": []}, "verify-checks": {"label": "CI green + review clean", "kind": "System phase", "summary": "Waits for every required check to go green and every review thread to be resolved after the fix commits land.", "facts": [["Harness", "GitHub checks + tripll review"], ["Produces", "CI green + review clean"], ["Wave", "re-push"]], "params": [["command", "tripll review watch"]], "cards": []}, "merge-gate": {"label": "Human merge gate", "kind": "Human / gate", "summary": "The final human gate: tripll never merges. The operator merges once checks are green and the review is clean (D15).", "facts": [["Harness", "operator (human)"], ["Produces", "Human merge gate"], ["Wave", "promote"]], "params": [], "cards": []}}, "edges": [{"from": "Goal / repo", "to": "graph-extractor", "label": "repo scan", "note": "", "detail": "The repo is handed to the graph pass; nothing is written to the working tree yet.", "style": "primary"}, {"from": "graph-extractor", "to": "graph-librarian", "label": "", "note": "", "detail": "Extraction is passed on unfiltered; deciding what matters is the librarian's job.", "style": "primary"}, {"from": "graph-librarian", "to": "graph-fuser", "label": "", "note": "", "detail": "The curated slice is handed over to be fused into one queryable graph.", "style": "primary"}, {"from": "graph-fuser", "to": "spec-cartographer", "label": "code KG", "note": "", "detail": "Planning starts from the graph, so the spec cites real symbols instead of guesses.", "style": "primary"}, {"from": "spec-cartographer", "to": "reference-picker", "label": "", "note": "", "detail": "The draft spec goes to reference selection so each requirement gets an example to imitate.", "style": "primary"}, {"from": "reference-picker", "to": "plan-author", "label": "spec + refs", "note": "", "detail": "Spec plus references become the planning input; the plan may only cite what was picked here.", "style": "primary"}, {"from": "build-plan-from-errors", "to": "plan-author", "label": "error bundle", "note": "", "detail": "Repair runs join here, reusing the same planner and the same gates as feature work.", "style": "optional"}, {"from": "wave-plan-author", "to": "plan-shape-critic", "label": "legacy plan", "note": "", "detail": "Legacy plans still have to clear the shape critic before they can be validated.", "style": "optional"}, {"from": "plan-author", "to": "plan-shape-critic", "label": "", "note": "", "detail": "Every plan is graded before validation; the planner never approves its own shape.", "style": "primary"}, {"from": "plan-shape-critic", "to": "L1 validate", "label": "shape accepted", "note": "", "detail": "An accepted shape goes to the validator, which checks invariants no critic can eyeball.", "style": "primary"}, {"from": "L1 validate", "to": "Pre-0 gate", "label": "invariants hold", "note": "", "detail": "Validation proves the plan is well-formed; whether it should run is the operator's call.", "style": "primary"}, {"from": "Pre-0 gate", "to": "wave-orchestrator", "label": "approved", "note": "", "detail": "Approval releases the graph for dispatch; without it no wave is ever sent to an agent.", "style": "primary"}, {"from": "wave-orchestrator", "to": "test-creator", "label": "dispatch wave", "note": "", "detail": "Each wave starts with its tests, so the first thing an implementer sees is a failing suite.", "style": "primary"}, {"from": "test-creator", "to": "implementer", "label": "RED suite", "note": "", "detail": "The failing suite is the contract: source may change, the tests it must satisfy may not.", "style": "primary"}, {"from": "implementer", "to": "quality-critic", "label": "wave commit", "note": "", "detail": "A green suite is necessary but not sufficient — the commit still has to clear the quality bar.", "style": "primary"}, {"from": "quality-critic", "to": "smoothing-pass", "label": "large gap", "note": "", "detail": "A broad but stylistic gap gets a dedicated cleanup pass instead of another implementation round.", "style": "conditional"}, {"from": "quality-critic", "to": "implementer", "label": "gap → next round", "note": "", "detail": "Substantive gaps go back to the implementer as another round on the same wave, not a new wave.", "style": "conditional"}, {"from": "quality-critic", "to": "wave-verifier", "label": "quality accepted", "note": "", "detail": "Accepted work is verified in isolation, so a pass is reproduced from a clean state.", "style": "primary"}, {"from": "smoothing-pass", "to": "quality-critic", "label": "re-grade", "note": "", "detail": "The smoothed diff is re-graded; the critic, not the smoother, decides when it is done.", "style": "conditional"}, {"from": "wave-verifier", "to": "implementer", "label": "failed → retry", "note": "", "detail": "A failed verification sends the wave back for another attempt, capped by the retry budget.", "style": "conditional"}, {"from": "wave-verifier", "to": "test-creator", "label": "wrong test → repair", "note": "", "detail": "When the failure is the test's fault rather than the code's, repair goes to the test owner.", "style": "conditional"}, {"from": "wave-verifier", "to": "Outer pipeline", "label": "isolated verdict", "note": "", "detail": "A green isolated verdict releases the wave into the shared branch.", "style": "primary"}, {"from": "Outer pipeline", "to": "pr-shepherd", "label": "branch integrated", "note": "", "detail": "With the batch integrated the work leaves the machine and becomes a pull request.", "style": "primary"}, {"from": "Outer pipeline", "to": "post-review-wave-generator", "label": "changes required", "note": "", "detail": "Review findings that need code become a new wave plan rather than ad-hoc edits.", "style": "conditional"}, {"from": "pr-shepherd", "to": "ci-investigator", "label": "CI red", "note": "", "detail": "A red check is investigated before anything changes, so the fix targets the cause.", "style": "conditional"}, {"from": "pr-shepherd", "to": "review-comment-triager", "label": "review comments", "note": "", "detail": "Review comments are handled apart from CI failures; they need judgement, not a rerun.", "style": "conditional"}, {"from": "post-review-wave-generator", "to": "Outer pipeline", "label": "new waves", "note": "next turn", "detail": "The generated plan re-enters at integration — this is what makes the loop compound.", "style": "conditional"}, {"from": "ci-investigator", "to": "check-fixer", "label": "finding", "note": "", "detail": "A finding with a root cause is handed to the fixer; investigation and repair stay separate.", "style": "primary"}, {"from": "ci-investigator", "to": "Wave postmortem", "label": "finding", "note": "", "detail": "Findings worth remembering also go to the postmortem — this is how the pipeline learns.", "style": "conditional"}, {"from": "review-comment-triager", "to": "review-comment-fixer", "label": "actionable", "note": "", "detail": "Only comments classified as actionable become code; the rest are answered in the thread.", "style": "primary"}, {"from": "check-fixer", "to": "ci-investigator", "label": "re-verify", "note": "", "detail": "The fix is re-investigated rather than assumed: the check has to go green for the stated reason.", "style": "conditional"}, {"from": "check-fixer", "to": "CI green + review clean", "label": "checks fixed", "note": "", "detail": "Once the finding is closed the run waits on the full check set, not just the one that failed.", "style": "primary"}, {"from": "review-comment-fixer", "to": "CI green + review clean", "label": "threads resolved", "note": "", "detail": "Resolved threads join the same wait as CI fixes; both have to settle before the gate.", "style": "primary"}, {"from": "Wave postmortem", "to": "Human merge gate", "label": "promote (R27)", "note": "", "detail": "Promotion is an operator action; a proposed rule never activates itself.", "style": "conditional"}, {"from": "CI green + review clean", "to": "Human merge gate", "label": "gates green", "note": "", "detail": "Green checks are the precondition for the merge gate, not the merge itself.", "style": "primary"}]};
+const svg = document.getElementById('graph');
+const level = document.getElementById('zoom-level');
+const tip = document.getElementById('tip');
+const sheet = document.getElementById('sheet');
+const card = document.getElementById('sheet-card');
+let zoom = 1;
+
+function applyZoom() {
+  svg.style.width = zoom === 1 ? '' : (DATA.width * zoom) + 'px';
+  svg.style.maxWidth = zoom === 1 ? '100%' : 'none';
+  level.textContent = Math.round(zoom * 100) + '%';
+}
+function step(by) { zoom = Math.min(4, Math.max(0.4, Math.round((zoom + by) * 100) / 100)); applyZoom(); }
+document.getElementById('zoom-in').addEventListener('click', () => step(0.25));
+document.getElementById('zoom-out').addEventListener('click', () => step(-0.25));
+document.getElementById('zoom-fit').addEventListener('click', () => { zoom = 1; applyZoom(); });
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text) node.textContent = text;
+  return node;
+}
+function rows(pairs) {
+  const dl = el('dl', 'rows');
+  for (const [key, value] of pairs) {
+    dl.append(el('dt', '', key), el('dd', '', value));
+  }
+  return dl;
+}
+function agentBlock(agent) {
+  const box = el('div', 'agent');
+  box.append(el('h3', '', agent.name));
+  if (agent.summary) box.append(el('p', 'lede', agent.summary));
+  if (agent.facts.length) box.append(rows(agent.facts));
+  if (agent.params.length) { box.append(el('p', 'group', 'Params')); box.append(rows(agent.params)); }
+  return box;
+}
+function openNode(id) {
+  const detail = DATA.nodes[id];
+  if (!detail) return;
+  card.replaceChildren();
+  const close = el('button', 'close', '\u00d7');
+  close.setAttribute('aria-label', 'Close');
+  close.addEventListener('click', hide);
+  card.append(close, el('h2', '', detail.label), el('span', 'badge', detail.kind));
+  if (detail.summary) card.append(el('p', 'lede', detail.summary));
+  if (detail.facts.length) card.append(rows(detail.facts));
+  if (detail.params.length) { card.append(el('p', 'group', 'Params')); card.append(rows(detail.params)); }
+  if (detail.cards.length) {
+    card.append(el('p', 'group', detail.cards.length > 1 ? 'Agents on the incoming edges' : 'Agent'));
+    for (const agent of detail.cards) card.append(agentBlock(agent));
+  }
+  sheet.hidden = false;
+}
+function hide() { sheet.hidden = true; }
+sheet.addEventListener('click', (event) => { if (event.target === sheet) hide(); });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hide(); });
+for (const node of document.querySelectorAll('[data-node]')) {
+  node.addEventListener('click', () => openNode(node.dataset.node));
+}
+
+function place(event) {
+  const box = tip.getBoundingClientRect();
+  const x = Math.min(event.clientX + 16, window.innerWidth - box.width - 12);
+  const y = Math.min(event.clientY + 16, window.innerHeight - box.height - 12);
+  tip.style.left = Math.max(12, x) + 'px';
+  tip.style.top = Math.max(12, y) + 'px';
+}
+for (const path of document.querySelectorAll('[data-edge]')) {
+  const edge = DATA.edges[Number(path.dataset.edge)];
+  path.addEventListener('mouseenter', (event) => {
+    tip.replaceChildren(el('b', '', edge.from + ' \u2192 ' + edge.to));
+    if (edge.label) tip.append(el('div', 'cond', edge.label));
+    if (edge.note) tip.append(el('div', 'cond', edge.note));
+    tip.append(el('div', 'flow', edge.detail || DATA.styles[edge.style]));
+    tip.hidden = false;
+    place(event);
+  });
+  path.addEventListener('mousemove', place);
+  path.addEventListener('mouseleave', () => { tip.hidden = true; });
+}
+applyZoom();
+
+</script>
 </body>
 </html>

@@ -17,7 +17,13 @@ h1{font-size:1.35rem;margin:0 0 4px}
 .line{display:inline-block;width:26px;margin-right:6px;vertical-align:middle;border-top:2px solid #6f6a5e}
 .line-conditional{border-top-style:dashed}
 .line-optional{border-top-style:dotted}
-.graph{max-width:100%;height:auto;background:#fff;border:1px solid #e6e2d9;border-radius:12px}
+.bar{display:flex;gap:8px;align-items:center;margin:0 0 10px}
+.bar button{font:inherit;font-size:.82rem;padding:4px 11px;border-radius:7px;border:1px solid #d9d4c8;background:#fff;color:#2c2a24;cursor:pointer}
+.bar button:hover{background:#f2efe8}
+.bar .level{font-size:.8rem;color:#6f6a5e;min-width:46px}
+.bar .hint{font-size:.78rem;color:#8a8577}
+.canvas{overflow:auto;background:#fff;border:1px solid #e6e2d9;border-radius:12px}
+.graph{max-width:100%;height:auto;display:block}
 .cluster rect{fill:#f4f2ee;stroke:#ddd8cc;stroke-width:1}
 .cluster text{font-size:11px;fill:#6f6a5e;letter-spacing:.09em;text-transform:uppercase}
 .node rect{fill:#fff;stroke:#111;stroke-width:1.5}
@@ -35,6 +41,29 @@ text{font-family:ui-sans-serif,system-ui,sans-serif}
 .elabel,.enote{text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
 .elabel{font-size:10.5px;font-weight:600;fill:#2c2a24}
 .enote{font-size:10px;fill:#6f6a5e}
+.node-open{cursor:pointer}
+.node-open:hover rect{stroke-width:2.5}
+[data-edge]:hover{stroke:#2c2a24;stroke-width:2.6}
+#tip{position:fixed;z-index:20;max-width:320px;padding:9px 11px;border-radius:9px;background:#2c2a24;color:#f7f5f0;font-size:.78rem;line-height:1.42;box-shadow:0 6px 22px rgba(0,0,0,.28);pointer-events:none}
+#tip b{display:block;font-size:.8rem;margin-bottom:2px}
+#tip .cond{color:#f3d38a}
+#tip .flow{margin-top:5px;color:#e2ded4}
+#sheet[hidden],#tip[hidden]{display:none}
+#sheet{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(28,26,22,.42)}
+#sheet .card{position:relative;width:min(560px,100%);max-height:82vh;overflow:auto;background:#fff;border:1px solid #e6e2d9;border-radius:16px;padding:22px 24px;box-shadow:0 18px 48px rgba(0,0,0,.22)}
+#sheet h2{font-size:1.12rem;margin:0 6px 6px 0;display:inline-block}
+#sheet .badge{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:99px;border:1px solid #d9d4c8;color:#6f6a5e;vertical-align:2px}
+#sheet .lede{margin:10px 0 0;font-size:.9rem;line-height:1.55;color:#3b3830}
+#sheet .rows{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:14px 0 0;font-size:.84rem}
+#sheet .rows dt{color:#6f6a5e}
+#sheet .rows dd{margin:0;color:#2c2a24;font-weight:500}
+#sheet .group{margin:16px 0 0;font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:#8a8577}
+#sheet .agent{margin:14px 0 0;padding:13px 15px;border:1px solid #ece8df;border-radius:11px;background:#faf9f7}
+#sheet .agent h3{margin:0;font-size:.93rem}
+#sheet .agent .lede{margin:6px 0 0;font-size:.85rem}
+#sheet .close{position:absolute;top:14px;right:14px;font:inherit;font-size:1rem;line-height:1;padding:5px 9px;border-radius:8px;border:1px solid #e6e2d9;background:#fff;color:#6f6a5e;cursor:pointer}
+#sheet .close:hover{background:#f2efe8}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95em}
 </style>
 </head>
 <body>
@@ -47,7 +76,15 @@ text{font-family:ui-sans-serif,system-ui,sans-serif}
 <span><span class="line line-primary"></span>Primary flow</span>
 <span><span class="line line-conditional"></span>Conditional / feedback</span>
 </div>
-<svg class="graph" viewBox="0 0 2292 732" width="2292" height="732" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Artifact states are nodes; each edge is the wave and agent that produces them">
+<div class="bar">
+<button id="zoom-out" type="button">&minus; Zoom out</button>
+<button id="zoom-in" type="button">+ Zoom in</button>
+<button id="zoom-fit" type="button">Fit</button>
+<span class="level" id="zoom-level">100%</span>
+<span class="hint">Click a node for its agent note · hover an edge for the flow</span>
+</div>
+<div class="canvas">
+<svg class="graph" id="graph" viewBox="0 0 2292 732" width="2292" height="732" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Artifact states are nodes; each edge is the wave and agent that produces them">
 <defs>
 <marker id="arrow-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
 <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f6a5e"></path>
@@ -71,160 +108,275 @@ text{font-family:ui-sans-serif,system-ui,sans-serif}
 <rect x="10" y="388" width="1776" height="302" rx="12"></rect>
 <text x="22" y="406">PR + compounding loop</text>
 </g>
-<path class="edge edge-primary" d="M 200 56 L 420 56" marker-end="url(#arrow-primary)"><title>goal → code-kg</title></path>
+<path class="edge edge-primary" data-edge="0" d="M 200 56 L 420 56" marker-end="url(#arrow-primary)"><title>Goal / repo → Code KG · W-KG
+The curated slice is handed over to be fused into one queryable graph.</title></path>
 <text class="elabel" x="310" y="47">W-KG</text>
 <text class="enote" x="310" y="60">graph-extractor → … → graph-fuser</text>
-<path class="edge edge-primary" d="M 592 56 L 812 56" marker-end="url(#arrow-primary)"><title>code-kg → spec-refs</title></path>
+<path class="edge edge-primary" data-edge="1" d="M 592 56 L 812 56" marker-end="url(#arrow-primary)"><title>Code KG → Spec + quality refs · W-SPEC
+The draft spec goes to reference selection so each requirement gets an example to imitate.</title></path>
 <text class="elabel" x="702" y="47">W-SPEC</text>
 <text class="enote" x="702" y="60">spec-cartographer → reference-picker</text>
-<path class="edge edge-primary" d="M 984 56 L 1204 56" marker-end="url(#arrow-primary)"><title>spec-refs → run-graph</title></path>
+<path class="edge edge-primary" data-edge="2" d="M 984 56 L 1204 56" marker-end="url(#arrow-primary)"><title>Spec + quality refs → Validated RunGraph · W-PLAN
+Every plan is graded before validation; the planner never approves its own shape.</title></path>
 <text class="elabel" x="1094" y="47">W-PLAN</text>
 <text class="enote" x="1094" y="60">plan-author → plan-shape-critic</text>
-<path class="edge edge-primary" d="M 1376 56 L 1596 56" marker-end="url(#arrow-primary)"><title>run-graph → pre0</title></path>
+<path class="edge edge-primary" data-edge="3" d="M 1376 56 L 1596 56" marker-end="url(#arrow-primary)"><title>Validated RunGraph → Pre-0 approval · W0
+Validation proves the plan is well-formed; whether it should run is the operator&#x27;s call.</title></path>
 <text class="elabel" x="1486" y="47">W0</text>
 <text class="enote" x="1486" y="60">L1 validate → Pre-0 gate</text>
-<path class="edge edge-primary" d="M 1682 84 C 1682 154, 114 154, 114 224" marker-end="url(#arrow-primary)"><title>pre0 → red-tests</title></path>
+<path class="edge edge-primary" data-edge="4" d="M 1682 84 C 1682 154, 114 154, 114 224" marker-end="url(#arrow-primary)"><title>Pre-0 approval → RED test baseline · W1
+Each wave starts with its tests, so the first thing an implementer sees is a failing suite.</title></path>
 <text class="elabel" x="898" y="148">W1</text>
 <text class="enote" x="898" y="161">wave-orchestrator → test-creator</text>
-<path class="edge edge-conditional" d="M 1290 280 C 1290 312, 114 312, 114 280" marker-end="url(#arrow-conditional)"><title>verdict → red-tests</title></path>
+<path class="edge edge-conditional" data-edge="5" d="M 1290 280 C 1290 312, 114 312, 114 280" marker-end="url(#arrow-conditional)"><title>Isolated verdict → RED test baseline · wrong test → repair
+When the failure is the test&#x27;s fault rather than the code&#x27;s, repair goes to the test owner.</title></path>
 <text class="elabel" x="702" y="310">wrong test → repair</text>
 <text class="enote" x="702" y="323">test-creator</text>
-<path class="edge edge-primary" d="M 200 252 L 420 252" marker-end="url(#arrow-primary)"><title>red-tests → wave-commit</title></path>
+<path class="edge edge-primary" data-edge="6" d="M 200 252 L 420 252" marker-end="url(#arrow-primary)"><title>RED test baseline → Implemented wave · Wi
+The failing suite is the contract: source may change, the tests it must satisfy may not.</title></path>
 <text class="elabel" x="310" y="243">Wi</text>
 <text class="enote" x="310" y="256">implementer</text>
-<path class="edge edge-conditional" d="M 898 280 C 898 338, 506 338, 506 280" marker-end="url(#arrow-conditional)"><title>quality-ok → wave-commit</title></path>
+<path class="edge edge-conditional" data-edge="7" d="M 898 280 C 898 338, 506 338, 506 280" marker-end="url(#arrow-conditional)"><title>Quality accepted → Implemented wave · gap → next round
+Substantive gaps go back to the implementer as another round on the same wave, not a new wave.</title></path>
 <text class="elabel" x="702" y="336">gap → next round</text>
 <text class="enote" x="702" y="349">implementer</text>
-<path class="edge edge-conditional" d="M 1290 280 C 1290 364, 506 364, 506 280" marker-end="url(#arrow-conditional)"><title>verdict → wave-commit</title></path>
+<path class="edge edge-conditional" data-edge="8" d="M 1290 280 C 1290 364, 506 364, 506 280" marker-end="url(#arrow-conditional)"><title>Isolated verdict → Implemented wave · failed → retry
+A failed verification sends the wave back for another attempt, capped by the retry budget.</title></path>
 <text class="elabel" x="898" y="362">failed → retry</text>
 <text class="enote" x="898" y="375">implementer</text>
-<path class="edge edge-primary" d="M 592 252 L 812 252" marker-end="url(#arrow-primary)"><title>wave-commit → quality-ok</title></path>
+<path class="edge edge-primary" data-edge="9" d="M 592 252 L 812 252" marker-end="url(#arrow-primary)"><title>Implemented wave → Quality accepted · W-Q
+A green suite is necessary but not sufficient — the commit still has to clear the quality bar.</title></path>
 <text class="elabel" x="702" y="243">W-Q</text>
 <text class="enote" x="702" y="256">quality-critic</text>
-<path class="edge edge-primary" d="M 984 252 L 1204 252" marker-end="url(#arrow-primary)"><title>quality-ok → verdict</title></path>
+<path class="edge edge-primary" data-edge="10" d="M 984 252 L 1204 252" marker-end="url(#arrow-primary)"><title>Quality accepted → Isolated verdict · W-V
+Accepted work is verified in isolation, so a pass is reproduced from a clean state.</title></path>
 <text class="elabel" x="1094" y="243">W-V</text>
 <text class="enote" x="1094" y="256">wave-verifier</text>
-<path class="edge edge-primary" d="M 1376 252 L 1596 252" marker-end="url(#arrow-primary)"><title>verdict → integrated</title></path>
+<path class="edge edge-primary" data-edge="11" d="M 1376 252 L 1596 252" marker-end="url(#arrow-primary)"><title>Isolated verdict → Integrated branch · W-FINAL
+A green isolated verdict releases the wave into the shared branch.</title></path>
 <text class="elabel" x="1486" y="243">W-FINAL</text>
 <text class="enote" x="1486" y="256">integrate branch</text>
-<path class="edge edge-conditional" d="M 2074 280 C 2074 390, 1682 390, 1682 280" marker-end="url(#arrow-conditional)"><title>new-waves → integrated</title></path>
+<path class="edge edge-conditional" data-edge="12" d="M 2074 280 C 2074 390, 1682 390, 1682 280" marker-end="url(#arrow-conditional)"><title>New wave plan → Integrated branch · new waves
+The generated plan re-enters at integration — this is what makes the loop compound.</title></path>
 <text class="elabel" x="1878" y="388">new waves</text>
 <text class="enote" x="1878" y="401">integrate branch</text>
-<path class="edge edge-primary" d="M 1682 280 C 1682 350, 114 350, 114 420" marker-end="url(#arrow-primary)"><title>integrated → open-pr</title></path>
+<path class="edge edge-primary" data-edge="13" d="M 1682 280 C 1682 350, 114 350, 114 420" marker-end="url(#arrow-primary)"><title>Integrated branch → Open PR · W-REVIEW
+With the batch integrated the work leaves the machine and becomes a pull request.</title></path>
 <text class="elabel" x="898" y="344">W-REVIEW</text>
 <text class="enote" x="898" y="357">pr-shepherd</text>
-<path class="edge edge-conditional" d="M 1768 252 L 1988 252" marker-end="url(#arrow-conditional)"><title>integrated → new-waves</title></path>
+<path class="edge edge-conditional" data-edge="14" d="M 1768 252 L 1988 252" marker-end="url(#arrow-conditional)"><title>Integrated branch → New wave plan · changes required
+Review findings that need code become a new wave plan rather than ad-hoc edits.</title></path>
 <text class="elabel" x="1878" y="243">changes required</text>
 <text class="enote" x="1878" y="256">post-review-wave-generator</text>
-<path class="edge edge-conditional" d="M 200 448 L 420 448" marker-end="url(#arrow-conditional)"><title>open-pr → findings</title></path>
+<path class="edge edge-conditional" data-edge="15" d="M 200 448 L 420 448" marker-end="url(#arrow-conditional)"><title>Open PR → Findings · CI red / review comments
+A red check is investigated before anything changes, so the fix targets the cause. Review comments are handled apart from CI failures; they need judgement, not a rerun.</title></path>
 <text class="elabel" x="310" y="439">CI red / review comments</text>
 <text class="enote" x="310" y="452">ci-investigator, review-comment-triager</text>
-<path class="edge edge-conditional" d="M 898 476 C 898 508, 506 508, 506 476" marker-end="url(#arrow-conditional)"><title>fix-commit → findings</title></path>
+<path class="edge edge-conditional" data-edge="16" d="M 898 476 C 898 508, 506 508, 506 476" marker-end="url(#arrow-conditional)"><title>Fix commit → Findings · re-verify
+The fix is re-investigated rather than assumed: the check has to go green for the stated reason.</title></path>
 <text class="elabel" x="702" y="506">re-verify</text>
 <text class="enote" x="702" y="519">ci-investigator</text>
-<path class="edge edge-primary" d="M 592 448 L 812 448" marker-end="url(#arrow-primary)"><title>findings → fix-commit</title></path>
+<path class="edge edge-primary" data-edge="17" d="M 592 448 L 812 448" marker-end="url(#arrow-primary)"><title>Findings → Fix commit · W-CI-FIX
+A finding with a root cause is handed to the fixer; investigation and repair stay separate. Only comments classified as actionable become code; the rest are answered in the thread.</title></path>
 <text class="elabel" x="702" y="439">W-CI-FIX</text>
 <text class="enote" x="702" y="452">check-fixer, review-comment-fixer</text>
-<path class="edge edge-primary" d="M 984 448 L 1204 448" marker-end="url(#arrow-primary)"><title>fix-commit → ci-green</title></path>
-<text class="elabel" x="1094" y="439">re-push</text>
-<text class="enote" x="1094" y="452">poll checks</text>
-<path class="edge edge-conditional" d="M 506 476 C 506 546, 1682 546, 1682 616" marker-end="url(#arrow-conditional)"><title>findings → rule-memory</title></path>
+<path class="edge edge-conditional" data-edge="18" d="M 506 476 C 506 546, 1682 546, 1682 616" marker-end="url(#arrow-conditional)"><title>Findings → Rule / finding memory · finding
+Findings worth remembering also go to the postmortem — this is how the pipeline learns.</title></path>
 <text class="elabel" x="1094" y="540">finding</text>
 <text class="enote" x="1094" y="553">finding → proposed rule</text>
-<path class="edge edge-primary" d="M 1376 448 L 1596 448" marker-end="url(#arrow-primary)"><title>ci-green → merge</title></path>
-<text class="elabel" x="1486" y="439">promote</text>
-<text class="enote" x="1486" y="452">operator (D15)</text>
-<path class="edge edge-conditional" d="M 1768 644 C 1848 644, 1848 448, 1768 448" marker-end="url(#arrow-conditional)"><title>rule-memory → merge</title></path>
+<path class="edge edge-primary" data-edge="19" d="M 984 448 L 1204 448" marker-end="url(#arrow-primary)"><title>Fix commit → CI green + review clean · re-push
+Once the finding is closed the run waits on the full check set, not just the one that failed. Resolved threads join the same wait as CI fixes; both have to settle before the gate.</title></path>
+<text class="elabel" x="1094" y="439">re-push</text>
+<text class="enote" x="1094" y="452">poll checks</text>
+<path class="edge edge-conditional" data-edge="20" d="M 1768 644 C 1848 644, 1848 448, 1768 448" marker-end="url(#arrow-conditional)"><title>Rule / finding memory → Human merge gate · promote (R27)
+Promotion is an operator action; a proposed rule never activates itself.</title></path>
 <text class="elabel" x="1844" y="546">promote (R27)</text>
 <text class="enote" x="1844" y="559">operator (D15)</text>
-<g class="node node-external">
-<title>goal</title>
+<path class="edge edge-primary" data-edge="21" d="M 1376 448 L 1596 448" marker-end="url(#arrow-primary)"><title>CI green + review clean → Human merge gate · promote
+Green checks are the precondition for the merge gate, not the merge itself.</title></path>
+<text class="elabel" x="1486" y="439">promote</text>
+<text class="enote" x="1486" y="452">operator (D15)</text>
+<g class="node node-external node-open" data-node="goal">
+<title>goal · click for details</title>
 <rect x="28" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="114" y="54">Goal / repo</text>
 <text class="nnote" x="114" y="70">or error bundle</text>
 </g>
-<g class="node node-artifact">
-<title>code-kg</title>
+<g class="node node-artifact node-open" data-node="code-kg">
+<title>code-kg · click for details</title>
 <rect x="420" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="506" y="62">Code KG</text>
 </g>
-<g class="node node-artifact">
-<title>spec-refs</title>
+<g class="node node-artifact node-open" data-node="spec-refs">
+<title>spec-refs · click for details</title>
 <rect x="812" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="898" y="62">Spec + quality refs</text>
 </g>
-<g class="node node-artifact">
-<title>run-graph</title>
+<g class="node node-artifact node-open" data-node="run-graph">
+<title>run-graph · click for details</title>
 <rect x="1204" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1290" y="62">Validated RunGraph</text>
 </g>
-<g class="node node-gate">
-<title>pre0</title>
+<g class="node node-gate node-open" data-node="pre0">
+<title>pre0 · click for details</title>
 <rect x="1596" y="28" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1682" y="62">Pre-0 approval</text>
 </g>
-<g class="node node-artifact">
-<title>red-tests</title>
+<g class="node node-artifact node-open" data-node="red-tests">
+<title>red-tests · click for details</title>
 <rect x="28" y="224" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="114" y="258">RED test baseline</text>
 </g>
-<g class="node node-artifact">
-<title>wave-commit</title>
+<g class="node node-artifact node-open" data-node="wave-commit">
+<title>wave-commit · click for details</title>
 <rect x="420" y="224" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="506" y="250">Implemented wave</text>
 <text class="nnote" x="506" y="266">commit</text>
 </g>
-<g class="node node-artifact">
-<title>quality-ok</title>
+<g class="node node-artifact node-open" data-node="quality-ok">
+<title>quality-ok · click for details</title>
 <rect x="812" y="224" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="898" y="258">Quality accepted</text>
 </g>
-<g class="node node-artifact">
-<title>verdict</title>
+<g class="node node-artifact node-open" data-node="verdict">
+<title>verdict · click for details</title>
 <rect x="1204" y="224" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1290" y="258">Isolated verdict</text>
 </g>
-<g class="node node-artifact">
-<title>integrated</title>
+<g class="node node-artifact node-open" data-node="integrated">
+<title>integrated · click for details</title>
 <rect x="1596" y="224" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1682" y="258">Integrated branch</text>
 </g>
-<g class="node node-artifact">
-<title>new-waves</title>
+<g class="node node-artifact node-open" data-node="new-waves">
+<title>new-waves · click for details</title>
 <rect x="1988" y="224" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="2074" y="258">New wave plan</text>
 </g>
-<g class="node node-artifact">
-<title>open-pr</title>
+<g class="node node-artifact node-open" data-node="open-pr">
+<title>open-pr · click for details</title>
 <rect x="28" y="420" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="114" y="454">Open PR</text>
 </g>
-<g class="node node-artifact">
-<title>findings</title>
+<g class="node node-artifact node-open" data-node="findings">
+<title>findings · click for details</title>
 <rect x="420" y="420" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="506" y="446">Findings</text>
 <text class="nnote" x="506" y="462">open set</text>
 </g>
-<g class="node node-artifact">
-<title>fix-commit</title>
+<g class="node node-artifact node-open" data-node="fix-commit">
+<title>fix-commit · click for details</title>
 <rect x="812" y="420" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="898" y="454">Fix commit</text>
 </g>
-<g class="node node-artifact">
-<title>ci-green</title>
+<g class="node node-artifact node-open" data-node="ci-green">
+<title>ci-green · click for details</title>
 <rect x="1204" y="420" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1290" y="454">CI green + review clean</text>
 </g>
-<g class="node node-gate">
-<title>merge</title>
+<g class="node node-gate node-open" data-node="merge">
+<title>merge · click for details</title>
 <rect x="1596" y="420" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1682" y="454">Human merge gate</text>
 </g>
-<g class="node node-artifact">
-<title>rule-memory</title>
+<g class="node node-artifact node-open" data-node="rule-memory">
+<title>rule-memory · click for details</title>
 <rect x="1596" y="616" width="172" height="56" rx="9"></rect>
 <text class="nlabel" x="1682" y="650">Rule / finding memory</text>
 </g>
 </svg>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+<div id="sheet" role="dialog" aria-modal="true" hidden>
+<div class="card" id="sheet-card"></div>
+</div>
+<script>
+
+const DATA = {"width": 2292, "styles": {"primary": "Primary flow", "conditional": "Conditional / feedback", "optional": "Optional / side path"}, "nodes": {"goal": {"label": "Goal / repo", "kind": "External input", "summary": "or error bundle", "facts": [], "params": [], "cards": [{"name": "Goal / repo", "summary": "The starting contract: a goal statement plus the repository as it stands today. On a repair run this is a bundle of failing checks and error output instead.", "facts": [["Harness", "operator input"], ["Produces", "Goal / repo"]], "params": []}]}, "code-kg": {"label": "Code KG", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "graph-fuser", "summary": "Fuses the curated slices into a single code knowledge graph that every later step queries instead of re-reading the repository.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Code KG"], ["Wave", "W-KG"]], "params": []}]}, "spec-refs": {"label": "Spec + quality refs", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "reference-picker", "summary": "Picks the in-repo references each requirement should imitate — the closest existing pattern, the nearest test, the module shape to copy.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Spec + quality refs"], ["Wave", "W-SPEC"]], "params": []}]}, "run-graph": {"label": "Validated RunGraph", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "plan-shape-critic", "summary": "Grades plan shape — wave size, dependency sanity, tests-first ordering, verifiable exit criteria — and sends the plan back when the shape is wrong.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Validated RunGraph"], ["Wave", "W-PLAN"]], "params": []}]}, "pre0": {"label": "Pre-0 approval", "kind": "Human / gate", "summary": "", "facts": [], "params": [], "cards": [{"name": "Pre-0 gate", "summary": "The human gate. The operator answers the plan's Pre-0 decisions and approves dispatch; tripll never crosses this line on its own (D15).", "facts": [["Harness", "operator (human)"], ["Produces", "Pre-0 approval"], ["Wave", "W0"]], "params": []}]}, "red-tests": {"label": "RED test baseline", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "test-creator", "summary": "Writes the failing tests for the wave before any implementation exists, and owns those test paths for the rest of the wave. tripll's registered `test-creator` agent, selected by the wave's `role`.", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"], ["Produces", "RED test baseline"], ["Wave", "W1"]], "params": [["perms", "--force"], ["max_turns", "3"]]}]}, "wave-commit": {"label": "Implemented wave", "kind": "Artifact / state", "summary": "commit", "facts": [], "params": [], "cards": [{"name": "implementer", "summary": "Implements one wave against the RED suite and commits once it goes green. tripll's registered `wave-runner` agent.", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"], ["Produces", "Implemented wave"], ["Wave", "Wi"]], "params": [["perms", "--force"], ["max_turns", "3"]]}]}, "quality-ok": {"label": "Quality accepted", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "quality-critic", "summary": "Grades the wave commit beyond passing tests: structure, naming, dead code, and whether the change follows the references the plan cited. tripll's registered `reviewer` agent (`[pipeline.review]`).", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"], ["Produces", "Quality accepted"], ["Wave", "W-Q"]], "params": [["thinking", "high"]]}]}, "verdict": {"label": "Isolated verdict", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "wave-verifier", "summary": "Re-runs the wave's verification from a clean state and records the verdict, so a wave that only passed on a dirty tree is caught here.", "facts": [["Harness", "tripll CLI + cursor-agent"], ["Model", "auto"], ["Produces", "Isolated verdict"], ["Wave", "W-V"]], "params": [["command", "make ci-affected"]]}]}, "integrated": {"label": "Integrated branch", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "Outer pipeline", "summary": "tripll's fixed outer loop (`loops/l1_outer.py`): verify the batch, commit, review, and generate remediation waves when review demands them.", "facts": [["Harness", "tripll engine"], ["Produces", "Integrated branch"], ["Wave", "W-FINAL"]], "params": [["nodes", "validate → waves → verify → commit → review → generate"]]}]}, "new-waves": {"label": "New wave plan", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "post-review-wave-generator", "summary": "Turns review findings into the next wave plan, which re-enters the pipeline as a fresh turn. tripll's registered `post-review-wave-generator` agent.", "facts": [["Harness", "cursor-agent · skw driver"], ["Model", "auto"], ["Produces", "New wave plan"], ["Wave", "W-GEN"]], "params": [["max_turns", "3"]]}]}, "open-pr": {"label": "Open PR", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "pr-shepherd", "summary": "Opens the pull request and keeps it merge-ready: description, linked plan, and the set of checks that have to pass.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Open PR"], ["Wave", "W-REVIEW"]], "params": []}]}, "findings": {"label": "Findings", "kind": "Artifact / state", "summary": "open set", "facts": [], "params": [], "cards": [{"name": "ci-investigator", "summary": "Reads the failing check's logs and reports the root cause as a finding, without touching code.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Findings"], ["Wave", "W-CI"]], "params": [["read_only", "true"]]}, {"name": "review-comment-triager", "summary": "Sorts review comments into actionable changes, questions to answer, and things to decline, with a stated reason for each.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Findings"], ["Wave", "W-CI"]], "params": []}]}, "fix-commit": {"label": "Fix commit", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "check-fixer", "summary": "Applies the narrowest change that resolves one CI finding and pushes it as its own commit.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Fix commit"], ["Wave", "W-CI-FIX"]], "params": [["scope", "one finding"]]}, {"name": "review-comment-fixer", "summary": "Makes the changes review asked for and replies on each thread it resolves.", "facts": [["Harness", "cursor-agent · subagent"], ["Model", "auto"], ["Produces", "Fix commit"], ["Wave", "W-CI-FIX"]], "params": []}]}, "ci-green": {"label": "CI green + review clean", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "CI green + review clean", "summary": "Waits for every required check to go green and every review thread to be resolved after the fix commits land.", "facts": [["Harness", "GitHub checks + tripll review"], ["Produces", "CI green + review clean"], ["Wave", "re-push"]], "params": [["command", "tripll review watch"]]}]}, "merge": {"label": "Human merge gate", "kind": "Human / gate", "summary": "", "facts": [], "params": [], "cards": [{"name": "Human merge gate", "summary": "The final human gate: tripll never merges. The operator merges once checks are green and the review is clean (D15).", "facts": [["Harness", "operator (human)"], ["Produces", "Human merge gate"], ["Wave", "promote"]], "params": []}]}, "rule-memory": {"label": "Rule / finding memory", "kind": "Artifact / state", "summary": "", "facts": [], "params": [], "cards": [{"name": "Wave postmortem", "summary": "Distils findings into proposed rules with citations. Agents may propose; only an operator promotes a rule to active (R27, `tripll rules promote`).", "facts": [["Harness", "tripll CLI"], ["Produces", "Rule / finding memory"], ["Wave", "postmortem"]], "params": [["command", "tripll rules derive"]]}]}}, "edges": [{"from": "Goal / repo", "to": "Code KG", "label": "W-KG", "note": "graph-extractor → … → graph-fuser", "detail": "The curated slice is handed over to be fused into one queryable graph.", "style": "primary"}, {"from": "Code KG", "to": "Spec + quality refs", "label": "W-SPEC", "note": "spec-cartographer → reference-picker", "detail": "The draft spec goes to reference selection so each requirement gets an example to imitate.", "style": "primary"}, {"from": "Spec + quality refs", "to": "Validated RunGraph", "label": "W-PLAN", "note": "plan-author → plan-shape-critic", "detail": "Every plan is graded before validation; the planner never approves its own shape.", "style": "primary"}, {"from": "Validated RunGraph", "to": "Pre-0 approval", "label": "W0", "note": "L1 validate → Pre-0 gate", "detail": "Validation proves the plan is well-formed; whether it should run is the operator's call.", "style": "primary"}, {"from": "Pre-0 approval", "to": "RED test baseline", "label": "W1", "note": "wave-orchestrator → test-creator", "detail": "Each wave starts with its tests, so the first thing an implementer sees is a failing suite.", "style": "primary"}, {"from": "Isolated verdict", "to": "RED test baseline", "label": "wrong test → repair", "note": "test-creator", "detail": "When the failure is the test's fault rather than the code's, repair goes to the test owner.", "style": "conditional"}, {"from": "RED test baseline", "to": "Implemented wave", "label": "Wi", "note": "implementer", "detail": "The failing suite is the contract: source may change, the tests it must satisfy may not.", "style": "primary"}, {"from": "Quality accepted", "to": "Implemented wave", "label": "gap → next round", "note": "implementer", "detail": "Substantive gaps go back to the implementer as another round on the same wave, not a new wave.", "style": "conditional"}, {"from": "Isolated verdict", "to": "Implemented wave", "label": "failed → retry", "note": "implementer", "detail": "A failed verification sends the wave back for another attempt, capped by the retry budget.", "style": "conditional"}, {"from": "Implemented wave", "to": "Quality accepted", "label": "W-Q", "note": "quality-critic", "detail": "A green suite is necessary but not sufficient — the commit still has to clear the quality bar.", "style": "primary"}, {"from": "Quality accepted", "to": "Isolated verdict", "label": "W-V", "note": "wave-verifier", "detail": "Accepted work is verified in isolation, so a pass is reproduced from a clean state.", "style": "primary"}, {"from": "Isolated verdict", "to": "Integrated branch", "label": "W-FINAL", "note": "integrate branch", "detail": "A green isolated verdict releases the wave into the shared branch.", "style": "primary"}, {"from": "New wave plan", "to": "Integrated branch", "label": "new waves", "note": "integrate branch", "detail": "The generated plan re-enters at integration — this is what makes the loop compound.", "style": "conditional"}, {"from": "Integrated branch", "to": "Open PR", "label": "W-REVIEW", "note": "pr-shepherd", "detail": "With the batch integrated the work leaves the machine and becomes a pull request.", "style": "primary"}, {"from": "Integrated branch", "to": "New wave plan", "label": "changes required", "note": "post-review-wave-generator", "detail": "Review findings that need code become a new wave plan rather than ad-hoc edits.", "style": "conditional"}, {"from": "Open PR", "to": "Findings", "label": "CI red / review comments", "note": "ci-investigator, review-comment-triager", "detail": "A red check is investigated before anything changes, so the fix targets the cause. Review comments are handled apart from CI failures; they need judgement, not a rerun.", "style": "conditional"}, {"from": "Fix commit", "to": "Findings", "label": "re-verify", "note": "ci-investigator", "detail": "The fix is re-investigated rather than assumed: the check has to go green for the stated reason.", "style": "conditional"}, {"from": "Findings", "to": "Fix commit", "label": "W-CI-FIX", "note": "check-fixer, review-comment-fixer", "detail": "A finding with a root cause is handed to the fixer; investigation and repair stay separate. Only comments classified as actionable become code; the rest are answered in the thread.", "style": "primary"}, {"from": "Findings", "to": "Rule / finding memory", "label": "finding", "note": "finding → proposed rule", "detail": "Findings worth remembering also go to the postmortem — this is how the pipeline learns.", "style": "conditional"}, {"from": "Fix commit", "to": "CI green + review clean", "label": "re-push", "note": "poll checks", "detail": "Once the finding is closed the run waits on the full check set, not just the one that failed. Resolved threads join the same wait as CI fixes; both have to settle before the gate.", "style": "primary"}, {"from": "Rule / finding memory", "to": "Human merge gate", "label": "promote (R27)", "note": "operator (D15)", "detail": "Promotion is an operator action; a proposed rule never activates itself.", "style": "conditional"}, {"from": "CI green + review clean", "to": "Human merge gate", "label": "promote", "note": "operator (D15)", "detail": "Green checks are the precondition for the merge gate, not the merge itself.", "style": "primary"}]};
+const svg = document.getElementById('graph');
+const level = document.getElementById('zoom-level');
+const tip = document.getElementById('tip');
+const sheet = document.getElementById('sheet');
+const card = document.getElementById('sheet-card');
+let zoom = 1;
+
+function applyZoom() {
+  svg.style.width = zoom === 1 ? '' : (DATA.width * zoom) + 'px';
+  svg.style.maxWidth = zoom === 1 ? '100%' : 'none';
+  level.textContent = Math.round(zoom * 100) + '%';
+}
+function step(by) { zoom = Math.min(4, Math.max(0.4, Math.round((zoom + by) * 100) / 100)); applyZoom(); }
+document.getElementById('zoom-in').addEventListener('click', () => step(0.25));
+document.getElementById('zoom-out').addEventListener('click', () => step(-0.25));
+document.getElementById('zoom-fit').addEventListener('click', () => { zoom = 1; applyZoom(); });
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text) node.textContent = text;
+  return node;
+}
+function rows(pairs) {
+  const dl = el('dl', 'rows');
+  for (const [key, value] of pairs) {
+    dl.append(el('dt', '', key), el('dd', '', value));
+  }
+  return dl;
+}
+function agentBlock(agent) {
+  const box = el('div', 'agent');
+  box.append(el('h3', '', agent.name));
+  if (agent.summary) box.append(el('p', 'lede', agent.summary));
+  if (agent.facts.length) box.append(rows(agent.facts));
+  if (agent.params.length) { box.append(el('p', 'group', 'Params')); box.append(rows(agent.params)); }
+  return box;
+}
+function openNode(id) {
+  const detail = DATA.nodes[id];
+  if (!detail) return;
+  card.replaceChildren();
+  const close = el('button', 'close', '\u00d7');
+  close.setAttribute('aria-label', 'Close');
+  close.addEventListener('click', hide);
+  card.append(close, el('h2', '', detail.label), el('span', 'badge', detail.kind));
+  if (detail.summary) card.append(el('p', 'lede', detail.summary));
+  if (detail.facts.length) card.append(rows(detail.facts));
+  if (detail.params.length) { card.append(el('p', 'group', 'Params')); card.append(rows(detail.params)); }
+  if (detail.cards.length) {
+    card.append(el('p', 'group', detail.cards.length > 1 ? 'Agents on the incoming edges' : 'Agent'));
+    for (const agent of detail.cards) card.append(agentBlock(agent));
+  }
+  sheet.hidden = false;
+}
+function hide() { sheet.hidden = true; }
+sheet.addEventListener('click', (event) => { if (event.target === sheet) hide(); });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hide(); });
+for (const node of document.querySelectorAll('[data-node]')) {
+  node.addEventListener('click', () => openNode(node.dataset.node));
+}
+
+function place(event) {
+  const box = tip.getBoundingClientRect();
+  const x = Math.min(event.clientX + 16, window.innerWidth - box.width - 12);
+  const y = Math.min(event.clientY + 16, window.innerHeight - box.height - 12);
+  tip.style.left = Math.max(12, x) + 'px';
+  tip.style.top = Math.max(12, y) + 'px';
+}
+for (const path of document.querySelectorAll('[data-edge]')) {
+  const edge = DATA.edges[Number(path.dataset.edge)];
+  path.addEventListener('mouseenter', (event) => {
+    tip.replaceChildren(el('b', '', edge.from + ' \u2192 ' + edge.to));
+    if (edge.label) tip.append(el('div', 'cond', edge.label));
+    if (edge.note) tip.append(el('div', 'cond', edge.note));
+    tip.append(el('div', 'flow', edge.detail || DATA.styles[edge.style]));
+    tip.hidden = false;
+    place(event);
+  });
+  path.addEventListener('mousemove', place);
+  path.addEventListener('mouseleave', () => { tip.hidden = true; });
+}
+applyZoom();
+
+</script>
 </body>
 </html>

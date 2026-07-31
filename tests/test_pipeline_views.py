@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from tripll.cli import app
 from tripll.pipeline_spec import PipelineSpec, load_pipeline_spec
 from tripll.pipeline_views import (
+    NodeDetail,
     PipelineView,
     ViewEdge,
     ViewNode,
@@ -179,8 +180,62 @@ def test_render_is_self_contained_html() -> None:
     assert out.startswith("<!DOCTYPE html>")
     assert out.rstrip().endswith("</html>")
     assert "<svg" in out
-    assert "<script" not in out
     assert "src=" not in out
+    assert out.count("http") == out.count("http://www.w3.org/2000/svg")
+
+
+def test_render_includes_zoom_controls() -> None:
+    out = render_view_html(execution_view(load_pipeline_spec(SAMPLE)))
+    for control in ('id="zoom-out"', 'id="zoom-in"', 'id="zoom-fit"', 'id="zoom-level"'):
+        assert control in out
+    assert '<div class="canvas">' in out
+
+
+def test_render_embeds_agent_notes_for_node_popups() -> None:
+    out = render_view_html(execution_view(load_pipeline_spec(SAMPLE)))
+    assert '<div id="sheet"' in out
+    assert 'data-node="quality-critic"' in out
+    assert '"Harness"' in out
+    assert "cursor-agent \u00b7 skw driver" in out
+    assert '"thinking"' in out
+
+
+def test_render_marks_only_documented_nodes_as_openable() -> None:
+    view = PipelineView(
+        view_id="v",
+        title="t",
+        subtitle="s",
+        nodes=(
+            ViewNode("bare", "Bare", "agent", 0, 0),
+            ViewNode("noted", "Noted", "agent", 0, 1, detail=NodeDetail(summary="Explains.")),
+        ),
+        edges=(),
+    )
+    out = render_view_html(view)
+    assert 'data-node="noted"' in out
+    assert 'data-node="bare"' not in out
+    assert "node-open" in out
+
+
+def test_render_puts_flow_detail_on_edge_titles_and_tooltips() -> None:
+    out = render_view_html(execution_view(load_pipeline_spec(SAMPLE)))
+    assert '<div id="tip"' in out
+    assert 'data-edge="0"' in out
+    assert "The repo is handed to the graph pass" in out
+    assert "graph-extractor \u00b7 repo scan" in out
+
+
+def test_render_escapes_angle_brackets_inside_the_payload() -> None:
+    view = PipelineView(
+        view_id="v",
+        title="t",
+        subtitle="s",
+        nodes=(ViewNode("a", "A", "agent", 0, 0, detail=NodeDetail(summary="</script> x")),),
+        edges=(),
+    )
+    out = render_view_html(view)
+    assert "</script> x" not in out
+    assert "\\u003c/script>" in out
 
 
 def test_render_shows_counts_and_source() -> None:

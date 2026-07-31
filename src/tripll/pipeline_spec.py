@@ -59,10 +59,14 @@ _STEP_KEYS = frozenset(
         "wave",
         "layer",
         "column",
+        "summary",
+        "harness",
+        "model",
+        "params",
         "next",
     }
 )
-_TRANSITION_KEYS = frozenset({"to", "label", "note", "style", "bow"})
+_TRANSITION_KEYS = frozenset({"to", "label", "note", "detail", "style", "bow"})
 _STATE_KEYS = frozenset({"id", "label", "kind", "note", "layer", "column"})
 _CLUSTER_KEYS = frozenset({"id", "label", "states"})
 
@@ -79,6 +83,7 @@ class Transition:
         to (str): Target step id.
         label (str): Transition label (the condition or hand-off).
         note (str): Optional second label line.
+        detail (str): Prose shown when hovering the edge; explains the flow.
         style (TransitionStyle): Control-transition class.
         bow (BowSide): Side channel for transitions back to an earlier layer.
     """
@@ -86,6 +91,7 @@ class Transition:
     to: str
     label: str = ""
     note: str = ""
+    detail: str = ""
     style: TransitionStyle = "primary"
     bow: BowSide = "auto"
 
@@ -105,6 +111,10 @@ class Step:
         wave (str): Primary label for the produced state's incoming edge.
         layer (int | None): Explicit row, or None to derive it.
         column (float | None): Explicit column, or None to derive it.
+        summary (str): Prose shown when the node is opened.
+        harness (str): Runtime that executes the step (CLI, provider, or human).
+        model (str): Model the step runs on.
+        params (tuple[tuple[str, str], ...]): Declared parameters, in file order.
         transitions (tuple[Transition, ...]): Outgoing transitions.
     """
 
@@ -118,6 +128,10 @@ class Step:
     wave: str = ""
     layer: int | None = None
     column: float | None = None
+    summary: str = ""
+    harness: str = ""
+    model: str = ""
+    params: tuple[tuple[str, str], ...] = ()
     transitions: tuple[Transition, ...] = ()
 
     @property
@@ -292,9 +306,27 @@ def _parse_transition(raw: Any, where: str) -> Transition:
         to=to,
         label=_require_str(raw.get("label"), where, "label"),
         note=_require_str(raw.get("note"), where, "note"),
+        detail=_require_str(raw.get("detail"), where, "detail"),
         style=style or "primary",  # type: ignore[arg-type]
         bow=bow or "auto",  # type: ignore[arg-type]
     )
+
+
+def _parse_params(raw: Any, where: str) -> tuple[tuple[str, str], ...]:
+    """Read a ``[steps.params]`` table of scalars into ordered display pairs."""
+    if raw is None:
+        return ()
+    if not isinstance(raw, dict):
+        msg = f"{where}: params must be a table"
+        raise PipelineSpecError(msg)
+    pairs: list[tuple[str, str]] = []
+    for key, value in raw.items():
+        if isinstance(value, dict | list):
+            msg = f"{where}: params.{key} must be a scalar"
+            raise PipelineSpecError(msg)
+        rendered = str(value).lower() if isinstance(value, bool) else str(value)
+        pairs.append((key, rendered))
+    return tuple(pairs)
 
 
 def _parse_step(raw: Any, index: int) -> Step:
@@ -324,6 +356,10 @@ def _parse_step(raw: Any, index: int) -> Step:
         wave=_require_str(raw.get("wave"), where, "wave"),
         layer=None if layer is None else int(layer),
         column=_optional_number(raw.get("column"), where, "column"),
+        summary=_require_str(raw.get("summary"), where, "summary"),
+        harness=_require_str(raw.get("harness"), where, "harness"),
+        model=_require_str(raw.get("model"), where, "model"),
+        params=_parse_params(raw.get("params"), where),
         transitions=transitions,
     )
 

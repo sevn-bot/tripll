@@ -14,7 +14,13 @@ edges run down or right, same-layer feedback edges dip below their row, long
 same-layer edges arc above it, and edges back to an earlier layer bow out
 through a side channel.
 
+The rendered document is a single offline file: inline CSS and one inline script
+give it zoom controls, a node popup carrying each agent's note (summary, harness,
+model, params), and an edge tooltip explaining the flow.
+
 Exports:
+    DetailCard — one agent note inside a node popup.
+    NodeDetail — popup content for one node.
     ViewNode — one placed node in a rendered view.
     ViewEdge — one directed edge between nodes.
     ViewCluster — labelled container drawn around member nodes.
@@ -29,6 +35,7 @@ Exports:
 from __future__ import annotations
 
 import html
+import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -38,6 +45,7 @@ if TYPE_CHECKING:
 
     from tripll.pipeline_spec import (
         PipelineSpec,
+        State,
         Step,
         StepKind,
         Transition,
@@ -46,6 +54,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "VIEWS",
+    "DetailCard",
+    "NodeDetail",
     "PipelineView",
     "ViewCluster",
     "ViewEdge",
@@ -81,6 +91,55 @@ _STYLE_LABELS: dict[TransitionStyle, str] = {
 
 
 @dataclass(frozen=True)
+class DetailCard:
+    """One agent note inside a node popup.
+
+    Args:
+        name (str): Agent or step name.
+        summary (str): What the agent does at this point in the pipeline.
+        facts (tuple[tuple[str, str], ...]): Label/value rows (harness, model, …).
+        params (tuple[tuple[str, str], ...]): Declared parameters.
+    """
+
+    name: str
+    summary: str = ""
+    facts: tuple[tuple[str, str], ...] = ()
+    params: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class NodeDetail:
+    """Popup content for one node.
+
+    Args:
+        summary (str): Prose shown under the node title.
+        facts (tuple[tuple[str, str], ...]): Label/value rows for the node itself.
+        params (tuple[tuple[str, str], ...]): Declared parameters of the node.
+        cards (tuple[DetailCard, ...]): Agent notes (used by the state view, where
+            the node is a state and the agents sit on its incoming edges).
+    """
+
+    summary: str = ""
+    facts: tuple[tuple[str, str], ...] = ()
+    params: tuple[tuple[str, str], ...] = ()
+    cards: tuple[DetailCard, ...] = ()
+
+    def is_empty(self) -> bool:
+        """Return True when there is nothing worth opening a popup for.
+
+        Returns:
+            bool: True if no summary, facts, params, or cards are set.
+
+        Examples:
+            >>> NodeDetail().is_empty()
+            True
+            >>> NodeDetail(summary="does a thing").is_empty()
+            False
+        """
+        return not (self.summary or self.facts or self.params or self.cards)
+
+
+@dataclass(frozen=True)
 class ViewNode:
     """One placed node.
 
@@ -91,6 +150,7 @@ class ViewNode:
         layer (int): Row index, top to bottom.
         column (float): Column index (fractional allowed for offsets).
         note (str): Optional second label line.
+        detail (NodeDetail | None): Popup content, or None when the node has none.
     """
 
     node_id: str
@@ -99,6 +159,7 @@ class ViewNode:
     layer: int
     column: float
     note: str = ""
+    detail: NodeDetail | None = None
 
 
 @dataclass(frozen=True)
@@ -110,6 +171,7 @@ class ViewEdge:
         target (str): Target node id.
         label (str): Primary edge label.
         note (str): Optional second label line.
+        detail (str): Prose shown on hover; explains the flow across this edge.
         style (TransitionStyle): Visual class.
         bow (Literal["auto", "left", "right"]): Side channel for edges that run
             back to an earlier layer.
@@ -119,6 +181,7 @@ class ViewEdge:
     target: str
     label: str = ""
     note: str = ""
+    detail: str = ""
     style: TransitionStyle = "primary"
     bow: Literal["auto", "left", "right"] = "auto"
 
@@ -453,12 +516,17 @@ def _render_clusters(view: PipelineView, geo: _Geometry) -> list[str]:
 
 def _render_edges(view: PipelineView, geo: _Geometry) -> list[str]:
     dips = _dip_depths(view)
+    nodes = view.node_map()
     parts: list[str] = []
-    for edge in view.edges:
+    for index, edge in enumerate(view.edges):
         eg = _edge_geometry(edge, geo, dips)
-        title = f"{edge.source} → {edge.target}"
+        title = f"{nodes[edge.source].label} → {nodes[edge.target].label}"
+        if edge.label:
+            title += f" · {edge.label}"
+        if edge.detail:
+            title += f"\n{edge.detail}"
         parts.append(
-            f'<path class="edge edge-{edge.style}" d="{eg.path}" '
+            f'<path class="edge edge-{edge.style}" data-edge="{index}" d="{eg.path}" '
             f'marker-end="url(#arrow-{edge.style})">'
             f"<title>{html.escape(title)}</title></path>"
         )
@@ -520,10 +588,14 @@ def _render_nodes(view: PipelineView, geo: _Geometry) -> list[str]:
         lines = _wrap_label(node.label)
         rows = _TEXT_ROWS[len(lines), bool(node.note)]
         centre = x + NODE_W // 2
+        openable = node.detail is not None and not node.detail.is_empty()
+        classes = f"node node-{node.kind}" + (" node-open" if openable else "")
+        attrs = f' data-node="{html.escape(node.node_id, quote=True)}"' if openable else ""
+        hint = " · click for details" if openable else ""
         parts.extend(
             [
-                f'<g class="node node-{node.kind}">',
-                f"<title>{html.escape(node.node_id)}</title>",
+                f'<g class="{classes}"{attrs}>',
+                f"<title>{html.escape(node.node_id + hint)}</title>",
                 f'<rect x="{x}" y="{y}" width="{NODE_W}" height="{NODE_H}" rx="9"></rect>',
             ]
         )
@@ -558,8 +630,14 @@ _STYLE = [
     "border-top:2px solid #6f6a5e}",
     ".line-conditional{border-top-style:dashed}",
     ".line-optional{border-top-style:dotted}",
-    ".graph{max-width:100%;height:auto;background:#fff;border:1px solid #e6e2d9;"
-    "border-radius:12px}",
+    ".bar{display:flex;gap:8px;align-items:center;margin:0 0 10px}",
+    ".bar button{font:inherit;font-size:.82rem;padding:4px 11px;border-radius:7px;"
+    "border:1px solid #d9d4c8;background:#fff;color:#2c2a24;cursor:pointer}",
+    ".bar button:hover{background:#f2efe8}",
+    ".bar .level{font-size:.8rem;color:#6f6a5e;min-width:46px}",
+    ".bar .hint{font-size:.78rem;color:#8a8577}",
+    ".canvas{overflow:auto;background:#fff;border:1px solid #e6e2d9;border-radius:12px}",
+    ".graph{max-width:100%;height:auto;display:block}",
     ".cluster rect{fill:#f4f2ee;stroke:#ddd8cc;stroke-width:1}",
     ".cluster text{font-size:11px;fill:#6f6a5e;letter-spacing:.09em;text-transform:uppercase}",
     ".node rect{fill:#fff;stroke:#111;stroke-width:1.5}",
@@ -578,7 +656,181 @@ _STYLE = [
     "stroke-linejoin:round}",
     ".elabel{font-size:10.5px;font-weight:600;fill:#2c2a24}",
     ".enote{font-size:10px;fill:#6f6a5e}",
+    ".node-open{cursor:pointer}",
+    ".node-open:hover rect{stroke-width:2.5}",
+    "[data-edge]:hover{stroke:#2c2a24;stroke-width:2.6}",
+    "#tip{position:fixed;z-index:20;max-width:320px;padding:9px 11px;border-radius:9px;"
+    "background:#2c2a24;color:#f7f5f0;font-size:.78rem;line-height:1.42;"
+    "box-shadow:0 6px 22px rgba(0,0,0,.28);pointer-events:none}",
+    "#tip b{display:block;font-size:.8rem;margin-bottom:2px}",
+    "#tip .cond{color:#f3d38a}",
+    "#tip .flow{margin-top:5px;color:#e2ded4}",
+    "#sheet[hidden],#tip[hidden]{display:none}",
+    "#sheet{position:fixed;inset:0;z-index:30;display:flex;align-items:center;"
+    "justify-content:center;padding:24px;background:rgba(28,26,22,.42)}",
+    "#sheet .card{position:relative;width:min(560px,100%);max-height:82vh;overflow:auto;"
+    "background:#fff;border:1px solid #e6e2d9;border-radius:16px;padding:22px 24px;"
+    "box-shadow:0 18px 48px rgba(0,0,0,.22)}",
+    "#sheet h2{font-size:1.12rem;margin:0 6px 6px 0;display:inline-block}",
+    "#sheet .badge{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;"
+    "padding:3px 8px;border-radius:99px;border:1px solid #d9d4c8;color:#6f6a5e;"
+    "vertical-align:2px}",
+    "#sheet .lede{margin:10px 0 0;font-size:.9rem;line-height:1.55;color:#3b3830}",
+    "#sheet .rows{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;"
+    "margin:14px 0 0;font-size:.84rem}",
+    "#sheet .rows dt{color:#6f6a5e}",
+    "#sheet .rows dd{margin:0;color:#2c2a24;font-weight:500}",
+    "#sheet .group{margin:16px 0 0;font-size:.7rem;letter-spacing:.09em;"
+    "text-transform:uppercase;color:#8a8577}",
+    "#sheet .agent{margin:14px 0 0;padding:13px 15px;border:1px solid #ece8df;"
+    "border-radius:11px;background:#faf9f7}",
+    "#sheet .agent h3{margin:0;font-size:.93rem}",
+    "#sheet .agent .lede{margin:6px 0 0;font-size:.85rem}",
+    "#sheet .close{position:absolute;top:14px;right:14px;font:inherit;font-size:1rem;"
+    "line-height:1;padding:5px 9px;border-radius:8px;border:1px solid #e6e2d9;"
+    "background:#fff;color:#6f6a5e;cursor:pointer}",
+    "#sheet .close:hover{background:#f2efe8}",
+    "code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95em}",
 ]
+
+_SCRIPT = """
+const DATA = __DATA__;
+const svg = document.getElementById('graph');
+const level = document.getElementById('zoom-level');
+const tip = document.getElementById('tip');
+const sheet = document.getElementById('sheet');
+const card = document.getElementById('sheet-card');
+let zoom = 1;
+
+function applyZoom() {
+  svg.style.width = zoom === 1 ? '' : (DATA.width * zoom) + 'px';
+  svg.style.maxWidth = zoom === 1 ? '100%' : 'none';
+  level.textContent = Math.round(zoom * 100) + '%';
+}
+function step(by) { zoom = Math.min(4, Math.max(0.4, Math.round((zoom + by) * 100) / 100)); applyZoom(); }
+document.getElementById('zoom-in').addEventListener('click', () => step(0.25));
+document.getElementById('zoom-out').addEventListener('click', () => step(-0.25));
+document.getElementById('zoom-fit').addEventListener('click', () => { zoom = 1; applyZoom(); });
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text) node.textContent = text;
+  return node;
+}
+function rows(pairs) {
+  const dl = el('dl', 'rows');
+  for (const [key, value] of pairs) {
+    dl.append(el('dt', '', key), el('dd', '', value));
+  }
+  return dl;
+}
+function agentBlock(agent) {
+  const box = el('div', 'agent');
+  box.append(el('h3', '', agent.name));
+  if (agent.summary) box.append(el('p', 'lede', agent.summary));
+  if (agent.facts.length) box.append(rows(agent.facts));
+  if (agent.params.length) { box.append(el('p', 'group', 'Params')); box.append(rows(agent.params)); }
+  return box;
+}
+function openNode(id) {
+  const detail = DATA.nodes[id];
+  if (!detail) return;
+  card.replaceChildren();
+  const close = el('button', 'close', '\\u00d7');
+  close.setAttribute('aria-label', 'Close');
+  close.addEventListener('click', hide);
+  card.append(close, el('h2', '', detail.label), el('span', 'badge', detail.kind));
+  if (detail.summary) card.append(el('p', 'lede', detail.summary));
+  if (detail.facts.length) card.append(rows(detail.facts));
+  if (detail.params.length) { card.append(el('p', 'group', 'Params')); card.append(rows(detail.params)); }
+  if (detail.cards.length) {
+    card.append(el('p', 'group', detail.cards.length > 1 ? 'Agents on the incoming edges' : 'Agent'));
+    for (const agent of detail.cards) card.append(agentBlock(agent));
+  }
+  sheet.hidden = false;
+}
+function hide() { sheet.hidden = true; }
+sheet.addEventListener('click', (event) => { if (event.target === sheet) hide(); });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hide(); });
+for (const node of document.querySelectorAll('[data-node]')) {
+  node.addEventListener('click', () => openNode(node.dataset.node));
+}
+
+function place(event) {
+  const box = tip.getBoundingClientRect();
+  const x = Math.min(event.clientX + 16, window.innerWidth - box.width - 12);
+  const y = Math.min(event.clientY + 16, window.innerHeight - box.height - 12);
+  tip.style.left = Math.max(12, x) + 'px';
+  tip.style.top = Math.max(12, y) + 'px';
+}
+for (const path of document.querySelectorAll('[data-edge]')) {
+  const edge = DATA.edges[Number(path.dataset.edge)];
+  path.addEventListener('mouseenter', (event) => {
+    tip.replaceChildren(el('b', '', edge.from + ' \\u2192 ' + edge.to));
+    if (edge.label) tip.append(el('div', 'cond', edge.label));
+    if (edge.note) tip.append(el('div', 'cond', edge.note));
+    tip.append(el('div', 'flow', edge.detail || DATA.styles[edge.style]));
+    tip.hidden = false;
+    place(event);
+  });
+  path.addEventListener('mousemove', place);
+  path.addEventListener('mouseleave', () => { tip.hidden = true; });
+}
+applyZoom();
+"""
+
+
+def _card_payload(card: DetailCard) -> dict[str, object]:
+    return {
+        "name": card.name,
+        "summary": card.summary,
+        "facts": [list(pair) for pair in card.facts],
+        "params": [list(pair) for pair in card.params],
+    }
+
+
+def _detail_payload(view: PipelineView, width: int) -> str:
+    """Serialise node popups, edge tooltips, and canvas width as a JS literal.
+
+    Args:
+        view (PipelineView): The view being rendered.
+        width (int): Intrinsic SVG width, used as the 100% zoom baseline.
+
+    Returns:
+        str: A JSON object literal safe to inline inside a ``<script>`` element.
+    """
+    nodes = {
+        node.node_id: {
+            "label": node.label,
+            "kind": _KIND_LABELS[node.kind],
+            "summary": node.detail.summary,
+            "facts": [list(pair) for pair in node.detail.facts],
+            "params": [list(pair) for pair in node.detail.params],
+            "cards": [_card_payload(card) for card in node.detail.cards],
+        }
+        for node in view.nodes
+        if node.detail is not None and not node.detail.is_empty()
+    }
+    labels = {node.node_id: node.label for node in view.nodes}
+    edges = [
+        {
+            "from": labels[edge.source],
+            "to": labels[edge.target],
+            "label": edge.label,
+            "note": edge.note,
+            "detail": edge.detail,
+            "style": edge.style,
+        }
+        for edge in view.edges
+    ]
+    payload = {
+        "width": width,
+        "styles": dict(_STYLE_LABELS),
+        "nodes": nodes,
+        "edges": edges,
+    }
+    return json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c")
 
 
 def render_view_html(view: PipelineView) -> str:
@@ -635,7 +887,16 @@ def render_view_html(view: PipelineView) -> str:
     parts.extend(
         [
             "</div>",
-            f'<svg class="graph" viewBox="0 0 {geo.width} {geo.height}" '
+            '<div class="bar">',
+            '<button id="zoom-out" type="button">&minus; Zoom out</button>',
+            '<button id="zoom-in" type="button">+ Zoom in</button>',
+            '<button id="zoom-fit" type="button">Fit</button>',
+            '<span class="level" id="zoom-level">100%</span>',
+            '<span class="hint">Click a node for its agent note · hover an edge for the flow'
+            "</span>",
+            "</div>",
+            '<div class="canvas">',
+            f'<svg class="graph" id="graph" viewBox="0 0 {geo.width} {geo.height}" '
             f'width="{geo.width}" height="{geo.height}" '
             'xmlns="http://www.w3.org/2000/svg" role="img" '
             f'aria-label="{html.escape(view.subtitle)}">',
@@ -659,7 +920,21 @@ def render_view_html(view: PipelineView) -> str:
     parts.extend(_render_clusters(view, geo))
     parts.extend(_render_edges(view, geo))
     parts.extend(_render_nodes(view, geo))
-    parts.extend(["</svg>", "</body>", "</html>"])
+    parts.extend(
+        [
+            "</svg>",
+            "</div>",
+            '<div id="tip" role="tooltip" hidden></div>',
+            '<div id="sheet" role="dialog" aria-modal="true" hidden>',
+            '<div class="card" id="sheet-card"></div>',
+            "</div>",
+            "<script>",
+            _SCRIPT.replace("__DATA__", _detail_payload(view, geo.width)),
+            "</script>",
+            "</body>",
+            "</html>",
+        ]
+    )
     return "\n".join(parts) + "\n"
 
 
@@ -688,6 +963,20 @@ def write_view_html(view: PipelineView, out_path: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 
+def _step_facts(step: Step, states: dict[str, State]) -> tuple[tuple[str, str], ...]:
+    """Return the label/value rows describing how a step runs."""
+    facts: list[tuple[str, str]] = []
+    if step.harness:
+        facts.append(("Harness", step.harness))
+    if step.model:
+        facts.append(("Model", step.model))
+    if step.produces:
+        facts.append(("Produces", states[step.produces].label))
+    if step.wave:
+        facts.append(("Wave", step.wave))
+    return tuple(facts)
+
+
 def execution_view(spec: PipelineSpec) -> PipelineView:
     """Build the execution view: steps as nodes, declared transitions as edges.
 
@@ -710,6 +999,7 @@ def execution_view(spec: PipelineSpec) -> PipelineView:
             [(step.step_id, t.to) for step in spec.steps for t in step.transitions],
         )
     )
+    states = spec.state_map()
     nodes: list[ViewNode] = []
     for step in spec.steps:
         layer, column = fallback.get(step.step_id, (step.layer or 0, step.column or 0.0))
@@ -721,6 +1011,11 @@ def execution_view(spec: PipelineSpec) -> PipelineView:
                 layer=layer,
                 column=column,
                 note=step.note,
+                detail=NodeDetail(
+                    summary=step.summary,
+                    facts=_step_facts(step, states),
+                    params=step.params,
+                ),
             )
         )
     edges = tuple(
@@ -729,6 +1024,7 @@ def execution_view(spec: PipelineSpec) -> PipelineView:
             target=transition.to,
             label=transition.label,
             note=transition.note,
+            detail=transition.detail,
             style=transition.style,
             bow=transition.bow,
         )
@@ -817,10 +1113,19 @@ def _state_edge_label(step: Step, transition: Transition) -> str:
     return transition.label or step.wave
 
 
+@dataclass
+class _EdgeParts:
+    """Label, note, and hover-detail fragments collected for one state edge."""
+
+    labels: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    details: list[str] = field(default_factory=list)
+
+
 def _derive_state_edges(spec: PipelineSpec) -> tuple[ViewEdge, ...]:
     """Derive one state-view edge per state transition, merging parallel steps."""
     incoming = spec.incoming()
-    grouped: dict[tuple[str, str, TransitionStyle, str], tuple[list[str], list[str]]] = {}
+    grouped: dict[tuple[str, str, TransitionStyle, str], _EdgeParts] = {}
     for step in spec.steps:
         if not step.produces:
             continue
@@ -829,19 +1134,21 @@ def _derive_state_edges(spec: PipelineSpec) -> tuple[ViewEdge, ...]:
                 if state_id == step.produces:
                     continue
                 key = (state_id, step.produces, transition.style, transition.bow)
-                labels, notes = grouped.setdefault(key, ([], []))
-                labels.append(_state_edge_label(step, transition))
-                notes.append(_chain_note([*works, step.work_label]))
+                parts = grouped.setdefault(key, _EdgeParts())
+                parts.labels.append(_state_edge_label(step, transition))
+                parts.notes.append(_chain_note([*works, step.work_label]))
+                parts.details.append(transition.detail)
     return tuple(
         ViewEdge(
             source=source,
             target=target,
-            label=_merge_parts(labels, " / "),
-            note=_merge_parts(notes, ", "),
+            label=_merge_parts(parts.labels, " / "),
+            note=_merge_parts(parts.notes, ", "),
+            detail=_merge_parts(parts.details, " "),
             style=style,
             bow=bow,  # type: ignore[arg-type]
         )
-        for (source, target, style, bow), (labels, notes) in grouped.items()
+        for (source, target, style, bow), parts in grouped.items()
     )
 
 
@@ -876,10 +1183,23 @@ def state_view(spec: PipelineSpec) -> PipelineView:
     fallback = (
         {} if placed else _derive_placement(used, [(edge.source, edge.target) for edge in edges])
     )
+    producers: dict[str, list[Step]] = {}
+    for step in spec.steps:
+        if step.produces:
+            producers.setdefault(step.produces, []).append(step)
     nodes: list[ViewNode] = []
     for state_id in used:
         state = states[state_id]
         layer, column = fallback.get(state_id, (state.layer or 0, state.column or 0.0))
+        cards = tuple(
+            DetailCard(
+                name=step.label,
+                summary=step.summary,
+                facts=_step_facts(step, states),
+                params=step.params,
+            )
+            for step in producers.get(state_id, [])
+        )
         nodes.append(
             ViewNode(
                 node_id=state_id,
@@ -888,6 +1208,7 @@ def state_view(spec: PipelineSpec) -> PipelineView:
                 layer=layer,
                 column=column,
                 note=state.note,
+                detail=NodeDetail(summary=state.note, cards=cards),
             )
         )
     clusters = tuple(

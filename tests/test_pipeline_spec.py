@@ -54,6 +54,35 @@ def test_defaults_label_kind_and_work(tmp_path: Path) -> None:
     assert step.work_label == "a"
     assert step.layer is None
     assert step.column is None
+    assert step.summary == ""
+    assert step.params == ()
+
+
+def test_reads_agent_note_fields(tmp_path: Path) -> None:
+    body = MINIMAL.replace(
+        'id = "a"',
+        'id = "a"\nsummary = "Does the thing."\nharness = "cursor-agent"\nmodel = "auto"',
+    ).replace(
+        '[[steps.next]]\nto = "b"',
+        '[steps.params]\nthinking = "high"\nturns = 3\nstrict = true\n\n[[steps.next]]\nto = "b"',
+    )
+    step = load_pipeline_spec(_write(tmp_path, body)).steps[0]
+    assert step.summary == "Does the thing."
+    assert step.harness == "cursor-agent"
+    assert step.model == "auto"
+    assert step.params == (("thinking", "high"), ("turns", "3"), ("strict", "true"))
+
+
+def test_reads_transition_detail(tmp_path: Path) -> None:
+    body = MINIMAL.replace('label = "go"', 'label = "go"\ndetail = "Hands the suite over."')
+    transition = load_pipeline_spec(_write(tmp_path, body)).steps[0].transitions[0]
+    assert transition.detail == "Hands the suite over."
+
+
+def test_rejects_non_scalar_param(tmp_path: Path) -> None:
+    body = MINIMAL.replace('id = "a"', 'id = "a"\n[steps.params]\nmodels = ["a", "b"]')
+    with pytest.raises(PipelineSpecError, match=r"params\.models must be a scalar"):
+        load_pipeline_spec(_write(tmp_path, body))
 
 
 def test_state_map_falls_back_to_undeclared_states(tmp_path: Path) -> None:
