@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tripll L1 pipeline — state graph (edge is agent work)</title>
+<style>
+body{font-family:ui-sans-serif,system-ui,sans-serif;margin:24px;background:#faf9f7;color:#1a1a1a}
+h1{font-size:1.35rem;margin:0 0 4px}
+.sub{color:#555;font-size:.92rem;margin:0 0 14px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:.8rem;color:#444;margin:0 0 16px;align-items:center}
+.swatch{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.swatch-gate{background:#fde8b0;border:1px solid #d79b0a}
+.swatch-phase{background:#e6dcf7;border:1px solid #8a6ec4}
+.swatch-agent{background:#dff0d8;border:1px solid #5f9e4e}
+.swatch-artifact{background:#dce8f8;border:1px solid #5f86c4}
+.swatch-external{background:#e4e4e2;border:1px solid #9a978f}
+.line{display:inline-block;width:26px;margin-right:6px;vertical-align:middle;border-top:2px solid #6f6a5e}
+.line-conditional{border-top-style:dashed}
+.line-optional{border-top-style:dotted}
+.graph{max-width:100%;height:auto;background:#fff;border:1px solid #e6e2d9;border-radius:12px}
+.cluster rect{fill:#f4f2ee;stroke:#ddd8cc;stroke-width:1}
+.cluster text{font-size:11px;fill:#6f6a5e;letter-spacing:.09em;text-transform:uppercase}
+.node rect{fill:#fff;stroke:#111;stroke-width:1.5}
+.node-gate rect{fill:#fde8b0;stroke:#d79b0a}
+.node-phase rect{fill:#e6dcf7;stroke:#8a6ec4}
+.node-agent rect{fill:#dff0d8;stroke:#5f9e4e}
+.node-artifact rect{fill:#dce8f8;stroke:#5f86c4}
+.node-external rect{fill:#e4e4e2;stroke:#9a978f}
+text{font-family:ui-sans-serif,system-ui,sans-serif}
+.nlabel{font-size:12.5px;font-weight:600;text-anchor:middle}
+.nnote{font-size:10.5px;fill:#555;text-anchor:middle}
+.edge{fill:none;stroke:#6f6a5e;stroke-width:1.6}
+.edge-conditional{stroke-dasharray:6 4;stroke:#8a8577}
+.edge-optional{stroke-dasharray:2 4;stroke:#9a978f}
+.elabel,.enote{text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
+.elabel{font-size:10.5px;font-weight:600;fill:#2c2a24}
+.enote{font-size:10px;fill:#6f6a5e}
+</style>
+</head>
+<body>
+<h1>tripll L1 pipeline — state graph (edge is agent work)</h1>
+<p class="sub">Artifact states are nodes; each edge is the wave and agent that produces them · 17 nodes · 22 edges · source=docs/examples/pipelines/tripll-l1-pipeline.toml</p>
+<div class="legend">
+<span><span class="swatch swatch-gate"></span>Human / gate</span>
+<span><span class="swatch swatch-artifact"></span>Artifact / state</span>
+<span><span class="swatch swatch-external"></span>External input</span>
+<span><span class="line line-primary"></span>Primary flow</span>
+<span><span class="line line-conditional"></span>Conditional / feedback</span>
+</div>
+<svg class="graph" viewBox="0 0 2292 732" width="2292" height="732" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Artifact states are nodes; each edge is the wave and agent that produces them">
+<defs>
+<marker id="arrow-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#6f6a5e"></path>
+</marker>
+<marker id="arrow-conditional" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#8a8577"></path>
+</marker>
+<marker id="arrow-optional" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#9a978f"></path>
+</marker>
+</defs>
+<g class="cluster">
+<rect x="10" y="-4" width="1776" height="106" rx="12"></rect>
+<text x="22" y="14">Contract / CLI preflight — optional or on-demand</text>
+</g>
+<g class="cluster">
+<rect x="10" y="192" width="2168" height="106" rx="12"></rect>
+<text x="22" y="210">Tests-first wave execution — per wave</text>
+</g>
+<g class="cluster">
+<rect x="10" y="388" width="1776" height="302" rx="12"></rect>
+<text x="22" y="406">PR + compounding loop</text>
+</g>
+<path class="edge edge-primary" d="M 200 56 L 420 56" marker-end="url(#arrow-primary)"><title>goal → code-kg</title></path>
+<text class="elabel" x="310" y="47">W-KG</text>
+<text class="enote" x="310" y="60">graph-extractor → … → graph-fuser</text>
+<path class="edge edge-primary" d="M 592 56 L 812 56" marker-end="url(#arrow-primary)"><title>code-kg → spec-refs</title></path>
+<text class="elabel" x="702" y="47">W-SPEC</text>
+<text class="enote" x="702" y="60">spec-cartographer → reference-picker</text>
+<path class="edge edge-primary" d="M 984 56 L 1204 56" marker-end="url(#arrow-primary)"><title>spec-refs → run-graph</title></path>
+<text class="elabel" x="1094" y="47">W-PLAN</text>
+<text class="enote" x="1094" y="60">plan-author → plan-shape-critic</text>
+<path class="edge edge-primary" d="M 1376 56 L 1596 56" marker-end="url(#arrow-primary)"><title>run-graph → pre0</title></path>
+<text class="elabel" x="1486" y="47">W0</text>
+<text class="enote" x="1486" y="60">L1 validate → Pre-0 gate</text>
+<path class="edge edge-primary" d="M 1682 84 C 1682 154, 114 154, 114 224" marker-end="url(#arrow-primary)"><title>pre0 → red-tests</title></path>
+<text class="elabel" x="898" y="148">W1</text>
+<text class="enote" x="898" y="161">wave-orchestrator → test-creator</text>
+<path class="edge edge-conditional" d="M 1290 280 C 1290 312, 114 312, 114 280" marker-end="url(#arrow-conditional)"><title>verdict → red-tests</title></path>
+<text class="elabel" x="702" y="310">wrong test → repair</text>
+<text class="enote" x="702" y="323">test-creator</text>
+<path class="edge edge-primary" d="M 200 252 L 420 252" marker-end="url(#arrow-primary)"><title>red-tests → wave-commit</title></path>
+<text class="elabel" x="310" y="243">Wi</text>
+<text class="enote" x="310" y="256">implementer</text>
+<path class="edge edge-conditional" d="M 898 280 C 898 338, 506 338, 506 280" marker-end="url(#arrow-conditional)"><title>quality-ok → wave-commit</title></path>
+<text class="elabel" x="702" y="336">gap → next round</text>
+<text class="enote" x="702" y="349">implementer</text>
+<path class="edge edge-conditional" d="M 1290 280 C 1290 364, 506 364, 506 280" marker-end="url(#arrow-conditional)"><title>verdict → wave-commit</title></path>
+<text class="elabel" x="898" y="362">failed → retry</text>
+<text class="enote" x="898" y="375">implementer</text>
+<path class="edge edge-primary" d="M 592 252 L 812 252" marker-end="url(#arrow-primary)"><title>wave-commit → quality-ok</title></path>
+<text class="elabel" x="702" y="243">W-Q</text>
+<text class="enote" x="702" y="256">quality-critic</text>
+<path class="edge edge-primary" d="M 984 252 L 1204 252" marker-end="url(#arrow-primary)"><title>quality-ok → verdict</title></path>
+<text class="elabel" x="1094" y="243">W-V</text>
+<text class="enote" x="1094" y="256">wave-verifier</text>
+<path class="edge edge-primary" d="M 1376 252 L 1596 252" marker-end="url(#arrow-primary)"><title>verdict → integrated</title></path>
+<text class="elabel" x="1486" y="243">W-FINAL</text>
+<text class="enote" x="1486" y="256">integrate branch</text>
+<path class="edge edge-conditional" d="M 2074 280 C 2074 390, 1682 390, 1682 280" marker-end="url(#arrow-conditional)"><title>new-waves → integrated</title></path>
+<text class="elabel" x="1878" y="388">new waves</text>
+<text class="enote" x="1878" y="401">integrate branch</text>
+<path class="edge edge-primary" d="M 1682 280 C 1682 350, 114 350, 114 420" marker-end="url(#arrow-primary)"><title>integrated → open-pr</title></path>
+<text class="elabel" x="898" y="344">W-REVIEW</text>
+<text class="enote" x="898" y="357">pr-shepherd</text>
+<path class="edge edge-conditional" d="M 1768 252 L 1988 252" marker-end="url(#arrow-conditional)"><title>integrated → new-waves</title></path>
+<text class="elabel" x="1878" y="243">changes required</text>
+<text class="enote" x="1878" y="256">post-review-wave-generator</text>
+<path class="edge edge-conditional" d="M 200 448 L 420 448" marker-end="url(#arrow-conditional)"><title>open-pr → findings</title></path>
+<text class="elabel" x="310" y="439">CI red / review comments</text>
+<text class="enote" x="310" y="452">ci-investigator, review-comment-triager</text>
+<path class="edge edge-conditional" d="M 898 476 C 898 508, 506 508, 506 476" marker-end="url(#arrow-conditional)"><title>fix-commit → findings</title></path>
+<text class="elabel" x="702" y="506">re-verify</text>
+<text class="enote" x="702" y="519">ci-investigator</text>
+<path class="edge edge-primary" d="M 592 448 L 812 448" marker-end="url(#arrow-primary)"><title>findings → fix-commit</title></path>
+<text class="elabel" x="702" y="439">W-CI-FIX</text>
+<text class="enote" x="702" y="452">check-fixer, review-comment-fixer</text>
+<path class="edge edge-primary" d="M 984 448 L 1204 448" marker-end="url(#arrow-primary)"><title>fix-commit → ci-green</title></path>
+<text class="elabel" x="1094" y="439">re-push</text>
+<text class="enote" x="1094" y="452">poll checks</text>
+<path class="edge edge-conditional" d="M 506 476 C 506 546, 1682 546, 1682 616" marker-end="url(#arrow-conditional)"><title>findings → rule-memory</title></path>
+<text class="elabel" x="1094" y="540">finding</text>
+<text class="enote" x="1094" y="553">finding → proposed rule</text>
+<path class="edge edge-primary" d="M 1376 448 L 1596 448" marker-end="url(#arrow-primary)"><title>ci-green → merge</title></path>
+<text class="elabel" x="1486" y="439">promote</text>
+<text class="enote" x="1486" y="452">operator (D15)</text>
+<path class="edge edge-conditional" d="M 1768 644 C 1848 644, 1848 448, 1768 448" marker-end="url(#arrow-conditional)"><title>rule-memory → merge</title></path>
+<text class="elabel" x="1844" y="546">promote (R27)</text>
+<text class="enote" x="1844" y="559">operator (D15)</text>
+<g class="node node-external">
+<title>goal</title>
+<rect x="28" y="28" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="114" y="54">Goal / repo</text>
+<text class="nnote" x="114" y="70">or error bundle</text>
+</g>
+<g class="node node-artifact">
+<title>code-kg</title>
+<rect x="420" y="28" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="506" y="62">Code KG</text>
+</g>
+<g class="node node-artifact">
+<title>spec-refs</title>
+<rect x="812" y="28" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="898" y="62">Spec + quality refs</text>
+</g>
+<g class="node node-artifact">
+<title>run-graph</title>
+<rect x="1204" y="28" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="1290" y="62">Validated RunGraph</text>
+</g>
+<g class="node node-gate">
+<title>pre0</title>
+<rect x="1596" y="28" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="1682" y="62">Pre-0 approval</text>
+</g>
+<g class="node node-artifact">
+<title>red-tests</title>
+<rect x="28" y="224" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="114" y="258">RED test baseline</text>
+</g>
+<g class="node node-artifact">
+<title>wave-commit</title>
+<rect x="420" y="224" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="506" y="250">Implemented wave</text>
+<text class="nnote" x="506" y="266">commit</text>
+</g>
+<g class="node node-artifact">
+<title>quality-ok</title>
+<rect x="812" y="224" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="898" y="258">Quality accepted</text>
+</g>
+<g class="node node-artifact">
+<title>verdict</title>
+<rect x="1204" y="224" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="1290" y="258">Isolated verdict</text>
+</g>
+<g class="node node-artifact">
+<title>integrated</title>
+<rect x="1596" y="224" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="1682" y="258">Integrated branch</text>
+</g>
+<g class="node node-artifact">
+<title>new-waves</title>
+<rect x="1988" y="224" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="2074" y="258">New wave plan</text>
+</g>
+<g class="node node-artifact">
+<title>open-pr</title>
+<rect x="28" y="420" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="114" y="454">Open PR</text>
+</g>
+<g class="node node-artifact">
+<title>findings</title>
+<rect x="420" y="420" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="506" y="446">Findings</text>
+<text class="nnote" x="506" y="462">open set</text>
+</g>
+<g class="node node-artifact">
+<title>fix-commit</title>
+<rect x="812" y="420" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="898" y="454">Fix commit</text>
+</g>
+<g class="node node-artifact">
+<title>ci-green</title>
+<rect x="1204" y="420" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="1290" y="454">CI green + review clean</text>
+</g>
+<g class="node node-gate">
+<title>merge</title>
+<rect x="1596" y="420" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="1682" y="454">Human merge gate</text>
+</g>
+<g class="node node-artifact">
+<title>rule-memory</title>
+<rect x="1596" y="616" width="172" height="56" rx="9"></rect>
+<text class="nlabel" x="1682" y="650">Rule / finding memory</text>
+</g>
+</svg>
+</body>
+</html>

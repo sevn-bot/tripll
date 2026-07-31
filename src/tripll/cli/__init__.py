@@ -973,6 +973,46 @@ def pre0_interview_cmd(
 # ---------------------------------------------------------------------------
 
 
+@app.command("pipeline-view")
+def pipeline_view_cmd(
+    pipeline_file: Annotated[
+        Path,
+        typer.Argument(help="Path to a pipeline_format = 1 TOML file."),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option("--out", help="Destination .html file."),
+    ],
+    view: Annotated[
+        str,
+        typer.Option("--view", help="Which chart to render: execution | state."),
+    ] = "execution",
+) -> None:
+    """Render a pipeline file as a self-contained HTML graph.
+
+    ``execution`` draws the pipeline steps (agents, phases, gates) as nodes with
+    the declared transitions as edges. ``state`` draws the artifact states as
+    nodes with the agent work on the edges.
+    """
+    from tripll.pipeline_spec import PipelineSpecError, load_pipeline_spec
+    from tripll.pipeline_views import VIEWS, write_view_html
+
+    builder = VIEWS.get(view)
+    if builder is None:
+        typer.echo(f"Unknown view {view!r} (expected one of {', '.join(VIEWS)})", err=True)
+        raise typer.Exit(2)
+    if not pipeline_file.is_file():
+        typer.echo(f"Pipeline file not found: {pipeline_file}", err=True)
+        raise typer.Exit(1)
+    try:
+        spec = load_pipeline_spec(pipeline_file)
+        written = write_view_html(builder(spec), out)
+    except (PipelineSpecError, ValueError) as exc:
+        typer.echo(f"Pipeline view failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Wrote pipeline view: {written}")
+
+
 def _write_validation_graph_html(input_path: Path, out_path: Path) -> None:
     """Build the RunGraph for *input_path* and write an HTML DAG to *out_path*."""
     from tripll.graph_html import write_graph_html
