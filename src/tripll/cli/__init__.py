@@ -973,12 +973,37 @@ def pre0_interview_cmd(
 # ---------------------------------------------------------------------------
 
 
+def _write_validation_graph_html(input_path: Path, out_path: Path) -> None:
+    """Build the RunGraph for *input_path* and write an HTML DAG to *out_path*."""
+    from tripll.graph_html import write_graph_html
+    from tripll.parse import build_graph_from_dir
+
+    input_dir = input_path if input_path.is_dir() else input_path.parent
+    try:
+        graph = build_graph_from_dir(input_dir, run_id=make_run_id(input_dir.name))
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Graph HTML export failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    written = write_graph_html(graph, out_path, source=str(input_dir))
+    typer.echo(f"Wrote graph HTML: {written}")
+
+
 @app.command()
 def validate(
     input_path: Annotated[
         Path,
         typer.Argument(help="Path to input directory or a single *-wave-plan.md file."),
     ],
+    graph_html: Annotated[
+        Path | None,
+        typer.Option(
+            "--graph-html",
+            help=(
+                "On success, write a self-contained HTML graph (nodes + depends_on edges) "
+                "to this path. A single file resolves its graph from the parent directory."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Validate wave-plan file(s) for tripll v1 execution graph format."""
     from tripll.parse.wave_plan_v1 import validate_wave_plan_v1
@@ -1006,6 +1031,9 @@ def validate(
         raise typer.Exit(1)
 
     typer.echo(f"OK — {len(paths)} wave-plan file(s) valid (tripll v1 execution graph).")
+
+    if graph_html is not None:
+        _write_validation_graph_html(input_path, graph_html)
 
 
 # ---------------------------------------------------------------------------
