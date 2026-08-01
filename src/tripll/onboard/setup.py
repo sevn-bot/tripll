@@ -21,7 +21,7 @@ from tripll.tracing.config import TracingConfig
 __all__ = ["AUTH_FIX_COMMANDS", "run_setup", "write_user_config"]
 
 AUTH_FIX_COMMANDS: dict[str, str] = {
-    "claude_code": "claude login",
+    "claude_code": "claude login  (or headless: claude setup-token → export CLAUDE_CODE_OAUTH_TOKEN)",
     "cursor_local": "cursor-agent login",
     "cursor_cloud": "Install tripll[cloud] and configure sevn.evolution.router",
 }

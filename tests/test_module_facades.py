@@ -73,6 +73,7 @@ EXPECTED_CLI_COMMANDS: tuple[str, ...] = (
     "pre0-interview",
     "validate",
     "validate-plan",
+    "pipeline-view",
     "calibrate",
     "serve",
     "doc-score",

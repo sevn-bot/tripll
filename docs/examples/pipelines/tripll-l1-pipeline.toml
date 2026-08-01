@@ -1,0 +1,749 @@
+pipeline_format = 1
+title = "tripll L1 pipeline"
+slug = "tripll-l1"
+description = "All agents, loops, and feedback paths of the L1 pipeline"
+
+# A pipeline file names the steps of an agent pipeline — which agent, system
+# phase, or human gate runs, in what order — plus the artifact state each step
+# produces. Two charts are derived from this one file:
+#
+#   execution view — steps are nodes, `[[steps.next]]` are edges
+#   state view     — `produces` states are nodes, the steps are the edges
+#
+# `layer` / `column` place a node on the grid (fractional columns allowed).
+# Placement below is serpentine: row 0 reads left to right, row 1 right to left,
+# and so on, so the flow turns at the end of each row and returns on the next.
+# Omit layer/column for every step and a serpentine placement is derived from
+# the transitions instead.
+#
+# `answer = "yes" | "no"` marks the arms of a decision, drawn as a green or red
+# badge on the edge; `style = "optional"` marks a side path.
+#
+# `summary`, `harness`, `model`, and `[steps.params]` are what the charts show
+# when a node is clicked; `detail` on a transition is what the edge shows on
+# hover. They are declarations by the pipeline author, not runtime readings:
+# tripll does not execute pipeline files. Where a step maps to a registered
+# tripll agent the values below match `src/tripll/skw/skw.toml`.
+
+# ---------------------------------------------------------------------------
+# Clusters — drawn as labelled containers in either view
+# ---------------------------------------------------------------------------
+
+[[clusters]]
+id = "preflight"
+label = "Contract / CLI preflight — optional or on-demand"
+states = ["goal", "code-kg", "spec-refs", "run-graph", "pre0"]
+
+[[clusters]]
+id = "wave-exec"
+label = "Tests-first wave execution — per wave"
+states = ["red-tests", "wave-commit", "quality-ok", "verdict", "integrated"]
+
+[[clusters]]
+id = "pr-loop"
+label = "PR + compounding loop"
+states = ["new-waves", "open-pr", "findings", "fix-commit", "ci-green", "merge", "rule-memory"]
+
+# ---------------------------------------------------------------------------
+# States — nodes of the state view
+# ---------------------------------------------------------------------------
+
+[[states]]
+id = "goal"
+label = "Goal / repo"
+kind = "external"
+note = "or error bundle"
+layer = 0
+column = 0
+
+[[states]]
+id = "code-kg"
+label = "Code KG"
+layer = 0
+column = 1
+
+[[states]]
+id = "spec-refs"
+label = "Spec + quality refs"
+layer = 0
+column = 2
+
+[[states]]
+id = "run-graph"
+label = "Validated RunGraph"
+layer = 0
+column = 3
+
+[[states]]
+id = "pre0"
+label = "Pre-0 approval"
+kind = "gate"
+layer = 0
+column = 4
+
+[[states]]
+id = "red-tests"
+label = "RED test baseline"
+layer = 1
+column = 4
+
+[[states]]
+id = "wave-commit"
+label = "Implemented wave"
+note = "commit"
+layer = 1
+column = 3
+
+[[states]]
+id = "quality-ok"
+label = "Quality accepted"
+layer = 1
+column = 2
+
+[[states]]
+id = "verdict"
+label = "Isolated verdict"
+layer = 1
+column = 1
+
+[[states]]
+id = "integrated"
+label = "Integrated branch"
+layer = 1
+column = 0
+
+[[states]]
+id = "new-waves"
+label = "New wave plan"
+layer = 2
+column = 0
+
+[[states]]
+id = "open-pr"
+label = "Open PR"
+layer = 2
+column = 1
+
+[[states]]
+id = "findings"
+label = "Findings"
+note = "open set"
+layer = 2
+column = 2
+
+[[states]]
+id = "fix-commit"
+label = "Fix commit"
+layer = 2
+column = 3
+
+[[states]]
+id = "ci-green"
+label = "CI green + review clean"
+layer = 2
+column = 4
+
+[[states]]
+id = "merge"
+label = "Human merge gate"
+kind = "gate"
+layer = 2
+column = 5
+
+[[states]]
+id = "rule-memory"
+label = "Rule / finding memory"
+layer = 3
+column = 4
+
+# ---------------------------------------------------------------------------
+# Steps — nodes of the execution view, edges of the state view
+# ---------------------------------------------------------------------------
+
+[[steps]]
+id = "inputs"
+label = "Goal / repo"
+kind = "external"
+note = "or error bundle"
+produces = "goal"
+summary = """
+The starting contract: a goal statement plus the repository as it stands today. \
+On a repair run this is a bundle of failing checks and error output instead.\
+"""
+harness = "operator input"
+layer = 0
+column = 0
+[[steps.next]]
+to = "graph-extractor"
+label = "repo scan"
+detail = "The repo is handed to the graph pass; nothing is written to the working tree yet."
+
+[[steps]]
+id = "graph-extractor"
+cluster = "preflight"
+summary = """
+Walks the repository and extracts raw structure — files, symbols, imports, call \
+edges — without interpreting which of it matters.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 0
+column = 1
+[steps.params]
+read_only = true
+[[steps.next]]
+to = "graph-librarian"
+detail = "Extraction is passed on unfiltered; deciding what matters is the librarian's job."
+
+[[steps]]
+id = "graph-librarian"
+cluster = "preflight"
+summary = """
+Curates the raw extraction down to the slice that matters for this goal: entry \
+points, owners, tests, and the modules the change will touch.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 0
+column = 2
+[[steps.next]]
+to = "graph-fuser"
+detail = "The curated slice is handed over to be fused into one queryable graph."
+
+[[steps]]
+id = "graph-fuser"
+cluster = "preflight"
+produces = "code-kg"
+wave = "W-KG"
+summary = """
+Fuses the curated slices into a single code knowledge graph that every later \
+step queries instead of re-reading the repository.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 0
+column = 3
+[[steps.next]]
+to = "spec-cartographer"
+label = "code KG"
+detail = "Planning starts from the graph, so the spec cites real symbols instead of guesses."
+
+[[steps]]
+id = "spec-cartographer"
+cluster = "preflight"
+summary = """
+Maps the goal onto the graph and writes the spec: what must change, where it \
+lives, and what must stay untouched.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 1
+column = 3
+[[steps.next]]
+to = "reference-picker"
+detail = "The draft spec goes to reference selection so each requirement gets an example to imitate."
+
+[[steps]]
+id = "reference-picker"
+cluster = "preflight"
+produces = "spec-refs"
+wave = "W-SPEC"
+summary = """
+Picks the in-repo references each requirement should imitate — the closest \
+existing pattern, the nearest test, the module shape to copy.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 1
+column = 2
+[[steps.next]]
+to = "plan-author"
+label = "spec + refs"
+detail = "Spec plus references become the planning input; the plan may only cite what was picked here."
+
+[[steps]]
+id = "build-plan-from-errors"
+cluster = "preflight"
+summary = """
+Alternate entry point: turns a bundle of failing checks or a bug report straight \
+into a planning input, skipping specification.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 1
+column = 1
+[[steps.next]]
+to = "plan-author"
+label = "error bundle"
+style = "optional"
+detail = "Repair runs join here, reusing the same planner and the same gates as feature work."
+
+[[steps]]
+id = "wave-plan-author"
+cluster = "preflight"
+note = "legacy v1 / v2"
+summary = """
+Legacy single-shot plan author — tripll's registered `wave-generator` agent — \
+kept for v1/v2 plans that predate the split into planner plus shape critic.\
+"""
+harness = "cursor-agent · skw driver"
+model = "auto"
+layer = 1
+column = 0
+[steps.params]
+perms = "--force"
+max_turns = 3
+[[steps.next]]
+to = "plan-shape-critic"
+label = "legacy plan"
+style = "optional"
+detail = "Legacy plans still have to clear the shape critic before they can be validated."
+
+[[steps]]
+id = "plan-author"
+cluster = "preflight"
+summary = """
+Writes the wave plan: waves and their dependencies, roles, verification \
+commands, and the Pre-0 decisions an operator has to make before dispatch.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 2
+column = 2
+[[steps.next]]
+to = "plan-shape-critic"
+detail = "Every plan is graded before validation; the planner never approves its own shape."
+
+[[steps]]
+id = "plan-shape-critic"
+cluster = "preflight"
+produces = "run-graph"
+wave = "W-PLAN"
+summary = """
+Grades plan shape — wave size, dependency sanity, tests-first ordering, \
+verifiable exit criteria — and sends the plan back when the shape is wrong.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 2
+column = 3
+[[steps.next]]
+to = "l1-validate"
+label = "shape accepted"
+answer = "yes"
+detail = "An accepted shape goes to the validator, which checks invariants no critic can eyeball."
+[[steps.next]]
+to = "plan-author"
+label = "shape rejected"
+style = "conditional"
+answer = "no"
+detail = "A plan with the wrong shape goes back to the planner; the critic never rewrites it itself."
+
+[[steps]]
+id = "l1-validate"
+label = "L1 validate"
+kind = "phase"
+note = "plan invariants"
+summary = """
+`tripll validate` parses the plan into a RunGraph and enforces its invariants: \
+no dependency cycles, no dangling references, a Pre-0 gate present, and \
+verification commands that actually resolve.\
+"""
+harness = "tripll CLI"
+layer = 3
+column = 3
+[steps.params]
+command = "tripll validate"
+[[steps.next]]
+to = "pre0-gate"
+label = "invariants hold"
+detail = "Validation proves the plan is well-formed; whether it should run is the operator's call."
+
+[[steps]]
+id = "pre0-gate"
+label = "Pre-0 gate"
+kind = "gate"
+note = "operator decisions"
+produces = "pre0"
+wave = "W0"
+summary = """
+The human gate. The operator answers the plan's Pre-0 decisions and approves \
+dispatch; tripll never crosses this line on its own (D15).\
+"""
+harness = "operator (human)"
+layer = 3
+column = 2
+[[steps.next]]
+to = "wave-orchestrator"
+label = "approved"
+detail = "Approval releases the graph for dispatch; without it no wave is ever sent to an agent."
+
+[[steps]]
+id = "wave-orchestrator"
+note = "optional serial mode"
+summary = """
+Dispatches waves in dependency order and holds each one until its dependencies \
+are green. tripll's registered `orchestrator` agent; serial mode is opt-in \
+through the orchestrator prompt.\
+"""
+harness = "cursor-agent · skw driver"
+model = "auto"
+layer = 3
+column = 1
+[steps.params]
+perms = "--force"
+max_turns = 3
+[[steps.next]]
+to = "test-creator"
+label = "dispatch wave"
+detail = "Each wave starts with its tests, so the first thing an implementer sees is a failing suite."
+
+[[steps]]
+id = "test-creator"
+cluster = "wave-exec"
+note = "RED baseline"
+produces = "red-tests"
+wave = "W1"
+summary = """
+Writes the failing tests for the wave before any implementation exists, and owns \
+those test paths for the rest of the wave. tripll's registered `test-creator` \
+agent, selected by the wave's `role`.\
+"""
+harness = "cursor-agent · skw driver"
+model = "auto"
+layer = 4
+column = 1
+[steps.params]
+perms = "--force"
+max_turns = 3
+[[steps.next]]
+to = "implementer"
+label = "RED suite"
+detail = "The failing suite is the contract: source may change, the tests it must satisfy may not."
+
+[[steps]]
+id = "implementer"
+cluster = "wave-exec"
+note = "wave Wi"
+produces = "wave-commit"
+wave = "Wi"
+summary = """
+Implements one wave against the RED suite and commits once it goes green. \
+tripll's registered `wave-runner` agent.\
+"""
+harness = "cursor-agent · skw driver"
+model = "auto"
+layer = 4
+column = 2
+[steps.params]
+perms = "--force"
+max_turns = 3
+[[steps.next]]
+to = "quality-critic"
+label = "wave commit"
+detail = "A green suite is necessary but not sufficient — the commit still has to clear the quality bar."
+
+[[steps]]
+id = "quality-critic"
+cluster = "wave-exec"
+produces = "quality-ok"
+wave = "W-Q"
+summary = """
+Grades the wave commit beyond passing tests: structure, naming, dead code, and \
+whether the change follows the references the plan cited. tripll's registered \
+`reviewer` agent (`[pipeline.review]`).\
+"""
+harness = "cursor-agent · skw driver"
+model = "auto"
+layer = 4
+column = 3
+[steps.params]
+thinking = "high"
+[[steps.next]]
+to = "smoothing-pass"
+label = "large gap"
+style = "conditional"
+detail = "A broad but stylistic gap gets a dedicated cleanup pass instead of another implementation round."
+[[steps.next]]
+to = "implementer"
+label = "gap → next round"
+style = "conditional"
+answer = "no"
+detail = "Substantive gaps go back to the implementer as another round on the same wave, not a new wave."
+[[steps.next]]
+to = "wave-verifier"
+label = "quality accepted"
+answer = "yes"
+detail = "Accepted work is verified in isolation, so a pass is reproduced from a clean state."
+
+[[steps]]
+id = "smoothing-pass"
+cluster = "wave-exec"
+note = "optional"
+summary = """
+Optional cleanup pass over the wave's diff — naming, comment density, idiom — \
+without changing behaviour.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 4
+column = 4
+[[steps.next]]
+to = "quality-critic"
+label = "re-grade"
+style = "conditional"
+detail = "The smoothed diff is re-graded; the critic, not the smoother, decides when it is done."
+
+[[steps]]
+id = "wave-verifier"
+cluster = "wave-exec"
+produces = "verdict"
+wave = "W-V"
+summary = """
+Re-runs the wave's verification from a clean state and records the verdict, so a \
+wave that only passed on a dirty tree is caught here.\
+"""
+harness = "tripll CLI + cursor-agent"
+model = "auto"
+layer = 5
+column = 3
+[steps.params]
+command = "make ci-affected"
+[[steps.next]]
+to = "implementer"
+label = "failed → retry"
+style = "conditional"
+answer = "no"
+detail = "A failed verification sends the wave back for another attempt, capped by the retry budget."
+[[steps.next]]
+to = "test-creator"
+label = "wrong test → repair"
+style = "conditional"
+detail = "When the failure is the test's fault rather than the code's, repair goes to the test owner."
+[[steps.next]]
+to = "outer-pipeline"
+label = "isolated verdict"
+answer = "yes"
+detail = "A green isolated verdict releases the wave into the shared branch."
+
+[[steps]]
+id = "outer-pipeline"
+label = "Outer pipeline"
+kind = "phase"
+note = "verify → commit → review"
+work = "integrate branch"
+produces = "integrated"
+wave = "W-FINAL"
+summary = """
+tripll's fixed outer loop (`loops/l1_outer.py`): verify the batch, commit, \
+review, and generate remediation waves when review demands them.\
+"""
+harness = "tripll engine"
+layer = 5
+column = 2
+[steps.params]
+nodes = "validate → waves → verify → commit → review → generate"
+[[steps.next]]
+to = "pr-shepherd"
+label = "branch integrated"
+detail = "With the batch integrated the work leaves the machine and becomes a pull request."
+[[steps.next]]
+to = "post-review-wave-generator"
+label = "changes required"
+style = "conditional"
+detail = "Review findings that need code become a new wave plan rather than ad-hoc edits."
+
+[[steps]]
+id = "pr-shepherd"
+cluster = "pr-loop"
+produces = "open-pr"
+wave = "W-REVIEW"
+summary = """
+Opens the pull request and keeps it merge-ready: description, linked plan, and \
+the set of checks that have to pass.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 6
+column = 2
+[[steps.next]]
+to = "ci-investigator"
+label = "CI red"
+style = "conditional"
+detail = "A red check is investigated before anything changes, so the fix targets the cause."
+[[steps.next]]
+to = "review-comment-triager"
+label = "review comments"
+style = "conditional"
+detail = "Review comments are handled apart from CI failures; they need judgement, not a rerun."
+
+[[steps]]
+id = "post-review-wave-generator"
+cluster = "pr-loop"
+produces = "new-waves"
+wave = "W-GEN"
+summary = """
+Turns review findings into the next wave plan, which re-enters the pipeline as a \
+fresh turn. tripll's registered `post-review-wave-generator` agent.\
+"""
+harness = "cursor-agent · skw driver"
+model = "auto"
+layer = 6
+column = 1
+[steps.params]
+max_turns = 3
+[[steps.next]]
+to = "outer-pipeline"
+label = "new waves"
+note = "next turn"
+style = "conditional"
+detail = "The generated plan re-enters at integration — this is what makes the loop compound."
+
+[[steps]]
+id = "ci-investigator"
+cluster = "pr-loop"
+produces = "findings"
+wave = "W-CI"
+summary = """
+Reads the failing check's logs and reports the root cause as a finding, without \
+touching code.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 7
+column = 3
+[steps.params]
+read_only = true
+[[steps.next]]
+to = "check-fixer"
+label = "finding"
+detail = "A finding with a root cause is handed to the fixer; investigation and repair stay separate."
+[[steps.next]]
+to = "postmortem"
+label = "finding"
+style = "conditional"
+detail = "Findings worth remembering also go to the postmortem — this is how the pipeline learns."
+
+[[steps]]
+id = "review-comment-triager"
+cluster = "pr-loop"
+produces = "findings"
+wave = "W-CI"
+summary = """
+Sorts review comments into actionable changes, questions to answer, and things \
+to decline, with a stated reason for each.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 7
+column = 2
+[[steps.next]]
+to = "review-comment-fixer"
+label = "actionable"
+detail = "Only comments classified as actionable become code; the rest are answered in the thread."
+
+[[steps]]
+id = "check-fixer"
+cluster = "pr-loop"
+produces = "fix-commit"
+wave = "W-CI-FIX"
+summary = """
+Applies the narrowest change that resolves one CI finding and pushes it as its \
+own commit.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 8
+column = 3
+[steps.params]
+scope = "one finding"
+[[steps.next]]
+to = "ci-investigator"
+label = "re-verify"
+style = "conditional"
+answer = "no"
+detail = "The fix is re-investigated rather than assumed: the check has to go green for the stated reason."
+[[steps.next]]
+to = "verify-checks"
+label = "checks fixed"
+answer = "yes"
+detail = "Once the finding is closed the run waits on the full check set, not just the one that failed."
+
+[[steps]]
+id = "review-comment-fixer"
+cluster = "pr-loop"
+produces = "fix-commit"
+wave = "W-CI-FIX"
+summary = """
+Makes the changes review asked for and replies on each thread it resolves.\
+"""
+harness = "cursor-agent · subagent"
+model = "auto"
+layer = 8
+column = 2
+[[steps.next]]
+to = "verify-checks"
+label = "threads resolved"
+detail = "Resolved threads join the same wait as CI fixes; both have to settle before the gate."
+
+[[steps]]
+id = "postmortem"
+label = "Wave postmortem"
+kind = "phase"
+cluster = "pr-loop"
+note = "finding → proposed rule"
+work = "finding → proposed rule"
+produces = "rule-memory"
+wave = "postmortem"
+summary = """
+Distils findings into proposed rules with citations. Agents may propose; only an \
+operator promotes a rule to active (R27, `tripll rules promote`).\
+"""
+harness = "tripll CLI"
+layer = 8
+column = 4
+[steps.params]
+command = "tripll rules derive"
+[[steps.next]]
+to = "merge-gate"
+label = "promote (R27)"
+style = "conditional"
+detail = "Promotion is an operator action; a proposed rule never activates itself."
+
+[[steps]]
+id = "verify-checks"
+label = "CI green + review clean"
+kind = "phase"
+cluster = "pr-loop"
+work = "poll checks"
+produces = "ci-green"
+wave = "re-push"
+summary = """
+Waits for every required check to go green and every review thread to be \
+resolved after the fix commits land.\
+"""
+harness = "GitHub checks + tripll review"
+layer = 9
+column = 2
+[steps.params]
+command = "tripll review watch"
+[[steps.next]]
+to = "merge-gate"
+label = "gates green"
+detail = "Green checks are the precondition for the merge gate, not the merge itself."
+
+[[steps]]
+id = "merge-gate"
+label = "Human merge gate"
+kind = "gate"
+note = "operator only (D15)"
+work = "operator (D15)"
+produces = "merge"
+wave = "promote"
+summary = """
+The final human gate: tripll never merges. The operator merges once checks are \
+green and the review is clean (D15).\
+"""
+harness = "operator (human)"
+layer = 10
+column = 2

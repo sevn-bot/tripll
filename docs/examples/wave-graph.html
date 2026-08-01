@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>docs/examples/wave-graph-input-set — wave graph</title>
+<style>
+body{font-family:ui-sans-serif,system-ui,sans-serif;margin:24px;background:#faf9f7;color:#1a1a1a}
+h1{font-size:1.35rem;margin:0 0 4px}
+h2{font-size:1rem;margin:24px 0 8px}
+.meta-line{color:#555;font-size:.9rem;margin:0 0 16px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.82rem;color:#444;margin-bottom:12px}
+.swatch{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:middle;border:1px solid #d4d0c8}
+.swatch-impl{background:#fff;border-color:#111}
+.swatch-test{background:#eef4ff;border-color:#7c9cff}
+.swatch-gate{background:#fff9e6;border-color:#e6a700}
+.dag{max-width:100%;height:auto}
+.edge{fill:none;stroke:#8a8577;stroke-width:1.5}
+.box rect{fill:#fff;stroke:#111;stroke-width:1.5}
+.box-test rect{fill:#eef4ff;stroke:#7c9cff}
+.box-gate rect{fill:#fff9e6;stroke:#e6a700}
+text{font-family:ui-sans-serif,system-ui,sans-serif}
+.wave{font-size:14px;font-weight:600}
+.lane{font-size:11px;fill:#444}
+.meta{font-size:10px;fill:#666;letter-spacing:.03em}
+ol{font-size:.88rem;color:#333;padding-left:20px}
+.empty{color:#777;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>wave graph — nodes &amp; edges</h1>
+<p class="meta-line">source=docs/examples/wave-graph-input-set · mode=B · lanes=1 · nodes=5 · edges=5</p>
+<div class="legend">
+<span><span class="swatch swatch-impl"></span>impl wave</span>
+<span><span class="swatch swatch-test"></span>test-author wave</span>
+<span><span class="swatch swatch-gate"></span>review gate</span>
+<span>arrow = depends_on (source must finish first)</span>
+</div>
+<svg class="dag" viewBox="0 0 530 542" width="530" height="542" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="wave dependency graph">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#8a8577"></path>
+</marker>
+</defs>
+<path class="edge" d="M 138 374 C 138 411, 265 411, 265 448" marker-end="url(#arrow)"><title>demo-feature:W2 → demo-feature:Final</title></path>
+<path class="edge" d="M 392 374 C 392 411, 265 411, 265 448" marker-end="url(#arrow)"><title>demo-feature:W3 → demo-feature:Final</title></path>
+<path class="edge" d="M 265 94 C 265 131, 265 131, 265 168" marker-end="url(#arrow)"><title>demo-feature:W0 → demo-feature:W1</title></path>
+<path class="edge" d="M 265 234 C 265 271, 138 271, 138 308" marker-end="url(#arrow)"><title>demo-feature:W1 → demo-feature:W2</title></path>
+<path class="edge" d="M 265 234 C 265 271, 392 271, 392 308" marker-end="url(#arrow)"><title>demo-feature:W1 → demo-feature:W3</title></path>
+<g class="box box-gate">
+<title>demo-feature:W0</title>
+<rect x="155" y="28" width="220" height="66" rx="9"></rect>
+<text class="wave" x="167" y="51">W0</text>
+<text class="lane" x="167" y="69">Demo feature — example wave g…</text>
+<text class="meta" x="167" y="85">batch Pre-0 · S · impl</text>
+</g>
+<g class="box box-test">
+<title>demo-feature:W1</title>
+<rect x="155" y="168" width="220" height="66" rx="9"></rect>
+<text class="wave" x="167" y="191">W1</text>
+<text class="lane" x="167" y="209">Demo feature — example wave g…</text>
+<text class="meta" x="167" y="225">batch A · M · test-author</text>
+</g>
+<g class="box box-impl">
+<title>demo-feature:W2</title>
+<rect x="28" y="308" width="220" height="66" rx="9"></rect>
+<text class="wave" x="40" y="331">W2</text>
+<text class="lane" x="40" y="349">Demo feature — example wave g…</text>
+<text class="meta" x="40" y="365">batch B · M · impl</text>
+</g>
+<g class="box box-impl">
+<title>demo-feature:W3</title>
+<rect x="282" y="308" width="220" height="66" rx="9"></rect>
+<text class="wave" x="294" y="331">W3</text>
+<text class="lane" x="294" y="349">Demo feature — example wave g…</text>
+<text class="meta" x="294" y="365">batch B · S · impl</text>
+</g>
+<g class="box box-impl">
+<title>demo-feature:Final</title>
+<rect x="155" y="448" width="220" height="66" rx="9"></rect>
+<text class="wave" x="167" y="471">Final</text>
+<text class="lane" x="167" y="489">Demo feature — example wave g…</text>
+<text class="meta" x="167" y="505">batch Final · L · impl</text>
+</g>
+</svg>
+<h2>Pre-0 gates</h2>
+<ol>
+<li>demo-feature: Wave W0 review gate — operator sign-off before implementation waves</li>
+</ol>
+</body>
+</html>

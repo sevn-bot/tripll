@@ -13,58 +13,114 @@ tripll is a headless, parallel **wave-plan execution pipeline** that compounds w
 learns: findings become **rules**, rules pack into the next brief, executable patterns fail
 `make rules-check`, and calibration scores predicted difficulty against the ledger.
 
-```bash
-uv tool install tripll && tripll setup && tripll doctor
-```
+> **Install note:** tripll is **not published on PyPI** — there is no `pip install tripll` or
+> `uv tool install tripll`. It runs from its own checkout via [`uv`](https://docs.astral.sh/uv/)
+> and `make`, as shown below.
 
-From a target checkout, onboard and validate before your first dispatch:
-
-```bash
-cd ~/code/my-project && tripll init && tripll validate-plan docs/plans/*-wave-plan.md
-```
-
-See the [product pipeline diagram](about-tripll/assets/pipeline.html) and the
-[rules runbook](docs/runbooks/rules-runbook.md) for the compounding loop end to end.
-
----
-
-## New here? Start here
-
-If you only have `pip install tripll` (or `uv tool install tripll`) and a git checkout you
-want to automate, follow this path **before** the operator sections below:
+## Quickstart — get started in 6 steps
 
 ```bash
-uv tool install tripll        # or: pip install tripll
-tripll setup                  # once per machine — providers, models, tracing
-tripll doctor                 # confirm backends and repo layout will run
-cd ~/code/my-project && tripll init     # brownfield: specs + evaluation + tripll.toml
-# — or —
-tripll new my-project                   # greenfield: scaffold + starter docs
-cd my-project && tripll doctor
-tripll validate-plan docs/plans/*-wave-plan.md
-make run-set SET=my-set                 # or tripll run runs/input/my-set
+# 1. Clone and install the CLI into the project env (+ git hooks)
+git clone https://github.com/sevn-bot/tripll && cd tripll
+make setup                       # uv sync (dev/api/obs) + pre-commit hooks
+
+# 2. Confirm the CLI resolves
+uv run tripll --version          # tripll 0.0.1
+
+# 3. Authenticate a backend CLI (see "Authentication" below)
+claude setup-token               # subscription login → CLAUDE_CODE_OAUTH_TOKEN (recommended)
+
+# 4. Write machine config — providers, default models, tracing (no secrets, R24)
+uv run tripll setup
+
+# 5. Check readiness — backends on PATH, repo layout, packaged template
+uv run tripll doctor
+
+# 6. Point at the repo you want to automate, then plan + run a wave set
+export TRIPLL_REPO_ROOT=~/code/my-project        # the target checkout to dispatch against
+uv run tripll init                               # brownfield onboarding on the target (idempotent)
+mkdir -p runs/input                              # wave sets live in this tripll checkout
+# drop a wave-plan set into runs/input/<set>/ (see "Input shapes"), then:
+make plan-set SET=<set>                           # validate + build the RunGraph (no dispatch)
+make run-set  SET=<set>                           # start the run → stops at the Pre-0 human gate
 ```
 
-| Step | What you get |
-|------|----------------|
-| **`tripll setup`** | Machine config at `~/.config/tripll/config.toml` (providers, default models). |
-| **`tripll doctor`** | Readiness report — missing logins surfaced as actions, never stored secrets (**R24**). |
-| **`tripll init`** | Brownfield: `tripll.toml`, starter specs/PRDs/plans, `docs/evaluation-<date>.md` with file:line evidence, `runs/` dirs. Idempotent — operator edits preserved. |
-| **`tripll new`** | Greenfield: Python skeleton + the same emitters as `init`. |
+| Step | Command | What you get |
+|------|---------|--------------|
+| Install | `make setup` | The `tripll` CLI in the project env + git hooks. **The only supported install** — `pip install tripll` / `uv tool install tripll` do **not** work (not published). |
+| Configure | `uv run tripll setup` | Machine config at `~/.config/tripll/config.toml` (providers, default models, tracing). Stores **no** credentials (**R24**). |
+| Diagnose | `uv run tripll doctor` | Readiness report — missing backend logins surfaced as fixes, never stored. |
+| Onboard | `uv run tripll init` | Brownfield: `tripll.toml`, starter specs/PRDs/plans, `docs/evaluation-<date>.md` with file:line evidence, `runs/` dirs. Idempotent. |
+| Scaffold | `uv run tripll new my-project` | Greenfield: Python skeleton + the same emitters as `init`. |
 
-**Config precedence (four layers):** CLI flags → environment (`TRIPLL_*`) → repo
-`tripll.toml` → machine `~/.config/tripll/config.toml`. See
+> **Running against a target repo.** tripll dispatches against a *target* git checkout. Run tripll
+> from this checkout and set `TRIPLL_REPO_ROOT=/path/to/target` (or run from inside the target and
+> tripll walks up to its `.git`). Prefer the **`make`** targets and `uv run tripll` — there is no
+> global `tripll` binary after a clone. (If you want one anyway, `uv tool install .` from this clone
+> puts `tripll` on `PATH`, but the `make` workflow assumes you run from the checkout.)
+
+**Config precedence (four layers):** CLI flags → environment (`TRIPLL_*`) → repo `tripll.toml` →
+machine `~/.config/tripll/config.toml`. See
 [`docs/runbooks/onboarding-runbook.md`](docs/runbooks/onboarding-runbook.md).
 
-**Human gates:** v3 plans may set `[pipeline] human_gates` to `prompt` (default),
-`auto_accept`, or `fail`. Override with `TRIPLL_HUMAN_GATES=auto_accept` for unattended
-Pre-0 when tier-4 canaries pass — documented in
+**Human gates:** v3 plans may set `[pipeline] human_gates` to `prompt` (default), `auto_accept`, or
+`fail`. Override with `TRIPLL_HUMAN_GATES=auto_accept` for unattended Pre-0 when tier-4 canaries
+pass — see
 [`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md#human-gate-modes-human_gates).
 
-Deep dives: [`docs/design-note.md`](docs/design-note.md) ·
+See the [product pipeline diagram](about-tripll/assets/pipeline.html) and the
+[rules runbook](docs/runbooks/rules-runbook.md) for the compounding loop end to end. Deep dives:
+[`docs/design-note.md`](docs/design-note.md) ·
 [`docs/runbooks/operator-runbook.md`](docs/runbooks/operator-runbook.md) ·
 [`docs/runbooks/onboarding-runbook.md`](docs/runbooks/onboarding-runbook.md) ·
 [`docs/runbooks/rules-runbook.md`](docs/runbooks/rules-runbook.md).
+
+---
+
+## Authentication
+
+tripll never handles model credentials itself — it stores **no** API keys or tokens (**R24**), and
+`tripll setup` writes only routing/limits to `~/.config/tripll/config.toml`. Auth lives entirely in
+the **backend CLI** you dispatch to (`claude` for the default `claude_code` backend, `cursor-agent`
+for Cursor). tripll spawns that CLI as a subprocess that **inherits your shell environment**, so the
+token the backend expects is forwarded automatically. Run `uv run tripll doctor` to see what tripll
+can reach.
+
+Two ways to authenticate the default **`claude_code`** backend — pick one:
+
+### Option 1 — Subscription login (recommended)
+
+Use your Claude (Pro / Max / Team) subscription — no API key, no per-token billing.
+
+- **Interactive / on your workstation:**
+
+  ```bash
+  claude login             # opens a browser; the claude CLI stores the credential for you
+  ```
+
+- **Headless / CI / containers** — mint a long-lived OAuth token and export it:
+
+  ```bash
+  claude setup-token                      # prints a token tied to your subscription
+  export CLAUDE_CODE_OAUTH_TOKEN=<token>  # tripll forwards it to `claude` automatically
+  ```
+
+  In GitHub Actions, store it as the `CLAUDE_CODE_OAUTH_TOKEN` secret — the bundled
+  [`mergecraft.yml`](.github/workflows/mergecraft.yml) PR-review workflow already reads it.
+
+### Option 2 — API key (fallback)
+
+Pay-as-you-go with an Anthropic API key:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...       # inherited by `claude`, same as the token above
+```
+
+`claude` (and therefore tripll) falls back to `ANTHROPIC_API_KEY` when no subscription token is set.
+
+> **Cursor backends.** `cursor_local` authenticates with `cursor-agent login`; `cursor_cloud`
+> additionally needs `uv sync --extra cloud` and a configured `sevn.evolution.router`. `uv run
+> tripll doctor` reports which backends are ready and the exact fix for any that aren't.
 
 ---
 
@@ -98,7 +154,7 @@ Run all commands from this directory (the `tripll` checkout).
 ```bash
 cp .env.example .env    # optional: TRIPLL_RUNS, TRIPLL_DEBUG
 make setup              # uv sync (dev/api/obs/graph) + git hooks
-make init               # once: creates runs/{input,processing,processed,failed}/
+make init               # once: init this tripll checkout (includes runs/ layout)
 ```
 
 ### Optional extras

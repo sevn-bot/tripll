@@ -1,4 +1,4 @@
-"""tripll.cli._plan — validate, validate-plan, plan commands (issue #16 seam).
+"""tripll.cli._plan — validate, validate-plan, pipeline-view, plan commands (#16 seam).
 
 Exports:
     register_plan_commands — attach plan commands and group to *app*.
@@ -18,11 +18,36 @@ from tripll.pipeline import make_run_id
 from tripll.repo_root import resolve_repo_root
 
 
+def _write_validation_graph_html(input_path: Path, out_path: Path) -> None:
+    """Build the RunGraph for *input_path* and write an HTML DAG to *out_path*."""
+    from tripll.graph_html import write_graph_html
+    from tripll.parse import build_graph_from_dir
+
+    input_dir = input_path if input_path.is_dir() else input_path.parent
+    try:
+        graph = build_graph_from_dir(input_dir, run_id=make_run_id(input_dir.name))
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Graph HTML export failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    written = write_graph_html(graph, out_path, source=str(input_dir))
+    typer.echo(f"Wrote graph HTML: {written}")
+
+
 def validate(
     input_path: Annotated[
         Path,
         typer.Argument(help="Path to input directory or a single *-wave-plan.md file."),
     ],
+    graph_html: Annotated[
+        Path | None,
+        typer.Option(
+            "--graph-html",
+            help=(
+                "On success, write a self-contained HTML graph (nodes + depends_on edges) "
+                "to this path. A single file resolves its graph from the parent directory."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Validate wave-plan file(s) for tripll v1 execution graph format."""
     from tripll.parse.wave_plan_v1 import validate_wave_plan_v1
@@ -50,6 +75,53 @@ def validate(
         raise typer.Exit(1)
 
     typer.echo(f"OK — {len(paths)} wave-plan file(s) valid (tripll v1 execution graph).")
+
+    if graph_html is not None:
+        _write_validation_graph_html(input_path, graph_html)
+
+
+# ---------------------------------------------------------------------------
+# pipeline-view — charts derived from a pipeline file
+# ---------------------------------------------------------------------------
+
+
+def pipeline_view_cmd(
+    pipeline_file: Annotated[
+        Path,
+        typer.Argument(help="Path to a pipeline_format = 1 TOML file."),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option("--out", help="Destination .html file."),
+    ],
+    view: Annotated[
+        str,
+        typer.Option("--view", help="Which chart to render: execution | state."),
+    ] = "execution",
+) -> None:
+    """Render a pipeline file as a self-contained HTML graph.
+
+    ``execution`` draws the pipeline steps (agents, phases, gates) as nodes with
+    the declared transitions as edges. ``state`` draws the artifact states as
+    nodes with the agent work on the edges.
+    """
+    from tripll.pipeline_spec import PipelineSpecError, load_pipeline_spec
+    from tripll.pipeline_views import VIEWS, write_view_html
+
+    builder = VIEWS.get(view)
+    if builder is None:
+        typer.echo(f"Unknown view {view!r} (expected one of {', '.join(VIEWS)})", err=True)
+        raise typer.Exit(2)
+    if not pipeline_file.is_file():
+        typer.echo(f"Pipeline file not found: {pipeline_file}", err=True)
+        raise typer.Exit(1)
+    try:
+        spec = load_pipeline_spec(pipeline_file)
+        written = write_view_html(builder(spec), out)
+    except (PipelineSpecError, ValueError) as exc:
+        typer.echo(f"Pipeline view failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Wrote pipeline view: {written}")
 
 
 # ---------------------------------------------------------------------------
@@ -257,8 +329,9 @@ def plan_publish_cmd(
 
 
 def register_plan_commands(app: typer.Typer) -> None:
-    """Register validate, validate-plan, and the plan group on *app*."""
+    """Register validate, validate-plan, pipeline-view, and the plan group on *app*."""
 
     app.command()(validate)
     app.command("validate-plan")(validate_plan_cmd)
+    app.command("pipeline-view")(pipeline_view_cmd)
     app.add_typer(plan_app, name="plan")
