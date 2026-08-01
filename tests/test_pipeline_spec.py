@@ -79,6 +79,19 @@ def test_reads_transition_detail(tmp_path: Path) -> None:
     assert transition.detail == "Hands the suite over."
 
 
+def test_reads_transition_answer(tmp_path: Path) -> None:
+    body = MINIMAL.replace('label = "go"', 'label = "go"\nanswer = "yes"')
+    transition = load_pipeline_spec(_write(tmp_path, body)).steps[0].transitions[0]
+    assert transition.answer == "yes"
+    assert load_pipeline_spec(_write(tmp_path, MINIMAL)).steps[0].transitions[0].answer == ""
+
+
+def test_rejects_unknown_transition_answer(tmp_path: Path) -> None:
+    body = MINIMAL.replace('label = "go"', 'label = "go"\nanswer = "maybe"')
+    with pytest.raises(PipelineSpecError, match="unknown answer 'maybe'"):
+        load_pipeline_spec(_write(tmp_path, body))
+
+
 def test_rejects_non_scalar_param(tmp_path: Path) -> None:
     body = MINIMAL.replace('id = "a"', 'id = "a"\n[steps.params]\nmodels = ["a", "b"]')
     with pytest.raises(PipelineSpecError, match=r"params\.models must be a scalar"):

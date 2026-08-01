@@ -9,14 +9,17 @@ Given a :class:`~tripll.pipeline_spec.PipelineSpec` (loaded from a
   moves the pipeline from one state to the next.
 
 Placement comes from the file when it supplies ``layer`` / ``column``, and is
-derived from the transitions otherwise. Edges are routed by geometry: forward
-edges run down or right, same-layer feedback edges dip below their row, long
-same-layer edges arc above it, and edges back to an earlier layer bow out
-through a side channel.
+derived from the transitions otherwise — serpentine, so the flow turns at the end
+of each row and returns leftwards on the next instead of running off the page.
+Every edge is routed orthogonally with rounded 90° bends: forward edges drop
+through the gutter above their target row, edges along a row follow that row's
+reading direction, feedback edges dip below their row, and edges back to an
+earlier row return through a corridor beside the nodes.
 
 The rendered document is a single offline file: inline CSS and one inline script
-give it zoom controls, a node popup carrying each agent's note (summary, harness,
-model, params), and an edge tooltip explaining the flow.
+give it zoom controls, drag-to-pan, hover focus, a node popup carrying each
+agent's note (summary, harness, model, params), and an edge tooltip explaining
+the routing rule.
 
 Exports:
     DetailCard — one agent note inside a node popup.
@@ -44,6 +47,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from tripll.pipeline_spec import (
+        Answer,
         PipelineSpec,
         State,
         Step,
@@ -67,13 +71,21 @@ __all__ = [
 ]
 
 NODE_W = 172
-NODE_H = 56
-MARGIN = 28
-CHANNEL = 104
-DIP_BASE = 32
+NODE_H = 58
+MARGIN = 30
+#: Width reserved outside the grid for edges that return to an earlier row.
+CORRIDOR = 76
+#: Distance from a node's side to the vertical run of a return edge.
+RETURN_GAP = 30
+#: Radius applied to every 90° bend in an edge.
+CORNER = 13
+DIP_BASE = 34
 DIP_STEP = 26
-#: Same-layer edges wider than this many columns arc above the row.
-ARC_SPAN = 1.6
+#: Vertical fan-out applied to turning edges that share one row gutter.
+CHANNEL_STEP = 11
+#: Height a cluster box extends above its first row, leaving its heading clear of
+#: the edge labels that sit in the same gutter.
+CLUSTER_TOP = 80
 
 _KIND_LABELS: dict[StepKind, str] = {
     "gate": "Human / gate",
@@ -88,6 +100,15 @@ _STYLE_LABELS: dict[TransitionStyle, str] = {
     "conditional": "Conditional / feedback",
     "optional": "Optional / side path",
 }
+
+#: Arrowhead colours, keyed by answer first then transition style.
+_ARROW_COLOURS: tuple[tuple[str, str], ...] = (
+    ("primary", "#46506b"),
+    ("conditional", "#d98324"),
+    ("optional", "#8f7fc6"),
+    ("yes", "#17916a"),
+    ("no", "#d1495b"),
+)
 
 
 @dataclass(frozen=True)
@@ -173,6 +194,8 @@ class ViewEdge:
         note (str): Optional second label line.
         detail (str): Prose shown on hover; explains the flow across this edge.
         style (TransitionStyle): Visual class.
+        answer (Answer): Decision arm — ``yes`` or ``no`` — drawn as a pass/fail
+            badge on the edge label, or empty when the edge is not a branch.
         bow (Literal["auto", "left", "right"]): Side channel for edges that run
             back to an earlier layer.
     """
@@ -183,6 +206,7 @@ class ViewEdge:
     note: str = ""
     detail: str = ""
     style: TransitionStyle = "primary"
+    answer: Answer = ""
     bow: Literal["auto", "left", "right"] = "auto"
 
 
@@ -222,8 +246,8 @@ class PipelineView:
     edges: tuple[ViewEdge, ...]
     clusters: tuple[ViewCluster, ...] = ()
     source: str = ""
-    col_pitch: int = 232
-    row_pitch: int = 148
+    col_pitch: int = 248
+    row_pitch: int = 152
 
     def node_map(self) -> dict[str, ViewNode]:
         """Return node_id → node.
@@ -303,7 +327,11 @@ def _derive_placement(
     order: Sequence[str],
     edges: Iterable[tuple[str, str]],
 ) -> dict[str, tuple[int, float]]:
-    """Assign (layer, column) by longest path, ignoring cycle-closing edges.
+    """Assign (layer, column) by longest path, serpentine, ignoring back edges.
+
+    Rows alternate direction — row 0 fills left to right, row 1 right to left —
+    so a long pipeline turns and returns down the page instead of running off
+    the right edge, and consecutive steps stay adjacent across the turn.
 
     Args:
         order (Sequence[str]): Node ids in declaration order.
@@ -329,13 +357,15 @@ def _derive_placement(
                 changed = True
         if not changed:
             break
-    used: dict[int, int] = {}
-    placement: dict[str, tuple[int, float]] = {}
+    rows: dict[int, list[str]] = {}
     for node_id in order:
-        row = layer[node_id]
-        column = used.get(row, 0)
-        used[row] = column + 1
-        placement[node_id] = (row, float(column))
+        rows.setdefault(layer[node_id], []).append(node_id)
+    widest = max((len(members) for members in rows.values()), default=1)
+    placement: dict[str, tuple[int, float]] = {}
+    for row, members in rows.items():
+        for index, node_id in enumerate(members):
+            column = index if row % 2 == 0 else widest - 1 - index
+            placement[node_id] = (row, float(column))
     return placement
 
 
@@ -349,6 +379,8 @@ class _Geometry:
     """Pixel geometry for one view."""
 
     view: PipelineView
+    directions: dict[int, int] = field(default_factory=dict)
+    channels: dict[tuple[str, str], float] = field(default_factory=dict)
     x: dict[str, int] = field(default_factory=dict)
     y: dict[str, int] = field(default_factory=dict)
     width: int = 0
@@ -362,14 +394,14 @@ class _Geometry:
 
 
 def _bow_side(edge: ViewEdge, source: ViewNode, target: ViewNode) -> Literal["left", "right"]:
-    """Return the side channel an edge to an earlier layer should bow through."""
+    """Return the side an edge to an earlier layer should return through."""
     if edge.bow != "auto":
         return edge.bow
     return "left" if target.column <= source.column else "right"
 
 
 def _needs_channel(view: PipelineView) -> tuple[bool, bool]:
-    """Return whether the (left, right) side channels are used."""
+    """Return whether the (left, right) return corridors are used."""
     nodes = view.node_map()
     left = right = False
     for edge in view.edges:
@@ -382,42 +414,158 @@ def _needs_channel(view: PipelineView) -> tuple[bool, bool]:
     return left, right
 
 
+def _layer_directions(view: PipelineView) -> dict[int, int]:
+    """Infer each row's reading direction from the primary edges inside it.
+
+    A serpentine layout reads left-to-right on one row and right-to-left on the
+    next, so "forward" along a row is not always rightwards. Rows vote with
+    their own primary edges; rows without any default to left-to-right.
+
+    Args:
+        view (PipelineView): The view being laid out.
+
+    Returns:
+        dict[int, int]: layer index → ``+1`` (rightwards) or ``-1`` (leftwards).
+
+    Examples:
+        >>> nodes = (ViewNode("a", "A", "agent", 0, 1), ViewNode("b", "B", "agent", 0, 0))
+        >>> view = PipelineView("v", "t", "s", nodes, (ViewEdge("a", "b"),))
+        >>> _layer_directions(view)[0]
+        -1
+    """
+    nodes = view.node_map()
+    votes: dict[int, int] = {}
+    for edge in view.edges:
+        source, target = nodes[edge.source], nodes[edge.target]
+        if source.layer != target.layer or edge.style != "primary":
+            continue
+        step = 1 if target.column > source.column else -1
+        votes[source.layer] = votes.get(source.layer, 0) + step
+    return {node.layer: (-1 if votes.get(node.layer, 0) < 0 else 1) for node in view.nodes}
+
+
+def _channel_offsets(view: PipelineView) -> dict[tuple[str, str], float]:
+    """Fan out the turning edges that share a row gutter so they do not overlap."""
+    nodes = view.node_map()
+    per_layer: dict[int, int] = {}
+    offsets: dict[tuple[str, str], float] = {}
+    for edge in view.edges:
+        source, target = nodes[edge.source], nodes[edge.target]
+        if target.layer <= source.layer or source.column == target.column:
+            continue
+        index = per_layer.get(target.layer, 0)
+        per_layer[target.layer] = index + 1
+        offsets[edge.source, edge.target] = CHANNEL_STEP * ((index + 1) // 2) * (-1) ** index
+    return offsets
+
+
 def _geometry(view: PipelineView) -> _Geometry:
     left_channel, right_channel = _needs_channel(view)
-    pad_left = MARGIN + (CHANNEL if left_channel else 0)
-    pad_right = MARGIN + (CHANNEL if right_channel else 0)
-    geo = _Geometry(view=view)
+    pad_left = MARGIN + (CORRIDOR if left_channel else 0)
+    pad_right = MARGIN + (CORRIDOR if right_channel else 0)
+    pad_top = MARGIN + (CLUSTER_TOP if view.clusters else DIP_BASE)
+    geo = _Geometry(
+        view=view,
+        directions=_layer_directions(view),
+        channels=_channel_offsets(view),
+    )
     for node in view.nodes:
         geo.x[node.node_id] = int(pad_left + node.column * view.col_pitch)
-        geo.y[node.node_id] = MARGIN + node.layer * view.row_pitch
+        geo.y[node.node_id] = pad_top + node.layer * view.row_pitch
     max_column = max((node.column for node in view.nodes), default=0)
     max_layer = max((node.layer for node in view.nodes), default=0)
     geo.width = int(pad_left + max_column * view.col_pitch + NODE_W + pad_right)
-    geo.height = MARGIN + max_layer * view.row_pitch + NODE_H + MARGIN + DIP_BASE
+    geo.height = pad_top + max_layer * view.row_pitch + NODE_H + MARGIN + DIP_BASE
     return geo
 
 
-def _dip_depths(view: PipelineView) -> dict[tuple[str, str], int]:
-    """Stagger same-layer backward edges so their dips do not overlap."""
+def _dip_depths(view: PipelineView, directions: dict[int, int]) -> dict[tuple[str, str], int]:
+    """Stagger the feedback edges of each row so their dips do not overlap."""
     nodes = view.node_map()
     per_layer: dict[int, int] = {}
     depths: dict[tuple[str, str], int] = {}
     for edge in view.edges:
         source, target = nodes[edge.source], nodes[edge.target]
-        if target.layer == source.layer and target.column < source.column:
+        if source.layer != target.layer:
+            continue
+        step = 1 if target.column > source.column else -1
+        if step != directions[source.layer]:
             index = per_layer.get(source.layer, 0)
             depths[edge.source, edge.target] = DIP_BASE + index * DIP_STEP
             per_layer[source.layer] = index + 1
     return depths
 
 
+Point = tuple[float, float]
+
+
+def _rounded_path(points: Sequence[Point], radius: float = CORNER) -> str:
+    """Render an orthogonal polyline as an SVG path with rounded right angles.
+
+    Each interior corner is cut back along both of its segments and closed with a
+    quadratic curve, so turns read as a 90° bend with a soft radius rather than a
+    long diagonal sweep.
+
+    Args:
+        points (Sequence[Point]): Orthogonal waypoints, start to end.
+        radius (float): Desired corner radius in pixels; clamped per corner to
+            half of the shorter adjacent segment.
+
+    Returns:
+        str: An SVG path ``d`` attribute.
+
+    Examples:
+        >>> _rounded_path([(0, 0), (0, 40), (40, 40)], radius=10)
+        'M 0 0 L 0 30 Q 0 40 10 40 L 40 40'
+    """
+    if len(points) < 3:
+        return " ".join(
+            ("M" if index == 0 else "L") + f" {_round(x)} {_round(y)}"
+            for index, (x, y) in enumerate(points)
+        )
+    parts = [f"M {_round(points[0][0])} {_round(points[0][1])}"]
+    for index in range(1, len(points) - 1):
+        before, corner, after = points[index - 1], points[index], points[index + 1]
+        in_len = abs(corner[0] - before[0]) + abs(corner[1] - before[1])
+        out_len = abs(after[0] - corner[0]) + abs(after[1] - corner[1])
+        cut = min(radius, in_len / 2, out_len / 2)
+        entry = _towards(corner, before, cut)
+        exit_ = _towards(corner, after, cut)
+        parts.append(f"L {_round(entry[0])} {_round(entry[1])}")
+        parts.append(
+            f"Q {_round(corner[0])} {_round(corner[1])} {_round(exit_[0])} {_round(exit_[1])}"
+        )
+    parts.append(f"L {_round(points[-1][0])} {_round(points[-1][1])}")
+    return " ".join(parts)
+
+
+def _round(value: float) -> str:
+    """Format a coordinate compactly and deterministically."""
+    return f"{value:g}"
+
+
+def _towards(origin: Point, target: Point, distance: float) -> Point:
+    """Return the point *distance* pixels from *origin* along a straight axis."""
+    dx, dy = target[0] - origin[0], target[1] - origin[1]
+    length = abs(dx) + abs(dy)
+    if length == 0:
+        return origin
+    return (origin[0] + dx / length * distance, origin[1] + dy / length * distance)
+
+
 @dataclass(frozen=True)
 class _EdgeGeom:
-    """Resolved SVG path plus label anchor for one edge."""
+    """Resolved SVG path plus label anchor for one edge.
+
+    ``anchor`` says how the label pill sits on ``label_y``: ``center`` puts the
+    pill on the line, ``above`` hangs it from that baseline — used for edges that
+    run along a row, where the gap between two nodes is narrower than the pill.
+    """
 
     path: str
-    label_x: int
-    label_y: int
+    label_x: float
+    label_y: float
+    anchor: Literal["center", "above"] = "center"
 
 
 def _edge_geometry(
@@ -425,63 +573,75 @@ def _edge_geometry(
     geo: _Geometry,
     dips: dict[tuple[str, str], int],
 ) -> _EdgeGeom:
+    """Route one edge as an orthogonal path and pick where its label sits."""
     nodes = geo.view.node_map()
     source, target = nodes[edge.source], nodes[edge.target]
-    ax, ay = geo.x[edge.source], geo.y[edge.source]
-    bx, by = geo.x[edge.target], geo.y[edge.target]
+    left_s, top_s = geo.x[edge.source], geo.y[edge.source]
+    left_t, top_t = geo.x[edge.target], geo.y[edge.target]
+    mid_x_s, mid_y_s = geo.centre_x(edge.source), geo.centre_y(edge.source)
+    mid_x_t, mid_y_t = geo.centre_x(edge.target), geo.centre_y(edge.target)
 
     if target.layer > source.layer:
-        x1, y1 = geo.centre_x(edge.source), ay + NODE_H
-        x2, y2 = geo.centre_x(edge.target), by
-        mid = (y1 + y2) // 2
-        return _EdgeGeom(
-            path=f"M {x1} {y1} C {x1} {mid}, {x2} {mid}, {x2} {y2}",
-            label_x=(x1 + x2) // 2,
-            label_y=mid - 6,
-        )
-
-    if target.layer == source.layer and target.column > source.column:
-        if target.column - source.column > ARC_SPAN:
-            x1, x2 = geo.centre_x(edge.source), geo.centre_x(edge.target)
-            y_top = ay
-            y_arc = y_top - DIP_BASE
+        start, end = (mid_x_s, top_s + NODE_H), (mid_x_t, top_t)
+        if abs(mid_x_s - mid_x_t) < 2:
             return _EdgeGeom(
-                path=f"M {x1} {y_top} C {x1} {y_arc}, {x2} {y_arc}, {x2} {y_top}",
-                label_x=(x1 + x2) // 2,
-                label_y=y_arc + 2,
+                path=_rounded_path([start, end]),
+                label_x=mid_x_s,
+                label_y=(start[1] + end[1]) / 2,
             )
-        y_mid = geo.centre_y(edge.source)
-        x1, x2 = ax + NODE_W, bx
+        channel = (
+            top_t
+            - (geo.view.row_pitch - NODE_H) / 2
+            + geo.channels.get((edge.source, edge.target), 0.0)
+        )
+        points = [start, (mid_x_s, channel), (mid_x_t, channel), end]
         return _EdgeGeom(
-            path=f"M {x1} {y_mid} L {x2} {y_mid}",
-            label_x=(x1 + x2) // 2,
-            label_y=y_mid - 9,
+            path=_rounded_path(points),
+            label_x=(mid_x_s + mid_x_t) / 2,
+            label_y=channel,
         )
 
     if target.layer == source.layer:
-        dip = dips[edge.source, edge.target]
-        y_row = ay + NODE_H
-        y_dip = y_row + dip
-        x1, x2 = geo.centre_x(edge.source), geo.centre_x(edge.target)
+        direction = geo.directions[source.layer]
+        step = 1 if target.column > source.column else -1
+        if step == direction:
+            start_x = left_s + NODE_W if direction > 0 else left_s
+            end_x = left_t if direction > 0 else left_t + NODE_W
+            return _EdgeGeom(
+                path=_rounded_path([(start_x, mid_y_s), (end_x, mid_y_s)]),
+                label_x=(start_x + end_x) / 2,
+                label_y=top_s - 6,
+                anchor="above",
+            )
+        dip = top_s + NODE_H + dips[edge.source, edge.target]
+        points = [
+            (mid_x_s, top_s + NODE_H),
+            (mid_x_s, dip),
+            (mid_x_t, dip),
+            (mid_x_t, top_t + NODE_H),
+        ]
         return _EdgeGeom(
-            path=f"M {x1} {y_row} C {x1} {y_dip}, {x2} {y_dip}, {x2} {y_row}",
-            label_x=(x1 + x2) // 2,
-            label_y=y_dip - 2,
+            path=_rounded_path(points),
+            label_x=(mid_x_s + mid_x_t) / 2,
+            label_y=dip,
         )
 
-    y1, y2 = geo.centre_y(edge.source), geo.centre_y(edge.target)
     if _bow_side(edge, source, target) == "right":
-        x1, x2 = ax + NODE_W, bx + NODE_W
-        bow = max(x1, x2) + CHANNEL - 24
-        label_x = bow - 4
+        corridor = max(left_s, left_t) + NODE_W + RETURN_GAP
+        start_x, end_x = left_s + NODE_W, left_t + NODE_W
     else:
-        x1, x2 = ax, bx
-        bow = min(x1, x2) - CHANNEL + 24
-        label_x = bow + 4
+        corridor = min(left_s, left_t) - RETURN_GAP
+        start_x, end_x = left_s, left_t
+    points = [
+        (start_x, mid_y_s),
+        (corridor, mid_y_s),
+        (corridor, mid_y_t),
+        (end_x, mid_y_t),
+    ]
     return _EdgeGeom(
-        path=f"M {x1} {y1} C {bow} {y1}, {bow} {y2}, {x2} {y2}",
-        label_x=label_x,
-        label_y=(y1 + y2) // 2,
+        path=_rounded_path(points),
+        label_x=corridor,
+        label_y=(mid_y_s + mid_y_t) / 2,
     )
 
 
@@ -492,32 +652,65 @@ def _edge_geometry(
 
 def _render_clusters(view: PipelineView, geo: _Geometry) -> list[str]:
     parts: list[str] = []
-    pad = 18
-    for cluster in view.clusters:
+    pad = 20
+    for index, cluster in enumerate(view.clusters):
         members = [m for m in cluster.members if m in geo.x]
         if not members:
             continue
         xs = [geo.x[m] for m in members]
         ys = [geo.y[m] for m in members]
         x = min(xs) - pad
-        y = min(ys) - pad - 14
+        y = min(ys) - CLUSTER_TOP
         width = max(xs) + NODE_W + pad - x
         height = max(ys) + NODE_H + pad - y
         parts.extend(
             [
-                '<g class="cluster">',
-                f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="12"></rect>',
-                f'<text x="{x + 12}" y="{y + 18}">{html.escape(cluster.label)}</text>',
+                f'<g class="cluster cluster-{index % 3}">',
+                f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="16"></rect>',
+                f'<text x="{x + 16}" y="{y + 16}">{html.escape(cluster.label)}</text>',
                 "</g>",
             ]
         )
     return parts
 
 
+#: Approximate advance width per character at the label and note font sizes.
+_LABEL_CHAR = 6.0
+_NOTE_CHAR = 5.2
+_ANSWER_GLYPH = {"yes": "\u2713", "no": "\u2717"}
+
+
+def _render_edge_label(edge: ViewEdge, eg: _EdgeGeom, index: int) -> list[str]:
+    """Draw an edge's label and note inside a pill so both stay readable."""
+    label = f"{_ANSWER_GLYPH[edge.answer]} {edge.label}" if edge.answer else edge.label
+    lines = [line for line in (label, edge.note) if line]
+    if not lines:
+        return []
+    width = max(len(label) * _LABEL_CHAR, len(edge.note) * _NOTE_CHAR) + 18
+    height = 20 if len(lines) == 1 else 32
+    top = eg.label_y - height if eg.anchor == "above" else eg.label_y - height / 2
+    variant = f"pill-{edge.answer}" if edge.answer else f"pill-{edge.style}"
+    parts = [
+        f'<g class="plabel" data-label="{index}">',
+        f'<rect class="pill {variant}" x="{_round(eg.label_x - width / 2)}" '
+        f'y="{_round(top)}" width="{_round(width)}" height="{height}" rx="10"></rect>',
+    ]
+    baselines = (14.0,) if len(lines) == 1 else (13.0, 25.0)
+    classes = ("elabel", "enote") if label else ("enote",)
+    parts.extend(
+        f'<text class="{css}" x="{_round(eg.label_x)}" y="{_round(top + baseline)}">'
+        f"{html.escape(line)}</text>"
+        for line, baseline, css in zip(lines, baselines, classes, strict=False)
+    )
+    parts.append("</g>")
+    return parts
+
+
 def _render_edges(view: PipelineView, geo: _Geometry) -> list[str]:
-    dips = _dip_depths(view)
+    dips = _dip_depths(view, geo.directions)
     nodes = view.node_map()
-    parts: list[str] = []
+    paths: list[str] = []
+    labels: list[str] = []
     for index, edge in enumerate(view.edges):
         eg = _edge_geometry(edge, geo, dips)
         title = f"{nodes[edge.source].label} → {nodes[edge.target].label}"
@@ -525,22 +718,15 @@ def _render_edges(view: PipelineView, geo: _Geometry) -> list[str]:
             title += f" · {edge.label}"
         if edge.detail:
             title += f"\n{edge.detail}"
-        parts.append(
-            f'<path class="edge edge-{edge.style}" data-edge="{index}" d="{eg.path}" '
-            f'marker-end="url(#arrow-{edge.style})">'
+        paths.append(
+            f'<path class="edge edge-{edge.style}" data-edge="{index}" '
+            f'data-source="{html.escape(edge.source, quote=True)}" '
+            f'data-target="{html.escape(edge.target, quote=True)}" d="{eg.path}" '
+            f'marker-end="url(#arrow-{edge.answer or edge.style})">'
             f"<title>{html.escape(title)}</title></path>"
         )
-        if edge.label:
-            parts.append(
-                f'<text class="elabel" x="{eg.label_x}" y="{eg.label_y}">'
-                f"{html.escape(edge.label)}</text>"
-            )
-        if edge.note:
-            offset = eg.label_y + (13 if edge.label else 4)
-            parts.append(
-                f'<text class="enote" x="{eg.label_x}" y="{offset}">{html.escape(edge.note)}</text>'
-            )
-    return parts
+        labels.extend(_render_edge_label(edge, eg, index))
+    return paths + labels
 
 
 #: Labels longer than this wrap onto a second line at a hyphen.
@@ -582,6 +768,9 @@ _TEXT_ROWS: dict[tuple[int, bool], tuple[int, ...]] = {
 
 
 def _render_nodes(view: PipelineView, geo: _Geometry) -> list[str]:
+    branches: dict[str, int] = {}
+    for edge in view.edges:
+        branches[edge.source] = branches.get(edge.source, 0) + 1
     parts: list[str] = []
     for node in view.nodes:
         x, y = geo.x[node.node_id], geo.y[node.node_id]
@@ -590,13 +779,15 @@ def _render_nodes(view: PipelineView, geo: _Geometry) -> list[str]:
         centre = x + NODE_W // 2
         openable = node.detail is not None and not node.detail.is_empty()
         classes = f"node node-{node.kind}" + (" node-open" if openable else "")
-        attrs = f' data-node="{html.escape(node.node_id, quote=True)}"' if openable else ""
         hint = " · click for details" if openable else ""
         parts.extend(
             [
-                f'<g class="{classes}"{attrs}>',
+                f'<g class="{classes}" data-node="{html.escape(node.node_id, quote=True)}">',
                 f"<title>{html.escape(node.node_id + hint)}</title>",
-                f'<rect x="{x}" y="{y}" width="{NODE_W}" height="{NODE_H}" rx="9"></rect>',
+                f'<rect class="body" x="{x}" y="{y}" width="{NODE_W}" height="{NODE_H}" '
+                'rx="11"></rect>',
+                f'<rect class="rail" x="{x + 1}" y="{y + 10}" width="5" '
+                f'height="{NODE_H - 20}" rx="2.5"></rect>',
             ]
         )
         parts.extend(
@@ -608,62 +799,107 @@ def _render_nodes(view: PipelineView, geo: _Geometry) -> list[str]:
                 f'<text class="nnote" x="{centre}" y="{y + rows[len(lines)]}">'
                 f"{html.escape(node.note)}</text>"
             )
+        fan = branches.get(node.node_id, 0)
+        if fan > 1:
+            parts.extend(
+                [
+                    '<g class="fan">',
+                    f"<title>routes {fan} ways</title>",
+                    f'<circle cx="{x + NODE_W - 13}" cy="{y + 13}" r="9"></circle>',
+                    f'<text x="{x + NODE_W - 13}" y="{y + 17}">{fan}</text>',
+                    "</g>",
+                ]
+            )
         parts.append("</g>")
     return parts
 
 
 _STYLE = [
-    "body{font-family:ui-sans-serif,system-ui,sans-serif;margin:24px;"
-    "background:#faf9f7;color:#1a1a1a}",
-    "h1{font-size:1.35rem;margin:0 0 4px}",
-    ".sub{color:#555;font-size:.92rem;margin:0 0 14px}",
-    ".legend{display:flex;gap:18px;flex-wrap:wrap;font-size:.8rem;color:#444;"
-    "margin:0 0 16px;align-items:center}",
-    ".swatch{display:inline-block;width:11px;height:11px;border-radius:3px;"
-    "margin-right:6px;vertical-align:middle}",
-    ".swatch-gate{background:#fde8b0;border:1px solid #d79b0a}",
-    ".swatch-phase{background:#e6dcf7;border:1px solid #8a6ec4}",
-    ".swatch-agent{background:#dff0d8;border:1px solid #5f9e4e}",
-    ".swatch-artifact{background:#dce8f8;border:1px solid #5f86c4}",
-    ".swatch-external{background:#e4e4e2;border:1px solid #9a978f}",
-    ".line{display:inline-block;width:26px;margin-right:6px;vertical-align:middle;"
-    "border-top:2px solid #6f6a5e}",
-    ".line-conditional{border-top-style:dashed}",
-    ".line-optional{border-top-style:dotted}",
-    ".bar{display:flex;gap:8px;align-items:center;margin:0 0 10px}",
-    ".bar button{font:inherit;font-size:.82rem;padding:4px 11px;border-radius:7px;"
-    "border:1px solid #d9d4c8;background:#fff;color:#2c2a24;cursor:pointer}",
-    ".bar button:hover{background:#f2efe8}",
-    ".bar .level{font-size:.8rem;color:#6f6a5e;min-width:46px}",
+    ":root{--ink:#1c1a16;--muted:#6f6a5e;--rule:#e6e2d9;--primary:#46506b;"
+    "--conditional:#d98324;--optional:#8f7fc6;--yes:#17916a;--no:#d1495b}",
+    "*{box-sizing:border-box}",
+    "body{font-family:ui-sans-serif,system-ui,sans-serif;margin:0;padding:26px 26px 34px;"
+    "min-height:100vh;color:var(--ink);"
+    "background:linear-gradient(180deg,#fbfaf8 0%,#f4f2ec 55%,#edeae2 100%)}",
+    "h1{font-size:1.4rem;margin:0 0 4px;letter-spacing:-.01em}",
+    ".sub{color:var(--muted);font-size:.92rem;margin:0 0 14px}",
+    ".legend{display:flex;gap:8px 16px;flex-wrap:wrap;font-size:.78rem;color:#4a463c;"
+    "margin:0 0 14px;align-items:center}",
+    ".legend span.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;"
+    "border-radius:99px;background:rgba(255,255,255,.78);border:1px solid var(--rule)}",
+    ".swatch{display:inline-block;width:11px;height:11px;border-radius:3px}",
+    ".swatch-gate{background:#ffeecd;border:1.5px solid #e08e0b}",
+    ".swatch-phase{background:#e7eaff;border:1.5px solid #5a6bdc}",
+    ".swatch-agent{background:#e2f5ec;border:1.5px solid #0f9d76}",
+    ".swatch-artifact{background:#e4f0ff;border:1.5px solid #2b7fd4}",
+    ".swatch-external{background:#efedea;border:1.5px solid #8b8778}",
+    ".line{display:inline-block;width:24px;border-top:2px solid var(--primary)}",
+    ".line-conditional{border-top-style:dashed;border-top-color:var(--conditional)}",
+    ".line-optional{border-top-style:dotted;border-top-color:var(--optional)}",
+    ".mark{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;"
+    "border-radius:99px;font-size:.62rem;font-weight:700;color:#fff}",
+    ".mark-yes{background:var(--yes)}",
+    ".mark-no{background:var(--no)}",
+    ".mark-fan{background:#2c2a24}",
+    ".bar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}",
+    ".bar button{font:inherit;font-size:.82rem;padding:5px 12px;border-radius:8px;"
+    "border:1px solid #dcd7ca;background:#fff;color:#2c2a24;cursor:pointer;"
+    "box-shadow:0 1px 2px rgba(28,26,22,.06)}",
+    ".bar button:hover{background:#f5f2ea;border-color:#c9c3b2}",
+    ".bar .level{font-size:.8rem;color:var(--muted);min-width:46px}",
     ".bar .hint{font-size:.78rem;color:#8a8577}",
-    ".canvas{overflow:auto;background:#fff;border:1px solid #e6e2d9;border-radius:12px}",
+    ".canvas{overflow:auto;background:#fff;border:1px solid var(--rule);border-radius:16px;"
+    "box-shadow:0 10px 34px rgba(28,26,22,.09);cursor:grab;"
+    "background-image:radial-gradient(#eae6dc 1px,transparent 1px);background-size:22px 22px}",
+    ".canvas.dragging{cursor:grabbing}",
     ".graph{max-width:100%;height:auto;display:block}",
-    ".cluster rect{fill:#f4f2ee;stroke:#ddd8cc;stroke-width:1}",
-    ".cluster text{font-size:11px;fill:#6f6a5e;letter-spacing:.09em;text-transform:uppercase}",
-    ".node rect{fill:#fff;stroke:#111;stroke-width:1.5}",
-    ".node-gate rect{fill:#fde8b0;stroke:#d79b0a}",
-    ".node-phase rect{fill:#e6dcf7;stroke:#8a6ec4}",
-    ".node-agent rect{fill:#dff0d8;stroke:#5f9e4e}",
-    ".node-artifact rect{fill:#dce8f8;stroke:#5f86c4}",
-    ".node-external rect{fill:#e4e4e2;stroke:#9a978f}",
+    ".cluster rect{fill:#f6f4ef;stroke:#e0dbcd;stroke-width:1}",
+    ".cluster-0 rect{fill:#f2f6fb;stroke:#d6e2f0}",
+    ".cluster-1 rect{fill:#f4f2fa;stroke:#e0dbee}",
+    ".cluster-2 rect{fill:#f6f6f1;stroke:#e4e1d4}",
+    ".cluster text{font-size:11px;fill:#8a8577;letter-spacing:.1em;text-transform:uppercase}",
+    ".node .body{fill:#fff;stroke:#2c2a24;stroke-width:1.5;filter:url(#lift)}",
+    ".node .rail{fill:#2c2a24}",
+    ".node-gate .body{fill:#fff7e8;stroke:#e08e0b}",
+    ".node-gate .rail{fill:#e08e0b}",
+    ".node-phase .body{fill:#f0f2ff;stroke:#5a6bdc}",
+    ".node-phase .rail{fill:#5a6bdc}",
+    ".node-agent .body{fill:#edfaf4;stroke:#0f9d76}",
+    ".node-agent .rail{fill:#0f9d76}",
+    ".node-artifact .body{fill:#eef5ff;stroke:#2b7fd4}",
+    ".node-artifact .rail{fill:#2b7fd4}",
+    ".node-external .body{fill:#f4f3f0;stroke:#8b8778}",
+    ".node-external .rail{fill:#8b8778}",
     "text{font-family:ui-sans-serif,system-ui,sans-serif}",
-    ".nlabel{font-size:12.5px;font-weight:600;text-anchor:middle}",
-    ".nnote{font-size:10.5px;fill:#555;text-anchor:middle}",
-    ".edge{fill:none;stroke:#6f6a5e;stroke-width:1.6}",
-    ".edge-conditional{stroke-dasharray:6 4;stroke:#8a8577}",
-    ".edge-optional{stroke-dasharray:2 4;stroke:#9a978f}",
-    ".elabel,.enote{text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:3px;"
-    "stroke-linejoin:round}",
-    ".elabel{font-size:10.5px;font-weight:600;fill:#2c2a24}",
+    ".nlabel{font-size:12.5px;font-weight:650;text-anchor:middle;fill:#221f19}",
+    ".nnote{font-size:10.5px;fill:#6f6a5e;text-anchor:middle}",
+    ".fan circle{fill:#2c2a24;stroke:#fff;stroke-width:1.5}",
+    ".fan text{font-size:9.5px;font-weight:700;fill:#fff;text-anchor:middle}",
+    ".edge{fill:none;stroke:var(--primary);stroke-width:1.7;stroke-linecap:round}",
+    ".edge-conditional{stroke:var(--conditional);stroke-dasharray:7 4}",
+    ".edge-optional{stroke:var(--optional);stroke-dasharray:2 4}",
+    ".pill{fill:#fff;stroke:var(--rule);stroke-width:1}",
+    ".pill-conditional{fill:#fff8ee;stroke:#f0cfa2}",
+    ".pill-optional{fill:#f8f6fd;stroke:#ddd4f0}",
+    ".pill-yes{fill:#e9f8f1;stroke:#9fd9c2}",
+    ".pill-no{fill:#fdedef;stroke:#f0b9c1}",
+    ".elabel,.enote{text-anchor:middle}",
+    ".elabel{font-size:10.5px;font-weight:650;fill:#2c2a24}",
     ".enote{font-size:10px;fill:#6f6a5e}",
     ".node-open{cursor:pointer}",
-    ".node-open:hover rect{stroke-width:2.5}",
-    "[data-edge]:hover{stroke:#2c2a24;stroke-width:2.6}",
+    ".node-open:hover .body{stroke-width:2.6}",
+    "[data-edge]:hover{stroke:#12100c;stroke-width:2.8}",
+    ".focus .node,.focus .edge,.focus .plabel,.focus .cluster{opacity:.16;"
+    "transition:opacity .12s ease}",
+    ".focus .lit{opacity:1}",
     "#tip{position:fixed;z-index:20;max-width:320px;padding:9px 11px;border-radius:9px;"
     "background:#2c2a24;color:#f7f5f0;font-size:.78rem;line-height:1.42;"
     "box-shadow:0 6px 22px rgba(0,0,0,.28);pointer-events:none}",
     "#tip b{display:block;font-size:.8rem;margin-bottom:2px}",
     "#tip .cond{color:#f3d38a}",
+    "#tip .answer{font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:.68rem}",
+    "#tip .answer-yes{color:#7ee0b6}",
+    "#tip .answer-no{color:#f5a2ad}",
     "#tip .flow{margin-top:5px;color:#e2ded4}",
     "#sheet[hidden],#tip[hidden]{display:none}",
     "#sheet{position:fixed;inset:0;z-index:30;display:flex;align-items:center;"
@@ -711,6 +947,26 @@ function step(by) { zoom = Math.min(4, Math.max(0.4, Math.round((zoom + by) * 10
 document.getElementById('zoom-in').addEventListener('click', () => step(0.25));
 document.getElementById('zoom-out').addEventListener('click', () => step(-0.25));
 document.getElementById('zoom-fit').addEventListener('click', () => { zoom = 1; applyZoom(); });
+document.addEventListener('keydown', (event) => {
+  if (event.target !== document.body) return;
+  if (event.key === '+' || event.key === '=') step(0.25);
+  else if (event.key === '-') step(-0.25);
+  else if (event.key === '0') { zoom = 1; applyZoom(); }
+});
+
+const canvas = document.querySelector('.canvas');
+let drag = null;
+canvas.addEventListener('mousedown', (event) => {
+  if (event.button !== 0) return;
+  drag = { x: event.clientX, y: event.clientY, left: canvas.scrollLeft, top: canvas.scrollTop };
+  canvas.classList.add('dragging');
+});
+window.addEventListener('mousemove', (event) => {
+  if (!drag) return;
+  canvas.scrollLeft = drag.left - (event.clientX - drag.x);
+  canvas.scrollTop = drag.top - (event.clientY - drag.y);
+});
+window.addEventListener('mouseup', () => { drag = null; canvas.classList.remove('dragging'); });
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -753,8 +1009,38 @@ function openNode(id) {
 function hide() { sheet.hidden = true; }
 sheet.addEventListener('click', (event) => { if (event.target === sheet) hide(); });
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hide(); });
-for (const node of document.querySelectorAll('[data-node]')) {
-  node.addEventListener('click', () => openNode(node.dataset.node));
+const edgePaths = Array.from(document.querySelectorAll('[data-edge]'));
+const pills = new Map(
+  Array.from(document.querySelectorAll('[data-label]')).map((g) => [Number(g.dataset.label), g])
+);
+const nodeGroups = new Map(
+  Array.from(document.querySelectorAll('[data-node]')).map((g) => [g.dataset.node, g])
+);
+
+function clearFocus() {
+  svg.classList.remove('focus');
+  for (const el of svg.querySelectorAll('.lit')) el.classList.remove('lit');
+}
+function focusNode(id) {
+  clearFocus();
+  svg.classList.add('focus');
+  nodeGroups.get(id).classList.add('lit');
+  edgePaths.forEach((path, index) => {
+    if (path.dataset.source !== id && path.dataset.target !== id) return;
+    path.classList.add('lit');
+    const other = path.dataset.source === id ? path.dataset.target : path.dataset.source;
+    const peer = nodeGroups.get(other);
+    if (peer) peer.classList.add('lit');
+    const pill = pills.get(index);
+    if (pill) pill.classList.add('lit');
+  });
+}
+for (const [id, group] of nodeGroups) {
+  group.addEventListener('mouseenter', () => focusNode(id));
+  group.addEventListener('mouseleave', clearFocus);
+  if (group.classList.contains('node-open')) {
+    group.addEventListener('click', () => openNode(id));
+  }
 }
 
 function place(event) {
@@ -764,10 +1050,11 @@ function place(event) {
   tip.style.left = Math.max(12, x) + 'px';
   tip.style.top = Math.max(12, y) + 'px';
 }
-for (const path of document.querySelectorAll('[data-edge]')) {
+for (const path of edgePaths) {
   const edge = DATA.edges[Number(path.dataset.edge)];
   path.addEventListener('mouseenter', (event) => {
     tip.replaceChildren(el('b', '', edge.from + ' \\u2192 ' + edge.to));
+    if (edge.answer) tip.append(el('div', 'answer answer-' + edge.answer, edge.answer + ' branch'));
     if (edge.label) tip.append(el('div', 'cond', edge.label));
     if (edge.note) tip.append(el('div', 'cond', edge.note));
     tip.append(el('div', 'flow', edge.detail || DATA.styles[edge.style]));
@@ -821,6 +1108,7 @@ def _detail_payload(view: PipelineView, width: int) -> str:
             "note": edge.note,
             "detail": edge.detail,
             "style": edge.style,
+            "answer": edge.answer,
         }
         for edge in view.edges
     ]
@@ -877,13 +1165,23 @@ def render_view_html(view: PipelineView) -> str:
         '<div class="legend">',
     ]
     parts.extend(
-        f'<span><span class="swatch swatch-{kind}"></span>{html.escape(_KIND_LABELS[kind])}</span>'
+        f'<span class="chip"><span class="swatch swatch-{kind}"></span>'
+        f"{html.escape(_KIND_LABELS[kind])}</span>"
         for kind in kinds
     )
     parts.extend(
-        f'<span><span class="line line-{style}"></span>{html.escape(_STYLE_LABELS[style])}</span>'
+        f'<span class="chip"><span class="line line-{style}"></span>'
+        f"{html.escape(_STYLE_LABELS[style])}</span>"
         for style in styles
     )
+    answers = [answer for answer in ("yes", "no") if any(e.answer == answer for e in view.edges)]
+    parts.extend(
+        f'<span class="chip"><span class="mark mark-{answer}">{_ANSWER_GLYPH[answer]}</span>'
+        f"{answer} branch</span>"
+        for answer in answers
+    )
+    if any(sum(1 for e in view.edges if e.source == n.node_id) > 1 for n in view.nodes):
+        parts.append('<span class="chip"><span class="mark mark-fan">n</span>routes n ways</span>')
     parts.extend(
         [
             "</div>",
@@ -892,8 +1190,8 @@ def render_view_html(view: PipelineView) -> str:
             '<button id="zoom-in" type="button">+ Zoom in</button>',
             '<button id="zoom-fit" type="button">Fit</button>',
             '<span class="level" id="zoom-level">100%</span>',
-            '<span class="hint">Click a node for its agent note · hover an edge for the flow'
-            "</span>",
+            '<span class="hint">Click a node for its agent note · hover a node to isolate its '
+            "flow · hover an edge for the routing rule · drag to pan · +/&minus;/0 to zoom</span>",
             "</div>",
             '<div class="canvas">',
             f'<svg class="graph" id="graph" viewBox="0 0 {geo.width} {geo.height}" '
@@ -903,14 +1201,18 @@ def render_view_html(view: PipelineView) -> str:
             "<defs>",
         ]
     )
-    for style, colour in (
-        ("primary", "#6f6a5e"),
-        ("conditional", "#8a8577"),
-        ("optional", "#9a978f"),
-    ):
+    parts.extend(
+        [
+            '<filter id="lift" x="-25%" y="-30%" width="150%" height="180%">',
+            '<feDropShadow dx="0" dy="1.6" stdDeviation="2.2" flood-color="#1c1a16" '
+            'flood-opacity="0.16"></feDropShadow>',
+            "</filter>",
+        ]
+    )
+    for marker, colour in _ARROW_COLOURS:
         parts.extend(
             [
-                f'<marker id="arrow-{style}" viewBox="0 0 10 10" refX="9" refY="5" '
+                f'<marker id="arrow-{marker}" viewBox="0 0 10 10" refX="9" refY="5" '
                 'markerWidth="7" markerHeight="7" orient="auto-start-reverse">',
                 f'<path d="M 0 0 L 10 5 L 0 10 z" fill="{colour}"></path>',
                 "</marker>",
@@ -1026,6 +1328,7 @@ def execution_view(spec: PipelineSpec) -> PipelineView:
             note=transition.note,
             detail=transition.detail,
             style=transition.style,
+            answer=transition.answer,
             bow=transition.bow,
         )
         for step in spec.steps
@@ -1125,7 +1428,7 @@ class _EdgeParts:
 def _derive_state_edges(spec: PipelineSpec) -> tuple[ViewEdge, ...]:
     """Derive one state-view edge per state transition, merging parallel steps."""
     incoming = spec.incoming()
-    grouped: dict[tuple[str, str, TransitionStyle, str], _EdgeParts] = {}
+    grouped: dict[tuple[str, str, TransitionStyle, Answer, str], _EdgeParts] = {}
     for step in spec.steps:
         if not step.produces:
             continue
@@ -1133,7 +1436,13 @@ def _derive_state_edges(spec: PipelineSpec) -> tuple[ViewEdge, ...]:
             for state_id, works in _source_states(source_id, spec, incoming, frozenset()):
                 if state_id == step.produces:
                     continue
-                key = (state_id, step.produces, transition.style, transition.bow)
+                key = (
+                    state_id,
+                    step.produces,
+                    transition.style,
+                    transition.answer,
+                    transition.bow,
+                )
                 parts = grouped.setdefault(key, _EdgeParts())
                 parts.labels.append(_state_edge_label(step, transition))
                 parts.notes.append(_chain_note([*works, step.work_label]))
@@ -1146,9 +1455,10 @@ def _derive_state_edges(spec: PipelineSpec) -> tuple[ViewEdge, ...]:
             note=_merge_parts(parts.notes, ", "),
             detail=_merge_parts(parts.details, " "),
             style=style,
+            answer=answer,
             bow=bow,  # type: ignore[arg-type]
         )
-        for (source, target, style, bow), parts in grouped.items()
+        for (source, target, style, answer, bow), parts in grouped.items()
     )
 
 

@@ -11,7 +11,13 @@ description = "All agents, loops, and feedback paths of the L1 pipeline"
 #   state view     — `produces` states are nodes, the steps are the edges
 #
 # `layer` / `column` place a node on the grid (fractional columns allowed).
-# Omit them for every step and placement is derived from the transitions.
+# Placement below is serpentine: row 0 reads left to right, row 1 right to left,
+# and so on, so the flow turns at the end of each row and returns on the next.
+# Omit layer/column for every step and a serpentine placement is derived from
+# the transitions instead.
+#
+# `answer = "yes" | "no"` marks the arms of a decision, drawn as a green or red
+# badge on the edge; `style = "optional"` marks a side path.
 #
 # `summary`, `harness`, `model`, and `[steps.params]` are what the charts show
 # when a node is clicked; `detail` on a transition is what the edge shows on
@@ -31,12 +37,12 @@ states = ["goal", "code-kg", "spec-refs", "run-graph", "pre0"]
 [[clusters]]
 id = "wave-exec"
 label = "Tests-first wave execution — per wave"
-states = ["red-tests", "wave-commit", "quality-ok", "verdict", "integrated", "new-waves"]
+states = ["red-tests", "wave-commit", "quality-ok", "verdict", "integrated"]
 
 [[clusters]]
 id = "pr-loop"
 label = "PR + compounding loop"
-states = ["open-pr", "findings", "fix-commit", "ci-green", "merge", "rule-memory"]
+states = ["new-waves", "open-pr", "findings", "fix-commit", "ci-green", "merge", "rule-memory"]
 
 # ---------------------------------------------------------------------------
 # States — nodes of the state view
@@ -79,14 +85,14 @@ column = 4
 id = "red-tests"
 label = "RED test baseline"
 layer = 1
-column = 0
+column = 4
 
 [[states]]
 id = "wave-commit"
 label = "Implemented wave"
 note = "commit"
 layer = 1
-column = 1
+column = 3
 
 [[states]]
 id = "quality-ok"
@@ -98,51 +104,51 @@ column = 2
 id = "verdict"
 label = "Isolated verdict"
 layer = 1
-column = 3
+column = 1
 
 [[states]]
 id = "integrated"
 label = "Integrated branch"
 layer = 1
-column = 4
+column = 0
 
 [[states]]
 id = "new-waves"
 label = "New wave plan"
-layer = 1
-column = 5
+layer = 2
+column = 0
 
 [[states]]
 id = "open-pr"
 label = "Open PR"
 layer = 2
-column = 0
+column = 1
 
 [[states]]
 id = "findings"
 label = "Findings"
 note = "open set"
 layer = 2
-column = 1
+column = 2
 
 [[states]]
 id = "fix-commit"
 label = "Fix commit"
 layer = 2
-column = 2
+column = 3
 
 [[states]]
 id = "ci-green"
 label = "CI green + review clean"
 layer = 2
-column = 3
+column = 4
 
 [[states]]
 id = "merge"
 label = "Human merge gate"
 kind = "gate"
 layer = 2
-column = 4
+column = 5
 
 [[states]]
 id = "rule-memory"
@@ -232,7 +238,7 @@ lives, and what must stay untouched.\
 harness = "cursor-agent · subagent"
 model = "auto"
 layer = 1
-column = 0
+column = 3
 [[steps.next]]
 to = "reference-picker"
 detail = "The draft spec goes to reference selection so each requirement gets an example to imitate."
@@ -249,7 +255,7 @@ existing pattern, the nearest test, the module shape to copy.\
 harness = "cursor-agent · subagent"
 model = "auto"
 layer = 1
-column = 1
+column = 2
 [[steps.next]]
 to = "plan-author"
 label = "spec + refs"
@@ -265,7 +271,7 @@ into a planning input, skipping specification.\
 harness = "cursor-agent · subagent"
 model = "auto"
 layer = 1
-column = 2.5
+column = 1
 [[steps.next]]
 to = "plan-author"
 label = "error bundle"
@@ -283,7 +289,7 @@ kept for v1/v2 plans that predate the split into planner plus shape critic.\
 harness = "cursor-agent · skw driver"
 model = "auto"
 layer = 1
-column = 4
+column = 0
 [steps.params]
 perms = "--force"
 max_turns = 3
@@ -303,7 +309,7 @@ commands, and the Pre-0 decisions an operator has to make before dispatch.\
 harness = "cursor-agent · subagent"
 model = "auto"
 layer = 2
-column = 0
+column = 2
 [[steps.next]]
 to = "plan-shape-critic"
 detail = "Every plan is graded before validation; the planner never approves its own shape."
@@ -320,11 +326,18 @@ verifiable exit criteria — and sends the plan back when the shape is wrong.\
 harness = "cursor-agent · subagent"
 model = "auto"
 layer = 2
-column = 1
+column = 3
 [[steps.next]]
 to = "l1-validate"
 label = "shape accepted"
+answer = "yes"
 detail = "An accepted shape goes to the validator, which checks invariants no critic can eyeball."
+[[steps.next]]
+to = "plan-author"
+label = "shape rejected"
+style = "conditional"
+answer = "no"
+detail = "A plan with the wrong shape goes back to the planner; the critic never rewrites it itself."
 
 [[steps]]
 id = "l1-validate"
@@ -338,7 +351,7 @@ verification commands that actually resolve.\
 """
 harness = "tripll CLI"
 layer = 3
-column = 0
+column = 3
 [steps.params]
 command = "tripll validate"
 [[steps.next]]
@@ -359,7 +372,7 @@ dispatch; tripll never crosses this line on its own (D15).\
 """
 harness = "operator (human)"
 layer = 3
-column = 1.5
+column = 2
 [[steps.next]]
 to = "wave-orchestrator"
 label = "approved"
@@ -376,7 +389,7 @@ through the orchestrator prompt.\
 harness = "cursor-agent · skw driver"
 model = "auto"
 layer = 3
-column = 3
+column = 1
 [steps.params]
 perms = "--force"
 max_turns = 3
@@ -399,7 +412,7 @@ agent, selected by the wave's `role`.\
 harness = "cursor-agent · skw driver"
 model = "auto"
 layer = 4
-column = 0.5
+column = 1
 [steps.params]
 perms = "--force"
 max_turns = 3
@@ -443,7 +456,7 @@ whether the change follows the references the plan cited. tripll's registered \
 harness = "cursor-agent · skw driver"
 model = "auto"
 layer = 4
-column = 3.5
+column = 3
 [steps.params]
 thinking = "high"
 [[steps.next]]
@@ -455,10 +468,12 @@ detail = "A broad but stylistic gap gets a dedicated cleanup pass instead of ano
 to = "implementer"
 label = "gap → next round"
 style = "conditional"
+answer = "no"
 detail = "Substantive gaps go back to the implementer as another round on the same wave, not a new wave."
 [[steps.next]]
 to = "wave-verifier"
 label = "quality accepted"
+answer = "yes"
 detail = "Accepted work is verified in isolation, so a pass is reproduced from a clean state."
 
 [[steps]]
@@ -472,7 +487,7 @@ without changing behaviour.\
 harness = "cursor-agent · subagent"
 model = "auto"
 layer = 4
-column = 5
+column = 4
 [[steps.next]]
 to = "quality-critic"
 label = "re-grade"
@@ -491,13 +506,14 @@ wave that only passed on a dirty tree is caught here.\
 harness = "tripll CLI + cursor-agent"
 model = "auto"
 layer = 5
-column = 3.5
+column = 3
 [steps.params]
 command = "make ci-affected"
 [[steps.next]]
 to = "implementer"
 label = "failed → retry"
 style = "conditional"
+answer = "no"
 detail = "A failed verification sends the wave back for another attempt, capped by the retry budget."
 [[steps.next]]
 to = "test-creator"
@@ -507,6 +523,7 @@ detail = "When the failure is the test's fault rather than the code's, repair go
 [[steps.next]]
 to = "outer-pipeline"
 label = "isolated verdict"
+answer = "yes"
 detail = "A green isolated verdict releases the wave into the shared branch."
 
 [[steps]]
@@ -522,7 +539,7 @@ tripll's fixed outer loop (`loops/l1_outer.py`): verify the batch, commit, \
 review, and generate remediation waves when review demands them.\
 """
 harness = "tripll engine"
-layer = 6
+layer = 5
 column = 2
 [steps.params]
 nodes = "validate → waves → verify → commit → review → generate"
@@ -547,8 +564,8 @@ the set of checks that have to pass.\
 """
 harness = "cursor-agent · subagent"
 model = "auto"
-layer = 7
-column = 0.5
+layer = 6
+column = 2
 [[steps.next]]
 to = "ci-investigator"
 label = "CI red"
@@ -571,8 +588,8 @@ fresh turn. tripll's registered `post-review-wave-generator` agent.\
 """
 harness = "cursor-agent · skw driver"
 model = "auto"
-layer = 7
-column = 3.5
+layer = 6
+column = 1
 [steps.params]
 max_turns = 3
 [[steps.next]]
@@ -580,7 +597,6 @@ to = "outer-pipeline"
 label = "new waves"
 note = "next turn"
 style = "conditional"
-bow = "right"
 detail = "The generated plan re-enters at integration — this is what makes the loop compound."
 
 [[steps]]
@@ -594,8 +610,8 @@ touching code.\
 """
 harness = "cursor-agent · subagent"
 model = "auto"
-layer = 8
-column = 0
+layer = 7
+column = 3
 [steps.params]
 read_only = true
 [[steps.next]]
@@ -619,8 +635,8 @@ to decline, with a stated reason for each.\
 """
 harness = "cursor-agent · subagent"
 model = "auto"
-layer = 8
-column = 1.5
+layer = 7
+column = 2
 [[steps.next]]
 to = "review-comment-fixer"
 label = "actionable"
@@ -637,18 +653,20 @@ own commit.\
 """
 harness = "cursor-agent · subagent"
 model = "auto"
-layer = 9
-column = 0
+layer = 8
+column = 3
 [steps.params]
 scope = "one finding"
 [[steps.next]]
 to = "ci-investigator"
 label = "re-verify"
 style = "conditional"
+answer = "no"
 detail = "The fix is re-investigated rather than assumed: the check has to go green for the stated reason."
 [[steps.next]]
 to = "verify-checks"
 label = "checks fixed"
+answer = "yes"
 detail = "Once the finding is closed the run waits on the full check set, not just the one that failed."
 
 [[steps]]
@@ -661,8 +679,8 @@ Makes the changes review asked for and replies on each thread it resolves.\
 """
 harness = "cursor-agent · subagent"
 model = "auto"
-layer = 9
-column = 1.5
+layer = 8
+column = 2
 [[steps.next]]
 to = "verify-checks"
 label = "threads resolved"
@@ -682,15 +700,14 @@ Distils findings into proposed rules with citations. Agents may propose; only an
 operator promotes a rule to active (R27, `tripll rules promote`).\
 """
 harness = "tripll CLI"
-layer = 9
-column = 3
+layer = 8
+column = 4
 [steps.params]
 command = "tripll rules derive"
 [[steps.next]]
 to = "merge-gate"
 label = "promote (R27)"
 style = "conditional"
-bow = "right"
 detail = "Promotion is an operator action; a proposed rule never activates itself."
 
 [[steps]]
@@ -706,8 +723,8 @@ Waits for every required check to go green and every review thread to be \
 resolved after the fix commits land.\
 """
 harness = "GitHub checks + tripll review"
-layer = 10
-column = 0.75
+layer = 9
+column = 2
 [steps.params]
 command = "tripll review watch"
 [[steps.next]]
@@ -728,5 +745,5 @@ The final human gate: tripll never merges. The operator merges once checks are \
 green and the review is clean (D15).\
 """
 harness = "operator (human)"
-layer = 11
-column = 1.625
+layer = 10
+column = 2

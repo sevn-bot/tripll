@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 __all__ = [
+    "Answer",
     "BowSide",
     "Cluster",
     "PipelineSpec",
@@ -44,6 +45,7 @@ __all__ = [
 StepKind = Literal["agent", "phase", "gate", "external", "artifact"]
 TransitionStyle = Literal["primary", "conditional", "optional"]
 BowSide = Literal["auto", "left", "right"]
+Answer = Literal["", "yes", "no"]
 
 SUPPORTED_FORMAT = 1
 
@@ -66,7 +68,7 @@ _STEP_KEYS = frozenset(
         "next",
     }
 )
-_TRANSITION_KEYS = frozenset({"to", "label", "note", "detail", "style", "bow"})
+_TRANSITION_KEYS = frozenset({"to", "label", "note", "detail", "style", "answer", "bow"})
 _STATE_KEYS = frozenset({"id", "label", "kind", "note", "layer", "column"})
 _CLUSTER_KEYS = frozenset({"id", "label", "states"})
 
@@ -85,6 +87,8 @@ class Transition:
         note (str): Optional second label line.
         detail (str): Prose shown when hovering the edge; explains the flow.
         style (TransitionStyle): Control-transition class.
+        answer (Answer): Which arm of a decision this is — ``yes`` or ``no`` —
+            drawn as a pass/fail badge on the edge.
         bow (BowSide): Side channel for transitions back to an earlier layer.
     """
 
@@ -93,6 +97,7 @@ class Transition:
     note: str = ""
     detail: str = ""
     style: TransitionStyle = "primary"
+    answer: Answer = ""
     bow: BowSide = "auto"
 
 
@@ -302,12 +307,16 @@ def _parse_transition(raw: Any, where: str) -> Transition:
         _require_str(raw.get("style"), where, "style"), get_args(TransitionStyle), where, "style"
     )
     bow = _check_choice(_require_str(raw.get("bow"), where, "bow"), get_args(BowSide), where, "bow")
+    answer = _check_choice(
+        _require_str(raw.get("answer"), where, "answer"), get_args(Answer), where, "answer"
+    )
     return Transition(
         to=to,
         label=_require_str(raw.get("label"), where, "label"),
         note=_require_str(raw.get("note"), where, "note"),
         detail=_require_str(raw.get("detail"), where, "detail"),
         style=style or "primary",  # type: ignore[arg-type]
+        answer=answer,  # type: ignore[arg-type]
         bow=bow or "auto",  # type: ignore[arg-type]
     )
 

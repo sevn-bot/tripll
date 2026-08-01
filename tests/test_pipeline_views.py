@@ -16,6 +16,9 @@ from tripll.pipeline_views import (
     PipelineView,
     ViewEdge,
     ViewNode,
+    _derive_placement,
+    _layer_directions,
+    _rounded_path,
     execution_view,
     render_view_html,
     state_view,
@@ -90,7 +93,7 @@ def test_execution_view_uses_every_step_and_transition() -> None:
 
 def test_execution_view_keeps_file_placement_and_kinds() -> None:
     nodes = execution_view(load_pipeline_spec(SAMPLE)).node_map()
-    assert (nodes["pre0-gate"].layer, nodes["pre0-gate"].column) == (3, 1.5)
+    assert (nodes["pre0-gate"].layer, nodes["pre0-gate"].column) == (3, 2)
     assert nodes["pre0-gate"].kind == "gate"
     assert nodes["l1-validate"].kind == "phase"
     assert nodes["implementer"].note == "wave Wi"
@@ -103,11 +106,13 @@ def test_execution_view_groups_steps_into_clusters() -> None:
     assert "pr-shepherd" not in wave_exec
 
 
-def test_execution_view_carries_transition_style_and_bow() -> None:
+def test_execution_view_carries_transition_style_and_answer() -> None:
     view = execution_view(load_pipeline_spec(SAMPLE))
     assert _edge(view, "wave-verifier", "implementer").style == "conditional"
     assert _edge(view, "build-plan-from-errors", "plan-author").style == "optional"
-    assert _edge(view, "post-review-wave-generator", "outer-pipeline").bow == "right"
+    assert _edge(view, "wave-verifier", "implementer").answer == "no"
+    assert _edge(view, "wave-verifier", "outer-pipeline").answer == "yes"
+    assert _edge(view, "graph-fuser", "spec-cartographer").answer == ""
 
 
 def test_execution_view_derives_placement_when_file_omits_it(tmp_path: Path) -> None:
@@ -117,6 +122,24 @@ def test_execution_view_derives_placement_when_file_omits_it(tmp_path: Path) -> 
     assert nodes["start"].layer == 0
     assert nodes["worker"].layer == 1
     assert nodes["critic"].layer == 2
+
+
+def test_execution_view_places_the_sample_as_a_serpentine() -> None:
+    nodes = execution_view(load_pipeline_spec(SAMPLE)).node_map()
+    spine = ["inputs", "graph-extractor", "graph-librarian", "graph-fuser"]
+    assert [nodes[step].column for step in spine] == [0, 1, 2, 3]
+    turn = ["spec-cartographer", "reference-picker"]
+    assert [nodes[step].layer for step in turn] == [1, 1]
+    assert [nodes[step].column for step in turn] == [3, 2]
+
+
+def test_derive_placement_alternates_row_direction() -> None:
+    order = ["a", "b", "c", "d", "e"]
+    edges = [("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")]
+    placement = _derive_placement([*order, "b2"], [*edges, ("a", "b2")])
+    assert placement["a"] == (0, 0.0)
+    assert placement["b"][0] == 1
+    assert placement["b"][1] > placement["b2"][1], "row 1 must fill right to left"
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +214,14 @@ def test_render_includes_zoom_controls() -> None:
     assert '<div class="canvas">' in out
 
 
+def test_render_wires_focus_and_pan_interactions() -> None:
+    out = render_view_html(execution_view(load_pipeline_spec(SAMPLE)))
+    assert "function focusNode(" in out
+    assert "canvas.scrollLeft = drag.left" in out
+    assert ".focus .lit{opacity:1}" in out
+    assert 'data-source="graph-fuser"' in out
+
+
 def test_render_embeds_agent_notes_for_node_popups() -> None:
     out = render_view_html(execution_view(load_pipeline_spec(SAMPLE)))
     assert '<div id="sheet"' in out
@@ -212,9 +243,58 @@ def test_render_marks_only_documented_nodes_as_openable() -> None:
         edges=(),
     )
     out = render_view_html(view)
-    assert 'data-node="noted"' in out
-    assert 'data-node="bare"' not in out
-    assert "node-open" in out
+    assert 'class="node node-agent node-open" data-node="noted"' in out
+    assert 'class="node node-agent" data-node="bare"' in out
+
+
+def test_render_marks_decision_arms_and_branch_counts() -> None:
+    out = render_view_html(execution_view(load_pipeline_spec(SAMPLE)))
+    assert 'marker-end="url(#arrow-yes)"' in out
+    assert 'marker-end="url(#arrow-no)"' in out
+    assert 'class="pill pill-yes"' in out
+    assert 'class="pill pill-no"' in out
+    assert "\u2713 quality accepted" in out
+    assert "\u2717 gap \u2192 next round" in out
+    assert "<title>routes 3 ways</title>" in out
+    assert "routes n ways" in out
+
+
+def test_render_routes_edges_orthogonally_with_rounded_corners() -> None:
+    view = PipelineView(
+        view_id="v",
+        title="t",
+        subtitle="s",
+        nodes=(
+            ViewNode("a", "A", "agent", 0, 0),
+            ViewNode("b", "B", "agent", 1, 1),
+        ),
+        edges=(ViewEdge("a", "b"),),
+    )
+    out = render_view_html(view)
+    path = out.split('<path class="edge')[1].split('d="')[1].split('"')[0]
+    assert " Q " in path, path
+    assert " C " not in path, path
+
+
+def test_rounded_path_cuts_corners_and_keeps_straight_runs() -> None:
+    assert _rounded_path([(0, 0), (0, 40), (40, 40)], radius=10) == (
+        "M 0 0 L 0 30 Q 0 40 10 40 L 40 40"
+    )
+    assert _rounded_path([(0, 0), (0, 40)]) == "M 0 0 L 0 40"
+
+
+def test_layer_direction_follows_the_primary_edges_of_each_row() -> None:
+    view = PipelineView(
+        view_id="v",
+        title="t",
+        subtitle="s",
+        nodes=(
+            ViewNode("a", "A", "agent", 0, 1),
+            ViewNode("b", "B", "agent", 0, 0),
+        ),
+        edges=(ViewEdge("a", "b"),),
+    )
+    assert _layer_directions(view) == {0: -1}
 
 
 def test_render_puts_flow_detail_on_edge_titles_and_tooltips() -> None:
@@ -240,7 +320,7 @@ def test_render_escapes_angle_brackets_inside_the_payload() -> None:
 
 def test_render_shows_counts_and_source() -> None:
     out = render_view_html(state_view(_sample_spec()))
-    assert "17 nodes · 22 edges" in out
+    assert "17 nodes · 23 edges" in out
     assert f"source={SAMPLE_SOURCE}" in out
 
 
