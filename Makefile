@@ -11,7 +11,7 @@ MYPY ?= $(UV_RUN) run mypy
 
 # mergeCraft ref for local `make review` — pinned to the same SHA as
 # .github/workflows/mergecraft.yml (override: TRIPLL_MERGECRAFT_REF=pre-0.0.1).
-MERGECRAFT_REF ?= $(if $(TRIPLL_MERGECRAFT_REF),$(TRIPLL_MERGECRAFT_REF),f98aeb0063b387a51960503a758351608d377002)
+MERGECRAFT_REF ?= $(if $(TRIPLL_MERGECRAFT_REF),$(TRIPLL_MERGECRAFT_REF),c0868b7a222547d855f0b5b3b0fcf41c06234d13)
 
 # Default runs/ relative to this directory (override: TRIPLL_RUNS=… make …)
 export TRIPLL_RUNS := $(abspath runs)
