@@ -47,6 +47,7 @@ Use **Make** for every recurring command — run **`make help`** for the full li
 | **`make test`** | `pytest tests` |
 | **`make about-site`** | Regenerate the `about-tripll/` HTML after editing `_sources/`/`_templates/` |
 | **`make rules-check`** | Run active executable structural rules (W4; see rules runbook) |
+| **`make module-size-check`** | Fail when any non-allowlisted `src/tripll` module exceeds 1000 lines |
 
 **R27 (rule activation):** Only an operator may promote `proposed → active` via
 `tripll rules promote`. Agents may propose rules from findings; there is no agent-reachable

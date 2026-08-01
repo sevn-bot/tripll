@@ -65,6 +65,13 @@ PATH_RULES: tuple[PathRule, ...] = (
         ),
         "mergecraft-ref-check",
     ),
+    PathRule(
+        (
+            "src/tripll/**",
+            "scripts/check_module_size.py",
+        ),
+        "module-size-check",
+    ),
     PathRule(("CHANGELOG.md",), "changelog-check"),
     PathRule(
         (
@@ -79,6 +86,7 @@ PATH_RULES: tuple[PathRule, ...] = (
 # ``make`` target order when multiple path rules fire (stable, tier-ish).
 TARGET_ORDER: tuple[str, ...] = (
     "mergecraft-ref-check",
+    "module-size-check",
     "log-redact-check",
     "about-site-check",
     "changelog-check",

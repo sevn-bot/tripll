@@ -48,8 +48,9 @@ Ontology: `src/tripll/ontology/ontology.yaml`. Docs: [`docs/ontology.md`](ontolo
 | 7 | error_threshold | Circuit breaker per `(agent, problem_type)` | **Engine-live** |
 | 8 | external_event | PR merged/closed or source issue closed | **Engine-live** |
 
-Implementation: `src/tripll/loops/exits.py` (`evaluate_exit`); the Engine routes
-terminal decisions through it and records ``exit_fired`` events on the ledger.
+Implementation: `src/tripll/loops/exits.py` (`evaluate_exit`); routing lives in
+`src/tripll/engine_exits.py` and is reached through the `Engine` façade, which records
+``exit_fired`` events on the ledger.
 Dashboard shows caps near firing and marks fired exits (§12).
 
 ### 0.4 Telemetry seams (§12 — L2 inputs, recorded in v1)
@@ -92,6 +93,7 @@ shipped graph-packed briefs as the default dispatch context. These boundaries re
 | **L1 outer wave dispatch** | With `[graph]` installed, `Engine._drive` routes batch dispatch through `l1_outer` → `waves` → `dispatch_bridge.invoke_engine_wave_dispatch` → `Engine.drive_wave_batches` (L2-W4). Post-wave nodes **verify → commit → review → generate** run Final-batch gates, write completion manifests, audit ledger wave rows, and optionally dispatch `post-review-wave-generator` when `orchestrator.review_generate_cycle` is set. Ledger remains authoritative; checkpoints derived. | **Orchestrator serial mode bypasses the outer graph.** Generate cycle does not auto-merge (D15). |
 | **`--integrate`** | Per-batch local merge → Docs&Menu → `make ci-resume` → one Conventional Commit on `tripll/integrate/<run-id>` (`integrate.py`). Resume-safe branch creation (no blind `checkout -B`). | **Default OFF.** Does not open GitHub PRs; delivery to remote CI/review is the separate PR phase above. |
 | **Dispatch briefs** | Graph-packed brief is the **default** when the code graph is available (`engine._resolve_grep_brief`, `brief.enrich_brief_with_graph_pack`, W10/D23). Packed subgraph replaces the legacy no-exploration line. | Agents still must not run repo-wide grep, graphify, or architecture tours unless the packed context is insufficient (`brief.GRAPH_PACKED_DIRECTIVE`). Legacy grep brief: `--grep-brief` for A/B replay. |
+| **Control-plane dashboard** | `make_ui_router()` (`api/ui/router.py`) mounts 22 HTML/htmx routes; W8 splits handlers across `api/ui/_routes_{runs,agents,fragments}.py` with shared template context in `api/ui/_helpers.py`. JSON API routes remain in `api/routes/*` (W7). | Behaviour and URLs unchanged; `router.py` re-exports `subprocess`, `asyncio`, and worktree helpers for test patch targets. |
 | **LangGraph vs ledger** | Optional `graph` extra: L1 PR loop + durable `AsyncSqliteSaver` checkpoints (`thread_id == run_id`). | **`ledger.db` remains the system of record** (§0.2, D6). Checkpoints are derived; recovery replays from the ledger. Linear DAG runs work without LangGraph. |
 
 ---

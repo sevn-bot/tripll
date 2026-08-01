@@ -16,13 +16,15 @@ from tripll.pipeline_views import (
     PipelineView,
     ViewEdge,
     ViewNode,
-    _derive_placement,
-    _layer_directions,
-    _rounded_path,
     execution_view,
     render_view_html,
     state_view,
     write_view_html,
+)
+from tripll.pipeline_views._layout import (
+    _derive_placement,
+    _layer_directions,
+    _rounded_path,
 )
 
 runner = CliRunner()
