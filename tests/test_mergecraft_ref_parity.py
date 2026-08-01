@@ -44,35 +44,35 @@ def _init_temp_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def parity_paths(tmp_path: Path) -> tuple[Path, Path]:
-    """Workflow + Makefile paths under a temp directory."""
+def parity_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Path, Path]:
+    """Workflow + Makefile paths in a temp repo the gate reads instead of this one.
+
+    The gate resolves the workflow pin through ``git show <ref>:`` from
+    ``REPO_ROOT`` (R36), so pointing only ``WORKFLOW`` at a temp file would leave
+    it reading tripll's own ``origin/main`` — coupling these cases to whatever
+    pin the repo happens to carry.
+    """
     repo = _init_temp_repo(tmp_path)
+    monkeypatch.setattr(parity, "REPO_ROOT", repo)
+    monkeypatch.setenv("TRIPLL_MERGECRAFT_PARITY_REF", "HEAD")
     workflow = repo / ".github" / "workflows" / "mergecraft.yml"
     makefile = repo / "Makefile"
+    monkeypatch.setattr(parity, "WORKFLOW", workflow)
+    monkeypatch.setattr(parity, "MAKEFILE", makefile)
     return workflow, makefile
 
 
-def test_matching_pins_pass_temp_repo(
-    monkeypatch: pytest.MonkeyPatch,
-    parity_paths: tuple[Path, Path],
-) -> None:
+def test_matching_pins_pass_temp_repo(parity_paths: tuple[Path, Path]) -> None:
     """Matching workflow and Makefile pins exit 0 (tier 1)."""
-    workflow, makefile = parity_paths
-    monkeypatch.setattr(parity, "WORKFLOW", workflow)
-    monkeypatch.setattr(parity, "MAKEFILE", makefile)
     assert parity.main() == 0
 
 
-def test_drifted_pins_fail_temp_repo(
-    monkeypatch: pytest.MonkeyPatch,
-    parity_paths: tuple[Path, Path],
-) -> None:
+def test_drifted_pins_fail_temp_repo(parity_paths: tuple[Path, Path]) -> None:
     """Drifted pins exit non-zero with the drift message (tier 1)."""
     workflow, makefile = parity_paths
     _write_workflow(workflow, _MATCH_SHA)
     _write_makefile(makefile, _DRIFT_SHA)
-    monkeypatch.setattr(parity, "WORKFLOW", workflow)
-    monkeypatch.setattr(parity, "MAKEFILE", makefile)
+    subprocess.run(["git", "commit", "-qam", "drift"], cwd=workflow.parents[2], check=True)
     assert parity.main() == 1
 
 
