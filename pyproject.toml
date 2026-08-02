@@ -30,7 +30,7 @@ cloud = [
 ]
 # Observability — Logfire/OTel tracing. No-op without LOGFIRE_TOKEN.
 obs = [
-    "logfire>=4.32.1",
+    "logfire>=4.39.0",
 ]
 # Tests-first package scaffolding (design-note §9.7): cookiecutter-pypackage.
 # Install with: uv sync --extra scaffold  (or run via `uvx cookiecutter` ad hoc)
