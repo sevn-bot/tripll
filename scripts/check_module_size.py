@@ -14,15 +14,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src" / "tripll"
 MAX_LINES = 1000
 
-# Explicit allowlist (R39): over the limit but not named in #16 — tracked in #62.
-ALLOWLIST: frozenset[str] = frozenset(
-    {
-        # inject.py orchestrates run dispatch; not in #16 scope — #62.
-        "src/tripll/inject.py",
-        # skw/render.py is the SKW template renderer; not in #16 scope — #62.
-        "src/tripll/skw/render.py",
-    }
-)
+# Explicit allowlist (R39): modules over the limit with an open tracker exemption.
+ALLOWLIST: frozenset[str] = frozenset()
 
 
 def _line_count(path: Path) -> int:
