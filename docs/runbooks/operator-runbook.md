@@ -292,6 +292,57 @@ max_budget_usd = 12.0         # Claude Code process-level backstop
 | `cursor_local` | Capped at `[providers.cursor_local] max_parallel` (default **5**). Adaptive throttle halves the pool after repeated **infra** failures. | Part of the **model string** (`claude-opus-5-thinking-high`, `claude-opus-5[effort=high]`, or `auto`). |
 | `claude_code` | `[providers.claude_code] max_parallel` (default **3**). | `reasoning_effort` wave key → `claude --effort <level>`. |
 | `cursor_cloud` | `[providers.cursor_cloud] max_parallel` (default **8**). | Same as Cursor local — model string only. |
+| `nous_research` | `[providers.nous_research] max_parallel` (default **2**). OpenAI-compatible HTTP — no SDK. | Model string (default **`deepseek/deepseek-v4-flash`**). |
+
+### Nous Research + DeepSeek V4 Flash (#76)
+
+Nous Research is an **OpenAI-compatible** HTTP provider — tripll never stores the API key
+(**R24**). Configure routing in `~/.config/tripll/config.toml` or `./tripll.toml`:
+
+```toml
+default_provider = "nous_research"
+
+[providers.nous_research]
+kind = "openai_compatible"
+base_url = "https://inference-api.nousresearch.com/v1"
+api_key_env = "NOUS_API_KEY"          # env var name only — never put the key in TOML
+default_model = "deepseek/deepseek-v4-flash"
+max_parallel = 2
+```
+
+| Setting | Value |
+|---------|-------|
+| **API key** | `NOUS_API_KEY` — obtain from [Nous Portal](https://portal.nousresearch.com) |
+| **Base URL** | `https://inference-api.nousresearch.com/v1` |
+| **Model id** | `deepseek/deepseek-v4-flash` (also `deepseek/deepseek-v4-pro`) |
+
+Per-wave override in a v3 plan:
+
+```toml
+[[waves]]
+id = "W1"
+provider = "nous_research"
+model = "deepseek/deepseek-v4-flash"
+```
+
+**Manual smoke test** (requires `NOUS_API_KEY` in the environment):
+
+```bash
+export NOUS_API_KEY="<your-key>"
+curl -sS "https://inference-api.nousresearch.com/v1/chat/completions" \
+  -H "Authorization: Bearer ${NOUS_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"deepseek/deepseek-v4-flash","messages":[{"role":"user","content":"Reply with exactly: pong"}],"stream":false}'
+```
+
+Expect a JSON body with `choices[0].message.content` containing `pong`. Unit coverage lives in
+`tests/test_nous_research_provider.py` (mocked HTTP). **`tripll doctor`** lists `nous_research`
+as **MISSING** until `NOUS_API_KEY` is exported.
+
+**Scope note:** the `nous_research` adapter sends **single-turn** chat completions over HTTP.
+Full agentic tool loops (wave-plan-executor with filesystem edits) remain on `claude_code` or
+`cursor_local`. Use Nous for cost-sensitive or model-specific probes; route implementation waves
+to CLI backends unless you accept single-turn-only behaviour.
 
 **Infra events** (`Couldn't start`, `Workspace Disconnected`, auth/session hangs) are classified
 separately from wave failures. They do **not** consume an attempt slot and do **not** trip the

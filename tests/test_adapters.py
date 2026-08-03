@@ -30,8 +30,8 @@ runner = CliRunner()
 # ---------------------------------------------------------------------------
 
 
-def test_registry_has_three_backends() -> None:
-    assert set(BACKENDS) == {"claude_code", "cursor_local", "cursor_cloud"}
+def test_registry_has_four_backends() -> None:
+    assert set(BACKENDS) == {"claude_code", "cursor_local", "cursor_cloud", "nous_research"}
 
 
 def test_get_adapter_unknown_raises() -> None:

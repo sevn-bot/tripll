@@ -8,6 +8,7 @@ Exports:
     load_config — merge env → repo → user → defaults.
     merge_model_table — shallow merge for agent model tables.
     resolve_agent_model — SKW-style model precedence chain.
+    resolve_openai_compatible — coerce OpenAI-compatible provider settings.
     user_config_path — ``~/.config/tripll/config.toml``.
     repo_config_path — ``<repo_root>/tripll.toml``.
     wave_plan_template_path — packaged v3 template via importlib.resources.
@@ -22,12 +23,20 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
 
+from tripll.config.providers import (
+    DEEPSEEK_V4_FLASH_MODEL,
+    OPENAI_COMPATIBLE_PROVIDERS,
+    OpenAiCompatibleProviderConfig,
+    coerce_openai_compatible,
+)
 from tripll.repo_root import resolve_repo_root
 from tripll.review import ReviewConfig, review_config_from_raw
 from tripll.skw.agent_config import merge_model_table
 from tripll.tracing.config import TracingConfig, parse_tracing_config
 
 __all__ = [
+    "DEEPSEEK_V4_FLASH_MODEL",
+    "OPENAI_COMPATIBLE_PROVIDERS",
     "ConfigSources",
     "ProviderConfig",
     "RepoConfig",
@@ -38,12 +47,13 @@ __all__ = [
     "merge_model_table",
     "repo_config_path",
     "resolve_agent_model",
+    "resolve_openai_compatible",
     "user_config_path",
     "wave_plan_template_path",
 ]
 
 LayerName = Literal["defaults", "user", "repo", "env"]
-_PROVIDER_NAMES = ("claude_code", "cursor_local", "cursor_cloud")
+_PROVIDER_NAMES = ("claude_code", "cursor_local", "cursor_cloud", "nous_research")
 
 _BUILTIN_DEFAULTS: dict[str, Any] = {
     "default_provider": "claude_code",
@@ -51,6 +61,13 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
         "claude_code": {"max_parallel": 3, "default_model": "claude-sonnet-5"},
         "cursor_local": {"max_parallel": 5, "default_model": "auto"},
         "cursor_cloud": {"max_parallel": 3, "default_model": "auto"},
+        "nous_research": {
+            "max_parallel": 2,
+            "default_model": DEEPSEEK_V4_FLASH_MODEL,
+            "base_url": "https://inference-api.nousresearch.com/v1",
+            "api_key_env": "NOUS_API_KEY",
+            "kind": "openai_compatible",
+        },
     },
     "tracing": {
         "enabled": True,
@@ -91,10 +108,16 @@ class ProviderConfig:
     Args:
         max_parallel (int): Concurrent dispatch ceiling for this backend.
         default_model (str): Default model id when a wave does not declare one.
+        kind (str): ``cli`` for subprocess backends; ``openai_compatible`` for HTTP APIs.
+        base_url (str | None): OpenAI-compatible root URL when ``kind=openai_compatible``.
+        api_key_env (str | None): Env var holding the bearer token for HTTP backends.
     """
 
     max_parallel: int = 3
     default_model: str = "auto"
+    kind: str = "cli"
+    base_url: str | None = None
+    api_key_env: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,27 +268,65 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
-def _coerce_providers(raw: dict[str, Any]) -> dict[str, ProviderConfig]:
+def _provider_row(raw: dict[str, Any], name: str) -> dict[str, Any]:
     providers_raw = raw.get("providers")
     if not isinstance(providers_raw, dict):
-        providers_raw = {}
+        return {}
+    row = providers_raw.get(name)
+    return dict(row) if isinstance(row, dict) else {}
+
+
+def _coerce_providers(raw: dict[str, Any]) -> dict[str, ProviderConfig]:
     out: dict[str, ProviderConfig] = {}
     for name in _PROVIDER_NAMES:
-        row = providers_raw.get(name)
+        row = _provider_row(raw, name)
         defaults = _BUILTIN_DEFAULTS["providers"][name]
-        if isinstance(row, dict):
-            mp = row.get("max_parallel", defaults["max_parallel"])
-            dm = row.get("default_model", defaults["default_model"])
-            out[name] = ProviderConfig(
-                max_parallel=int(mp) if mp is not None else defaults["max_parallel"],
-                default_model=str(dm) if dm is not None else defaults["default_model"],
-            )
-        else:
-            out[name] = ProviderConfig(
-                max_parallel=int(defaults["max_parallel"]),
-                default_model=str(defaults["default_model"]),
-            )
+        mp = row.get("max_parallel", defaults["max_parallel"])
+        dm = row.get("default_model", defaults["default_model"])
+        kind = str(row.get("kind") or defaults.get("kind") or "cli")
+        base_url = row.get("base_url", defaults.get("base_url"))
+        api_key_env = row.get("api_key_env", defaults.get("api_key_env"))
+        out[name] = ProviderConfig(
+            max_parallel=int(mp) if mp is not None else int(defaults["max_parallel"]),
+            default_model=str(dm) if dm is not None else str(defaults["default_model"]),
+            kind=kind,
+            base_url=str(base_url) if base_url is not None else None,
+            api_key_env=str(api_key_env) if api_key_env is not None else None,
+        )
     return out
+
+
+def resolve_openai_compatible(cfg: TripllConfig, name: str) -> OpenAiCompatibleProviderConfig:
+    """Return validated OpenAI-compatible settings for *name*.
+
+    Args:
+        cfg (TripllConfig): Loaded operator config.
+        name (str): Provider id (must be in :data:`OPENAI_COMPATIBLE_PROVIDERS`).
+
+    Returns:
+        OpenAiCompatibleProviderConfig: Endpoint + model defaults.
+
+    Raises:
+        KeyError: When *name* is not an OpenAI-compatible provider.
+
+    Examples:
+        >>> c = load_config()
+        >>> resolve_openai_compatible(c, "nous_research").default_model
+        'deepseek/deepseek-v4-flash'
+    """
+    if name not in OPENAI_COMPATIBLE_PROVIDERS:
+        msg = f"{name!r} is not an OpenAI-compatible provider"
+        raise KeyError(msg)
+    row = _provider_row(cfg.raw, name)
+    provider_cfg = cfg.providers.get(name)
+    if provider_cfg is not None:
+        if provider_cfg.base_url:
+            row.setdefault("base_url", provider_cfg.base_url)
+        if provider_cfg.api_key_env:
+            row.setdefault("api_key_env", provider_cfg.api_key_env)
+        row.setdefault("default_model", provider_cfg.default_model)
+        row.setdefault("max_parallel", provider_cfg.max_parallel)
+    return coerce_openai_compatible(name, row)
 
 
 def _coerce_repo(raw: dict[str, Any]) -> RepoConfig:

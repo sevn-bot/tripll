@@ -61,6 +61,11 @@ def default_provider_configs() -> dict[str, ProviderConfig]:
         "claude_code": ProviderConfig(max_parallel=3, default_model="claude-sonnet-5"),
         "cursor_local": ProviderConfig(max_parallel=5, default_model="auto", cooldown_s=30),
         "cursor_cloud": ProviderConfig(max_parallel=8, default_model="auto", cooldown_s=60),
+        "nous_research": ProviderConfig(
+            max_parallel=2,
+            default_model="deepseek/deepseek-v4-flash",
+            cooldown_s=30,
+        ),
     }
 
 
