@@ -87,3 +87,76 @@ def test_review_comment_parses_mergecraft_triage_tags() -> None:
     assert finding["severity"] == "high"  # Major → high
     assert finding["effort"] == "Quick win"
     assert finding.get("suggestion")
+
+
+def test_apply_gate_baseline_candidate_sets_state() -> None:
+    apply_gate_verdict = require_module("tripll.github.findings", attr="apply_gate_verdict")
+    FindingGateVerdict = require_module("tripll.github.findings", attr="FindingGateVerdict")
+    finding = {"state": "open", "message_raw": "Null deref when input is empty"}
+    updated = apply_gate_verdict(
+        finding,
+        FindingGateVerdict(
+            verdict="baseline_candidate",
+            noise_kind="none",
+            reasoning="Concrete regression in the changed path.",
+        ),
+    )
+    assert updated["state"] == "baseline_candidate"
+    assert updated["gate_verdict"] == "baseline_candidate"
+    assert updated["gate_reasoning"]
+
+
+def test_apply_gate_noise_keeps_open_without_reject() -> None:
+    apply_gate_verdict = require_module("tripll.github.findings", attr="apply_gate_verdict")
+    FindingGateVerdict = require_module("tripll.github.findings", attr="FindingGateVerdict")
+    finding = {"state": "open", "message_raw": "Maybe consider renaming this?"}
+    updated = apply_gate_verdict(
+        finding,
+        FindingGateVerdict(
+            verdict="noise",
+            noise_kind="question",
+            reasoning="Vague suggestion without a verifiable defect.",
+        ),
+    )
+    assert updated["state"] == "open"
+    assert updated["gate_verdict"] == "noise"
+    assert updated["gate_noise_kind"] == "question"
+
+
+def test_gate_precision_tracks_operator_triage() -> None:
+    compute_gate_precision = require_module("tripll.github.findings", attr="compute_gate_precision")
+    findings = [
+        {"gate_verdict": "baseline_candidate", "state": "accepted"},
+        {"gate_verdict": "baseline_candidate", "state": "rejected"},
+        {"gate_verdict": "noise", "state": "rejected"},
+        {"gate_verdict": "noise", "state": "accepted"},
+    ]
+    report = compute_gate_precision(findings)
+    assert report.sample_size == 4
+    assert report.true_positive == 1
+    assert report.false_positive == 1
+    assert report.true_negative == 1
+    assert report.false_negative == 1
+    assert report.precision == 0.5
+    assert report.recall == 0.5
+
+
+def test_gate_findings_skips_terminal_triage_states(monkeypatch) -> None:
+    gate_findings = require_module("tripll.github.findings", attr="gate_findings")
+    findings = [
+        {"state": "accepted", "finding_id": "a"},
+        {"state": "open", "finding_id": "b", "message_raw": "bug"},
+    ]
+
+    def _fake_judge(_model: str, finding: dict) -> object:
+        FindingGateVerdict = require_module("tripll.github.findings", attr="FindingGateVerdict")
+        return FindingGateVerdict(
+            verdict="baseline_candidate",
+            noise_kind="none",
+            reasoning="test",
+        )
+
+    monkeypatch.setattr("tripll.github.findings._run_gate_judge", _fake_judge)
+    gated = gate_findings(findings, model="test")
+    assert gated[0]["state"] == "accepted"
+    assert gated[1]["state"] == "baseline_candidate"

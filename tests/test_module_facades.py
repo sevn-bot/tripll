@@ -84,6 +84,7 @@ EXPECTED_CLI_COMMANDS: tuple[str, ...] = (
     "graph gate",
     "graph query",
     "findings sync",
+    "findings gate",
     "findings list",
     "findings triage",
     "findings export-learnings",

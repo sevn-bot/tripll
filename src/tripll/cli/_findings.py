@@ -31,16 +31,117 @@ def findings_sync(
         str,
         typer.Option("--run-id", help="Run id for Finding natural keys."),
     ] = "local",
+    gate: Annotated[
+        bool,
+        typer.Option("--gate", help="Run the LLM noise gate after sync (flags only)."),
+    ] = False,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="pydantic-ai model for --gate."),
+    ] = None,
 ) -> None:
     """Sync check-runs and review comments for a PR into the Finding graph."""
+    from tripll.github.findings import GateModelUnavailableError, gate_findings_in_store
     from tripll.github.sync import open_store, sync_pr_findings
 
     store = open_store(db)
     try:
         count = sync_pr_findings(pr, store, run_id=run_id)
+        if gate:
+            try:
+                _, report = gate_findings_in_store(
+                    store,
+                    model=model,
+                    pr_number=pr,
+                    run_id=run_id,
+                )
+            except GateModelUnavailableError as exc:
+                typer.echo(str(exc), err=True)
+                raise typer.Exit(1) from exc
+            typer.echo(
+                f"synced {count} finding(s) from PR #{pr}; "
+                f"gate precision={report.precision} (n={report.sample_size})"
+            )
+            return
     finally:
         store.close()
     typer.echo(f"synced {count} finding(s) from PR #{pr}")
+
+
+@findings_app.command("gate")
+def findings_gate(
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    pr: Annotated[
+        int | None,
+        typer.Option("--pr", help="Limit gate to findings from one PR."),
+    ] = None,
+    run_id: Annotated[
+        str,
+        typer.Option("--run-id", help="Run id for Verdict natural keys."),
+    ] = "local",
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="pydantic-ai model string."),
+    ] = None,
+    precision_only: Annotated[
+        bool,
+        typer.Option(
+            "--precision",
+            help="Report gate precision vs operator triage without re-running the gate.",
+        ),
+    ] = False,
+) -> None:
+    """Flag review nits/questions via LLM — never auto-rejects; operator triages."""
+    from tripll.github.findings import (
+        GateModelUnavailableError,
+        compute_gate_precision,
+        gate_findings_in_store,
+        gate_model_configured,
+        list_findings_from_store,
+    )
+    from tripll.github.sync import open_store
+
+    store = open_store(db)
+    try:
+        if precision_only:
+            rows = list_findings_from_store(store)
+            if pr is not None:
+                rows = [row for row in rows if row.get("pr_number") == pr]
+            report = compute_gate_precision(rows)
+            typer.echo(
+                f"gate precision={report.precision} recall={report.recall} "
+                f"(n={report.sample_size}, tp={report.true_positive}, "
+                f"fp={report.false_positive}, tn={report.true_negative}, "
+                f"fn={report.false_negative})"
+            )
+            return
+        if not gate_model_configured(model):
+            typer.echo(
+                "findings gate needs a judge model and API key "
+                f"({GateModelUnavailableError.__name__})",
+                err=True,
+            )
+            raise typer.Exit(1)
+        gated, report = gate_findings_in_store(
+            store,
+            model=model,
+            pr_number=pr,
+            run_id=run_id,
+        )
+    except GateModelUnavailableError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    finally:
+        store.close()
+    candidates = sum(1 for row in gated if row.get("gate_verdict") == "baseline_candidate")
+    noise = sum(1 for row in gated if row.get("gate_verdict") == "noise")
+    typer.echo(
+        f"gated {len(gated)} finding(s): {candidates} baseline_candidate, {noise} noise "
+        f"(precision={report.precision}, n={report.sample_size})"
+    )
 
 
 @findings_app.command("list")
