@@ -38,6 +38,13 @@ def review_diff(
         bool,
         typer.Option("--dry-run", help="Materialize diff + prompt without calling an agent."),
     ] = False,
+    json_out: Annotated[
+        Path | None,
+        typer.Option(
+            "--json",
+            help="Write structured mergeCraft findings JSON to PATH (``diff-review --json``).",
+        ),
+    ] = None,
 ) -> None:
     """Advisory offline review via ``mergecraft diff-review``."""
     from tripll.config import load_config
@@ -51,8 +58,29 @@ def review_diff(
         args.extend(["--base", os.environ.get("TRIPLL_CI_BASE", "origin/main")])
     if dry_run:
         args.append("--dry-run")
+    if json_out is not None:
+        args.extend(["--json", str(json_out)])
     code = run_mergecraft(args, ref=resolve_mergecraft_ref(cfg.review))
     raise typer.Exit(code)
+
+
+@review_app.command("load-json")
+def review_load_json(
+    path: Annotated[
+        Path,
+        typer.Argument(help="Path to mergeCraft ``diff-review --json`` output."),
+    ],
+    head_sha: Annotated[
+        str,
+        typer.Option("--head-sha", help="Optional git head SHA for normalized findings."),
+    ] = "",
+) -> None:
+    """Load mergeCraft structured findings JSON and emit tripll-normalized records."""
+    from tripll.review import load_mergecraft_findings_json, normalize_mergecraft_findings
+
+    raw = load_mergecraft_findings_json(path)
+    normalized = normalize_mergecraft_findings(raw, head_sha=head_sha)
+    typer.echo(json.dumps({"findings": normalized}, indent=2))
 
 
 @review_app.command("watch")

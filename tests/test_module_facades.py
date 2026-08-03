@@ -94,6 +94,7 @@ EXPECTED_CLI_COMMANDS: tuple[str, ...] = (
     "rules promote",
     "rules retire",
     "review diff",
+    "review load-json",
     "review watch",
     "review init",
     "review dispatch",
