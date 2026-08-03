@@ -10,15 +10,12 @@ Exports:
     InjectError — validation failure with CLI exit code.
     resolve_after_node_id — map ``--after`` to a graph node id.
     validate_hotfix_inject — pause/scope/deps/cost checks.
-    plan_hotfix_inject — build hotfix task + merged graph without persisting.
-    apply_hotfix_inject — write hotfix audit artefact, ledger row, graph.json.
-    plan_wave_add — build wave-add task + merged graph without persisting.
-    apply_wave_add — write wave-add audit artefact, ledger row, graph.json.
-    merge_injected_artefacts — re-apply inject artefacts after plan re-parse.
-    merge_injected_hotfixes — alias for hotfix-only merge (backward compat).
-    reconcile_run_graph — diff parsed graph vs ledger; seed new waves safely.
+    validate_wave_add_inject — wave-add validation.
     load_hotfix_tasks — read hotfix inject specs from a run directory.
     load_wave_add_tasks — read wave-add inject specs from a run directory.
+
+Plan/apply/reconcile implementations live in :mod:`tripll.inject_apply`; the
+:mod:`tripll.inject` façade re-exports them.
 """
 
 from __future__ import annotations
@@ -685,32 +682,15 @@ def validate_wave_add_inject(
     return resolved, anchor_node_id
 
 
-from tripll.inject_apply import (  # noqa: E402
-    apply_hotfix_inject,
-    apply_wave_add,
-    merge_injected_artefacts,
-    merge_injected_hotfixes,
-    plan_hotfix_inject,
-    plan_wave_add,
-    reconcile_run_graph,
-)
-
 __all__ = [
     "HotfixTask",
     "InjectError",
     "ReconcileResult",
     "WaveAddTask",
-    "apply_hotfix_inject",
-    "apply_wave_add",
     "load_hotfix_tasks",
     "load_wave_add_tasks",
     "merge_hotfix_task",
-    "merge_injected_artefacts",
-    "merge_injected_hotfixes",
     "merge_wave_add_task",
-    "plan_hotfix_inject",
-    "plan_wave_add",
-    "reconcile_run_graph",
     "resolve_after_node_id",
     "validate_hotfix_inject",
     "validate_wave_add_inject",

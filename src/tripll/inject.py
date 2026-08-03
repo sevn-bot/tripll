@@ -20,20 +20,22 @@ Exports:
 
 from __future__ import annotations
 
-from tripll.inject_dispatch import (
-    HotfixTask,
-    InjectError,
-    ReconcileResult,
-    WaveAddTask,
+from tripll.inject_apply import (
     apply_hotfix_inject,
     apply_wave_add,
-    load_hotfix_tasks,
-    load_wave_add_tasks,
     merge_injected_artefacts,
     merge_injected_hotfixes,
     plan_hotfix_inject,
     plan_wave_add,
     reconcile_run_graph,
+)
+from tripll.inject_dispatch import (
+    HotfixTask,
+    InjectError,
+    ReconcileResult,
+    WaveAddTask,
+    load_hotfix_tasks,
+    load_wave_add_tasks,
     resolve_after_node_id,
     validate_hotfix_inject,
 )

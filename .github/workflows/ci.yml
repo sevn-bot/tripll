@@ -27,6 +27,9 @@ jobs:
 
       - name: Run resumable gate
         run: make ci-resume
+        env:
+          # Compare branch workflow pin vs Makefile during PR bumps (ADR 018 / R36).
+          TRIPLL_MERGECRAFT_PARITY_REF: HEAD
 
   bench:
     name: Brief-packing benchmark
