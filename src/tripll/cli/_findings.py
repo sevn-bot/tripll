@@ -216,6 +216,104 @@ def findings_triage(
     typer.echo(f"triage {finding_id} → {updated.get('state')}")
 
 
+@findings_app.command("promote")
+def findings_promote(
+    to: Annotated[
+        Path,
+        typer.Option("--to", help="Review baseline JSONL output path."),
+    ] = Path("bench/review/baseline.jsonl"),
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    repo: Annotated[
+        str | None,
+        typer.Option("--repo", help="owner/name slug stamped on each baseline issue."),
+    ] = None,
+    state: Annotated[
+        str,
+        typer.Option("--state", help="Finding state to promote (default: accepted)."),
+    ] = "accepted",
+    provenance: Annotated[
+        str | None,
+        typer.Option(
+            "--provenance",
+            help="Emit only human, mergecraft, or ci findings.",
+        ),
+    ] = None,
+    pr: Annotated[
+        int | None,
+        typer.Option("--pr", help="Limit promotion to findings from one PR."),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite a frozen baseline corpus (D24 operator gate).",
+        ),
+    ] = False,
+) -> None:
+    """Promote operator-curated findings to frozen review baseline JSONL."""
+    from tripll.github.findings import (
+        BASELINE_PROVENANCE,
+        BaselineCorpusFrozenError,
+        list_findings_from_store,
+        promote_findings_to_baseline,
+    )
+    from tripll.github.sync import _repo_slug, open_store
+
+    if provenance is not None and provenance not in BASELINE_PROVENANCE:
+        typer.echo(
+            f"invalid --provenance {provenance!r}; expected one of {sorted(BASELINE_PROVENANCE)}",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    store = open_store(db)
+    try:
+        rows = list_findings_from_store(store, state=state)
+        if pr is not None:
+            rows = [row for row in rows if row.get("pr_number") == pr]
+    finally:
+        store.close()
+
+    if repo is None:
+        owner, name = _repo_slug()
+        repo_slug = f"{owner}/{name}"
+    else:
+        repo_slug = repo
+
+    try:
+        records = promote_findings_to_baseline(
+            rows,
+            to,
+            repo=repo_slug,
+            force=force,
+            provenance=provenance,
+            states=frozenset({state}),
+        )
+    except BaselineCorpusFrozenError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    by_provenance: dict[str, int] = {}
+    context_dependent = 0
+    for record in records:
+        tag = str(record.get("provenance") or "")
+        by_provenance[tag] = by_provenance.get(tag, 0) + 1
+        if record.get("requires_context_outside_diff"):
+            context_dependent += 1
+    summary = ", ".join(f"{tag}={count}" for tag, count in sorted(by_provenance.items()))
+    typer.echo(
+        f"promoted {len(records)} baseline issue(s) → {to} "
+        f"(provenance: {summary or 'none'}; "
+        f"requires_context_outside_diff={context_dependent})"
+    )
+
+
 @findings_app.command("export-learnings")
 def findings_export_learnings(
     db: Annotated[

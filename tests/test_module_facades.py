@@ -87,6 +87,7 @@ EXPECTED_CLI_COMMANDS: tuple[str, ...] = (
     "findings gate",
     "findings list",
     "findings triage",
+    "findings promote",
     "findings export-learnings",
     "rules derive",
     "rules list",

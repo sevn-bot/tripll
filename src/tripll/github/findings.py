@@ -10,6 +10,7 @@ import uuid
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path  # noqa: TC003 — baseline JSONL paths at runtime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -672,3 +673,185 @@ def gate_findings_in_store(
         run_id=run_id,
     )
     return gated, report
+
+
+BASELINE_PROVENANCE = frozenset({"human", "mergecraft", "ci"})
+PROMOTABLE_BASELINE_STATES = frozenset({"accepted"})
+DEFAULT_REVIEW_BASELINE_PATH = "bench/review/baseline.jsonl"
+
+
+class BaselineCorpusFrozenError(RuntimeError):
+    """Raised when promote would mutate a committed review baseline (D24)."""
+
+
+def infer_baseline_provenance(finding: dict[str, Any]) -> str:
+    """Infer review-baseline provenance from a Finding record.
+
+    Args:
+        finding: Normalized finding dict from the graph.
+
+    Returns:
+        One of ``human``, ``mergecraft``, or ``ci``.
+
+    Examples:
+        >>> infer_baseline_provenance({"kind": "ci_check", "rule_id": "ci:ruff"})
+        'ci'
+        >>> infer_baseline_provenance({"rule_id": "mergecraft:review"})
+        'mergecraft'
+    """
+    kind = str(finding.get("kind") or "")
+    rule_id = str(finding.get("rule_id") or "")
+    if kind == "ci_check" or rule_id.startswith(("ci:", "ruff:")):
+        return "ci"
+    if rule_id in {"mergecraft:review", "bugbot:review"} or rule_id.startswith("mergecraft"):
+        return "mergecraft"
+    if rule_id.startswith("review:"):
+        login = rule_id.removeprefix("review:").lower()
+        if login.startswith("mergecraft") or login == "pullfrog":
+            return "mergecraft"
+        return "human"
+    return "human"
+
+
+def _baseline_title(finding: dict[str, Any]) -> str:
+    message = str(finding.get("message_raw") or finding.get("message_normalized") or "finding")
+    for line in message.strip().splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("_") and "|" in stripped and stripped.endswith("_"):
+            continue
+        return stripped[:120]
+    return message.strip().splitlines()[0][:120] if message.strip() else "finding"
+
+
+def baseline_issue_id(repo: str, pr_number: int, sequence: int) -> str:
+    """Build a stable baseline issue id ``{repo}-pr{N}-{seq:02d}``."""
+    repo_short = repo.rsplit("/", 1)[-1]
+    return f"{repo_short}-pr{pr_number}-{sequence:02d}"
+
+
+def finding_to_baseline_issue(
+    finding: dict[str, Any],
+    *,
+    issue_id: str,
+    repo: str,
+) -> dict[str, Any]:
+    """Convert an accepted Finding into a review-benchmark baseline record."""
+    provenance_tag = infer_baseline_provenance(finding)
+    description = str(
+        finding.get("rationale")
+        or finding.get("gate_reasoning")
+        or finding.get("message_raw")
+        or finding.get("message_normalized")
+        or ""
+    )
+    record: dict[str, Any] = {
+        "id": issue_id,
+        "repo": repo,
+        "pr": finding.get("pr_number"),
+        "head_sha": finding.get("head_sha"),
+        "path": finding.get("file"),
+        "line_range": finding.get("line_range"),
+        "about": finding.get("symbol_ref"),
+        "category": finding.get("category"),
+        "severity": finding.get("severity"),
+        "title": _baseline_title(finding),
+        "description": description,
+        "provenance": provenance_tag,
+        "requires_context_outside_diff": bool(finding.get("requires_context_outside_diff")),
+    }
+    optional_keys = {"pr", "head_sha", "path", "line_range", "about", "category", "severity"}
+    return {
+        key: value for key, value in record.items() if key not in optional_keys or value is not None
+    }
+
+
+def validate_baseline_issue(record: dict[str, Any]) -> None:
+    """Ensure a baseline record carries mandatory provenance (D24 review track)."""
+    tag = record.get("provenance")
+    if tag not in BASELINE_PROVENANCE:
+        msg = f"baseline issue missing mandatory provenance (got {tag!r})"
+        raise ValueError(msg)
+
+
+def load_baseline_issues(path: Path) -> list[dict[str, Any]]:
+    """Load review baseline JSONL records from *path*."""
+    if not path.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        record = json.loads(stripped)
+        validate_baseline_issue(record)
+        rows.append(record)
+    return rows
+
+
+def promote_findings_to_baseline(
+    findings: list[dict[str, Any]],
+    dest: Path,
+    *,
+    repo: str,
+    force: bool = False,
+    provenance: str | None = None,
+    states: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Write operator-curated findings to frozen review baseline JSONL (D24).
+
+    Args:
+        findings: Finding dicts loaded from the graph store.
+        dest: Output JSONL path (default ``bench/review/baseline.jsonl``).
+        repo: ``owner/name`` slug stamped on each baseline issue.
+        force: When False, refuse to overwrite a non-empty baseline corpus.
+        provenance: Optional filter — emit only ``human``, ``mergecraft``, or ``ci``.
+        states: Finding states eligible for promotion (default ``accepted`` only).
+
+    Returns:
+        Baseline issue records written to *dest*.
+
+    Raises:
+        BaselineCorpusFrozenError: When *dest* already contains a committed corpus.
+        ValueError: When *provenance* filter is invalid.
+    """
+    if provenance is not None and provenance not in BASELINE_PROVENANCE:
+        msg = f"invalid provenance filter {provenance!r}; expected one of {sorted(BASELINE_PROVENANCE)}"
+        raise ValueError(msg)
+    if dest.exists() and dest.stat().st_size > 0 and not force:
+        msg = (
+            f"review baseline at {dest} is frozen (D24 Goodhart gate); "
+            "pass --force for operator corpus edits"
+        )
+        raise BaselineCorpusFrozenError(msg)
+
+    eligible_states = states or PROMOTABLE_BASELINE_STATES
+    selected = [row for row in findings if str(row.get("state") or "") in eligible_states]
+    if provenance is not None:
+        selected = [row for row in selected if infer_baseline_provenance(row) == provenance]
+    selected.sort(
+        key=lambda row: (
+            int(row.get("pr_number") or 0),
+            str(row.get("file") or ""),
+            str(row.get("finding_id") or ""),
+        )
+    )
+
+    per_pr: dict[int, int] = {}
+    records: list[dict[str, Any]] = []
+    for finding in selected:
+        pr_number = int(finding.get("pr_number") or 0)
+        per_pr[pr_number] = per_pr.get(pr_number, 0) + 1
+        issue_id = baseline_issue_id(repo, pr_number, per_pr[pr_number])
+        record = finding_to_baseline_issue(finding, issue_id=issue_id, repo=repo)
+        validate_baseline_issue(record)
+        records.append(record)
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    payload = "\n".join(json.dumps(record, sort_keys=True) for record in records)
+    if payload:
+        dest.write_text(payload + "\n", encoding="utf-8")
+    else:
+        dest.write_text("", encoding="utf-8")
+    return records

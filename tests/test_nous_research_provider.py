@@ -46,6 +46,7 @@ def test_resolve_openai_compatible_from_user_config(
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("TRIPLL_DEFAULT_MODEL", raising=False)
     monkeypatch.delenv("TRIPLL_DEFAULT_PROVIDER", raising=False)
+    monkeypatch.delenv("TRIPLL_MAX_PARALLEL", raising=False)
     cfg_dir = home / ".config" / "tripll"
     cfg_dir.mkdir(parents=True)
     (cfg_dir / "config.toml").write_text(

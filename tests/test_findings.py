@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from tests.conftest import require_module
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "github"
@@ -160,3 +162,105 @@ def test_gate_findings_skips_terminal_triage_states(monkeypatch) -> None:
     gated = gate_findings(findings, model="test")
     assert gated[0]["state"] == "accepted"
     assert gated[1]["state"] == "baseline_candidate"
+
+
+def test_infer_baseline_provenance_separates_sources() -> None:
+    infer_baseline_provenance = require_module(
+        "tripll.github.findings", attr="infer_baseline_provenance"
+    )
+    assert infer_baseline_provenance({"kind": "ci_check", "rule_id": "ci:ruff"}) == "ci"
+    assert infer_baseline_provenance({"rule_id": "mergecraft:review"}) == "mergecraft"
+    assert infer_baseline_provenance({"rule_id": "review:alice"}) == "human"
+
+
+def test_promote_findings_writes_jsonl_with_provenance(tmp_path: Path) -> None:
+    promote_findings_to_baseline = require_module(
+        "tripll.github.findings", attr="promote_findings_to_baseline"
+    )
+    load_baseline_issues = require_module("tripll.github.findings", attr="load_baseline_issues")
+    dest = tmp_path / "bench" / "review" / "baseline.jsonl"
+    findings = [
+        {
+            "state": "accepted",
+            "pr_number": 97,
+            "head_sha": "abc123",
+            "file": "src/sevn/demo.py",
+            "line_range": [10, 10],
+            "symbol_ref": "code:Symbol:demo",
+            "category": "Functional Correctness",
+            "severity": "high",
+            "rule_id": "review:alice",
+            "message_raw": "Null deref when input is empty",
+            "rationale": "Concrete regression in the changed path.",
+            "requires_context_outside_diff": True,
+        },
+        {
+            "state": "accepted",
+            "pr_number": 97,
+            "head_sha": "abc123",
+            "file": "src/sevn/other.py",
+            "line_range": [3, 3],
+            "rule_id": "mergecraft:review",
+            "message_raw": "_Style_ | _Minor_ | _Quick win_\nRemove unused import.",
+        },
+        {"state": "rejected", "pr_number": 97, "rule_id": "review:bob", "message_raw": "noise"},
+    ]
+    records = promote_findings_to_baseline(
+        findings,
+        dest,
+        repo="sevn-bot/sevn",
+    )
+    assert len(records) == 2
+    loaded = load_baseline_issues(dest)
+    assert loaded[0]["id"] == "sevn-pr97-01"
+    assert loaded[0]["provenance"] == "human"
+    assert loaded[0]["requires_context_outside_diff"] is True
+    assert loaded[1]["provenance"] == "mergecraft"
+    assert loaded[1]["requires_context_outside_diff"] is False
+
+
+def test_promote_findings_filters_by_provenance(tmp_path: Path) -> None:
+    promote_findings_to_baseline = require_module(
+        "tripll.github.findings", attr="promote_findings_to_baseline"
+    )
+    dest = tmp_path / "baseline.jsonl"
+    findings = [
+        {
+            "state": "accepted",
+            "pr_number": 1,
+            "rule_id": "review:alice",
+            "message_raw": "human issue",
+        },
+        {
+            "state": "accepted",
+            "pr_number": 1,
+            "rule_id": "mergecraft:review",
+            "message_raw": "bot issue",
+        },
+    ]
+    records = promote_findings_to_baseline(
+        findings,
+        dest,
+        repo="sevn-bot/sevn",
+        provenance="human",
+    )
+    assert len(records) == 1
+    assert records[0]["provenance"] == "human"
+
+
+def test_promote_findings_respects_d24_frozen_corpus(tmp_path: Path) -> None:
+    promote_findings_to_baseline = require_module(
+        "tripll.github.findings", attr="promote_findings_to_baseline"
+    )
+    BaselineCorpusFrozenError = require_module(
+        "tripll.github.findings", attr="BaselineCorpusFrozenError"
+    )
+    dest = tmp_path / "baseline.jsonl"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text('{"id":"seed","repo":"x/y","provenance":"human"}\n', encoding="utf-8")
+    with pytest.raises(BaselineCorpusFrozenError):
+        promote_findings_to_baseline(
+            [{"state": "accepted", "pr_number": 1, "rule_id": "review:a", "message_raw": "x"}],
+            dest,
+            repo="x/y",
+        )
