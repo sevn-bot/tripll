@@ -98,6 +98,7 @@ EXPECTED_CLI_COMMANDS: tuple[str, ...] = (
     "review watch",
     "review init",
     "review dispatch",
+    "bench emit-review-tasks",
     "bench run",
     "skw run",
     "skw pipeline-build",

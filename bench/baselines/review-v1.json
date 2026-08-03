@@ -1,0 +1,14 @@
+{
+  "label": "review-v1",
+  "recorded_at": "2026-08-03",
+  "agent_set": "oracle@review-harbor-v1",
+  "metrics": {
+    "review_coverage": 1.0,
+    "review_precision": 1.0,
+    "review_f1": 1.0,
+    "review_coverage_context_dependent": 1.0,
+    "review_noise_rate": 0.0,
+    "review_cost_per_task": 0.0
+  },
+  "notes": "Bootstrap baseline from tripll-pr64 oracle solve.sh (perfect fingerprint match)."
+}

@@ -15,6 +15,7 @@ All notable changes to this project are documented here. The format is based on
 - [2026-07-29] God-module extraction (#16): run / inject / reconcile-graph CLI commands moved to `tripll.cli._run`; shared helpers to `tripll.cli._shared` (no CLI behavior change)
 
 ### Added
+- [2026-08-03] Review-quality metrics (#64 W4): sibling `REVIEW_METRIC_KEYS` in `src/tripll/bench/review_metrics.py` (coverage, precision, F1, context-dependent coverage, noise rate, cost per task) separate from frozen L1 `METRIC_KEYS`; `bench/METRICS.md` review section and `bench/baselines/review-v1.json` under D24 Goodhart gate
 - [2026-08-03] Harbor review tasks (#64 W3): `tripll bench emit-review-tasks` emits one Harbor task per curated PR under `bench/review/<repo>-pr<N>/` from frozen `baseline.jsonl`; tasks use `network_mode = no-network`, git-bundle repo seeding at PR head SHA, and deterministic `solve.sh`/`test.sh` that score 1.0 against baseline mergeCraft findings
 - [2026-08-03] Review baseline promotion (#64 W2): `tripll findings promote --to bench/review/baseline.jsonl` emits operator-curated findings with mandatory `provenance` (`human`/`mergecraft`/`ci`) and `requires_context_outside_diff`; D24 Goodhart gate refuses to overwrite a non-empty baseline corpus unless `--force`
 - [2026-08-03] Findings LLM noise gate (#64 W1): `baseline_candidate` finding state, `tripll findings gate` (and `findings sync --gate`) flags nits/questions without auto-rejecting; gate precision vs operator triage recorded on Verdict nodes

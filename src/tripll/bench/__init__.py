@@ -8,16 +8,32 @@ from pathlib import Path
 from typing import Any
 
 from tripll.bench.review_harbor import emit_harbor_review_tasks, harbor_task_slug
+from tripll.bench.review_metrics import (
+    REVIEW_METRIC_KEYS,
+    ReviewBenchResult,
+    aggregate_review_metrics,
+    compute_review_deltas,
+    compute_review_task_metrics,
+    load_review_baseline,
+    score_review_track,
+)
 from tripll.serve.brief_packer import pack_brief
 
 __all__ = [
+    "REVIEW_METRIC_KEYS",
     "BenchResult",
+    "ReviewBenchResult",
+    "aggregate_review_metrics",
     "bench_root",
+    "compute_review_deltas",
+    "compute_review_task_metrics",
     "emit_harbor_review_tasks",
     "harbor_task_slug",
     "load_baseline",
+    "load_review_baseline",
     "load_tasks",
     "run_benchmark",
+    "score_review_track",
 ]
 
 METRIC_KEYS = (
