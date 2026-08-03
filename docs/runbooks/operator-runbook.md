@@ -467,6 +467,36 @@ When bumping mergeCraft, merge the workflow pin change to the default branch **f
 `MERGECRAFT_REF` in the `Makefile`. Reversing that order fails the gate mid-bump — the Makefile
 default will match your branch while CI still resolves the old pin from `main`.
 
+### Review benchmark (`bench-review`, #64 W5)
+
+The Harbor review track measures mergeCraft review quality against the frozen corpus under
+`bench/review/`. It runs **nightly or on-demand**, never on every PR — the full track is
+too expensive for a PR gate (D24 / issue #64).
+
+| Command | When |
+|---------|------|
+| `make bench-review` | Operator on-demand; same as `tripll bench run --track review -k 3` |
+| `.github/workflows/bench-review.yml` | Nightly cron (`06:00 UTC`) + `workflow_dispatch` |
+
+Each run scores Harbor tasks with **best-of-3 attempts** (`-k 3`), compares `review_f1` against
+`bench/baselines/review-v1.json`, and records the **mergeCraft ref under test** via
+`resolve_mergecraft_ref()` (same precedence as `make review`: `TRIPLL_MERGECRAFT_REF` → config →
+Makefile `MERGECRAFT_REF` / pinned SHA `f369164…`).
+
+Regression failure (exit 1) when F1 drops more than the configured threshold (default **0.05**):
+
+```bash
+export TRIPLL_REVIEW_BENCH_REGRESSION_THRESHOLD=0.05   # optional override
+make bench-review
+```
+
+Dashboard snapshot (F1 delta + full metric set) is written to
+`.tripll/bench-review-latest.json` for control-plane panels. Nightly uploads the same file as a
+workflow artifact.
+
+**Do not** add `make bench-review` to the PR `ci.yml` verify job — brief-packing `make bench`
+remains the only non-blocking bench on pull requests.
+
 ### Quality gauntlet (optional, D26–D28)
 
 Waves with plan v3 `[waves.outcome.reference]` and `[waves.outcome.quality_gauntlet].enabled = true`

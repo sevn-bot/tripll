@@ -76,7 +76,7 @@ PLANS_ENV := .env.agent-native
 	plan-set dry-run-set run-set plan-input run-input status list-input list-all-runs \
 	validate-set validate-input pre0-interview approve-run resume-run continue-run finish-pre0 delete-run reset-run \
 	build-plan-from-errors dry-run-build-plan-from-errors seed-orchestrator-smoke-set smoke-orchestrator-w0 \
-	plans-up plans-down plans-logs spec-check prd-check changelog-check changelog-eval docs-score bench
+	plans-up plans-down plans-logs spec-check prd-check changelog-check changelog-eval docs-score bench bench-review
 
 help: ## Show targets (default goal — use `make` or `make help`, not GNU `make --help`)
 	@printf '\033[1mtripll\033[0m — operator targets (run from this directory)\n'
@@ -294,6 +294,9 @@ test: ## pytest
 
 bench: sync ## Replay sealed brief-packing benchmark (tier 2 — minutes, not seconds)
 	$(TRIPLL_CLI) bench run
+
+bench-review: sync ## Harbor review track — best-of-3 oracle score + F1 regression signal (#64 W5)
+	$(TRIPLL_CLI) bench run --track review -k 3 --fail-on-regression
 
 log-redact-check: sync ## Validate log-hide-keys.toml + redaction unit tests
 	@test -f config/log-hide-keys.toml || (echo "Missing config/log-hide-keys.toml" >&2; exit 1)

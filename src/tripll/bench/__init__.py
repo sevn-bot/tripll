@@ -17,12 +17,24 @@ from tripll.bench.review_metrics import (
     load_review_baseline,
     score_review_track,
 )
+from tripll.bench.review_runner import (
+    DEFAULT_REVIEW_ATTEMPTS,
+    DEFAULT_REVIEW_REGRESSION_THRESHOLD,
+    ReviewBenchRunResult,
+    resolve_review_regression_threshold,
+    review_bench_dashboard_payload,
+    run_review_benchmark,
+    write_review_bench_dashboard,
+)
 from tripll.serve.brief_packer import pack_brief
 
 __all__ = [
+    "DEFAULT_REVIEW_ATTEMPTS",
+    "DEFAULT_REVIEW_REGRESSION_THRESHOLD",
     "REVIEW_METRIC_KEYS",
     "BenchResult",
     "ReviewBenchResult",
+    "ReviewBenchRunResult",
     "aggregate_review_metrics",
     "bench_root",
     "compute_review_deltas",
@@ -32,8 +44,12 @@ __all__ = [
     "load_baseline",
     "load_review_baseline",
     "load_tasks",
+    "resolve_review_regression_threshold",
+    "review_bench_dashboard_payload",
     "run_benchmark",
+    "run_review_benchmark",
     "score_review_track",
+    "write_review_bench_dashboard",
 ]
 
 METRIC_KEYS = (

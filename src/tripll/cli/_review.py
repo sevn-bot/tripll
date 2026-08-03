@@ -206,21 +206,100 @@ def bench_run_cmd(
         Path | None,
         typer.Option("--db", help="GraphStore SQLite path for graph-brief replay."),
     ] = None,
+    track: Annotated[
+        str,
+        typer.Option(
+            "--track",
+            help="Benchmark track: l1 (brief-packing, default) or review (Harbor review corpus).",
+        ),
+    ] = "l1",
+    attempts: Annotated[
+        int,
+        typer.Option(
+            "-k",
+            "--attempts",
+            min=1,
+            help="Review track: max attempts per Harbor task (default 3).",
+        ),
+    ] = 3,
+    regression_threshold: Annotated[
+        float | None,
+        typer.Option(
+            "--regression-threshold",
+            help=(
+                "Review track: fail when review_f1 drops more than this vs baseline "
+                "(default: TRIPLL_REVIEW_BENCH_REGRESSION_THRESHOLD or 0.05)."
+            ),
+        ),
+    ] = None,
+    json_out: Annotated[
+        Path | None,
+        typer.Option(
+            "--json-out",
+            help="Review track: write dashboard snapshot JSON to PATH.",
+        ),
+    ] = None,
+    fail_on_regression: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-regression/--no-fail-on-regression",
+            help="Review track: exit 1 when F1 delta exceeds regression threshold.",
+        ),
+    ] = True,
 ) -> None:
     """Replay sealed tasks and emit metric deltas vs baseline."""
+    if track == "review":
+        from tripll.bench import run_review_benchmark, write_review_bench_dashboard
+        from tripll.bench.review_metrics import REVIEW_METRIC_KEYS
+
+        result = run_review_benchmark(
+            bench_dir=bench_dir,
+            attempts=attempts,
+            regression_threshold=regression_threshold,
+        )
+        dashboard_path = write_review_bench_dashboard(result, json_out)
+        typer.echo("track: review")
+        typer.echo(f"tasks: {result.task_count}")
+        typer.echo(f"attempts_per_task: {result.attempts_per_task}")
+        typer.echo(f"mergecraft_ref: {result.mergecraft_ref}")
+        typer.echo(
+            f"review_f1_delta: {result.review_f1_delta:+.4f} "
+            f"(threshold -{result.regression_threshold:.4f})"
+        )
+        for key in REVIEW_METRIC_KEYS:
+            delta = result.deltas[key]
+            sign = "+" if delta >= 0 else ""
+            typer.echo(
+                f"{key}: {result.metrics[key]:.4f} "
+                f"(baseline {result.baseline[key]:.4f}, {sign}{delta:.4f})"
+            )
+        typer.echo(f"dashboard_json: {dashboard_path}")
+        if fail_on_regression and result.regression_failed:
+            typer.echo(
+                "review bench regression: review_f1 dropped beyond threshold",
+                err=True,
+            )
+            raise typer.Exit(1)
+        return
+
+    if track != "l1":
+        typer.echo(f"unknown bench track: {track!r} (expected l1 or review)", err=True)
+        raise typer.Exit(2)
+
     from tripll.bench import run_benchmark
 
-    result = run_benchmark(
+    l1_result = run_benchmark(
         bench_dir=bench_dir,
         graph_db=graph_db,
     )
-    typer.echo(f"tasks: {result.task_count}")
-    typer.echo(f"d23_verdict: {result.d23_verdict}")
-    for key in sorted(result.metrics):
-        delta = result.deltas[key]
+    typer.echo(f"tasks: {l1_result.task_count}")
+    typer.echo(f"d23_verdict: {l1_result.d23_verdict}")
+    for key in sorted(l1_result.metrics):
+        delta = l1_result.deltas[key]
         sign = "+" if delta >= 0 else ""
         typer.echo(
-            f"{key}: {result.metrics[key]:.4f} (baseline {result.baseline[key]:.4f}, {sign}{delta:.4f})"
+            f"{key}: {l1_result.metrics[key]:.4f} "
+            f"(baseline {l1_result.baseline[key]:.4f}, {sign}{delta:.4f})"
         )
 
 
