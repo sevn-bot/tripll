@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Changed
-- [2026-08-03] mergeCraft pin bump (#64 W8): workflow and `MERGECRAFT_REF` pinned to `f369164` (`diff-review --json` available); `tripll review diff --json` forwards structured output; `tripll review load-json` normalizes mergeCraft Finding payloads into tripll schema
+- [2026-08-03] MergeCraft pin bump (#64 W8): workflow and `MERGECRAFT_REF` pinned to `f369164` (`diff-review --json` available); `tripll review diff --json` forwards structured output; `tripll review load-json` normalizes mergeCraft Finding payloads into tripll schema
 - [2026-07-30] Rewrote `README.md` with a numbered 6-step quickstart and a dedicated **Authentication** section (subscription `claude setup-token` / `CLAUDE_CODE_OAUTH_TOKEN` recommended, `ANTHROPIC_API_KEY` fallback). Corrected the install path — tripll is not published on PyPI, so `pip install tripll` / `uv tool install tripll` were removed in favour of clone + `make setup` + `uv run tripll` (also fixed in the `about-tripll/` site sources). `tripll doctor`/`setup` now hint `claude setup-token` for headless auth. Hardened GitHub Actions: SHA-pinned third-party actions and added least-privilege `permissions` to `ci.yml`
 - [2026-07-30] God-module extraction (#16, W8): split 22 dashboard routes from `api/ui/router.py` into `api/ui/_routes_{runs,agents,fragments}.py` with shared helpers in `api/ui/_helpers.py`; `make_ui_router()` unchanged surface (no URL or template changes)
 - [2026-07-29] Final AI-layer compounding gate: xfail reconciliation (24 removed), `plan` callback accepts interspersed `--runs-root` after W6 subcommand (Typer fix)
