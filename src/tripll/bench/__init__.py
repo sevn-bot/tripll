@@ -7,9 +7,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tripll.bench.review_harbor import emit_harbor_review_tasks, harbor_task_slug
 from tripll.serve.brief_packer import pack_brief
 
-__all__ = ["BenchResult", "bench_root", "load_baseline", "load_tasks", "run_benchmark"]
+__all__ = [
+    "BenchResult",
+    "bench_root",
+    "emit_harbor_review_tasks",
+    "harbor_task_slug",
+    "load_baseline",
+    "load_tasks",
+    "run_benchmark",
+]
 
 METRIC_KEYS = (
     "first_attempt_pass_rate",

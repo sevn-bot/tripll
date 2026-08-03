@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path  # noqa: TC003 — typer resolves Path for CLI options
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -154,6 +154,46 @@ def review_dispatch(
         raise typer.Exit(1)
     if result.get("skipped") and not dry_run:
         raise typer.Exit(0)
+
+
+@bench_app.command("emit-review-tasks")
+def bench_emit_review_tasks_cmd(
+    baseline: Annotated[
+        Path,
+        typer.Option("--baseline", help="Review baseline JSONL input."),
+    ] = Path("bench/review/baseline.jsonl"),
+    dest: Annotated[
+        Path,
+        typer.Option("--dest", help="Harbor task output root (bench/review/)."),
+    ] = Path("bench/review"),
+    bundles_dir: Annotated[
+        Path,
+        typer.Option("--bundles-dir", help="Directory of {repo}-pr{N}.bundle git bundles."),
+    ] = Path("bench/review/bundles"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing Harbor task directories."),
+    ] = False,
+) -> None:
+    """Emit Harbor review tasks from frozen baseline JSONL (#64 W3)."""
+    from tripll.bench.review_harbor import emit_harbor_review_tasks
+
+    try:
+        emitted = emit_harbor_review_tasks(
+            baseline,
+            dest,
+            bundles_dir=bundles_dir,
+            force=force,
+        )
+    except FileNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    except FileExistsError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    for path in emitted:
+        typer.echo(f"emitted {path}")
+    typer.echo(f"tasks: {len(emitted)}")
 
 
 @bench_app.command("run")
