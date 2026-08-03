@@ -31,16 +31,117 @@ def findings_sync(
         str,
         typer.Option("--run-id", help="Run id for Finding natural keys."),
     ] = "local",
+    gate: Annotated[
+        bool,
+        typer.Option("--gate", help="Run the LLM noise gate after sync (flags only)."),
+    ] = False,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="pydantic-ai model for --gate."),
+    ] = None,
 ) -> None:
     """Sync check-runs and review comments for a PR into the Finding graph."""
+    from tripll.github.findings import GateModelUnavailableError, gate_findings_in_store
     from tripll.github.sync import open_store, sync_pr_findings
 
     store = open_store(db)
     try:
         count = sync_pr_findings(pr, store, run_id=run_id)
+        if gate:
+            try:
+                _, report = gate_findings_in_store(
+                    store,
+                    model=model,
+                    pr_number=pr,
+                    run_id=run_id,
+                )
+            except GateModelUnavailableError as exc:
+                typer.echo(str(exc), err=True)
+                raise typer.Exit(1) from exc
+            typer.echo(
+                f"synced {count} finding(s) from PR #{pr}; "
+                f"gate precision={report.precision} (n={report.sample_size})"
+            )
+            return
     finally:
         store.close()
     typer.echo(f"synced {count} finding(s) from PR #{pr}")
+
+
+@findings_app.command("gate")
+def findings_gate(
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    pr: Annotated[
+        int | None,
+        typer.Option("--pr", help="Limit gate to findings from one PR."),
+    ] = None,
+    run_id: Annotated[
+        str,
+        typer.Option("--run-id", help="Run id for Verdict natural keys."),
+    ] = "local",
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="pydantic-ai model string."),
+    ] = None,
+    precision_only: Annotated[
+        bool,
+        typer.Option(
+            "--precision",
+            help="Report gate precision vs operator triage without re-running the gate.",
+        ),
+    ] = False,
+) -> None:
+    """Flag review nits/questions via LLM — never auto-rejects; operator triages."""
+    from tripll.github.findings import (
+        GateModelUnavailableError,
+        compute_gate_precision,
+        gate_findings_in_store,
+        gate_model_configured,
+        list_findings_from_store,
+    )
+    from tripll.github.sync import open_store
+
+    store = open_store(db)
+    try:
+        if precision_only:
+            rows = list_findings_from_store(store)
+            if pr is not None:
+                rows = [row for row in rows if row.get("pr_number") == pr]
+            report = compute_gate_precision(rows)
+            typer.echo(
+                f"gate precision={report.precision} recall={report.recall} "
+                f"(n={report.sample_size}, tp={report.true_positive}, "
+                f"fp={report.false_positive}, tn={report.true_negative}, "
+                f"fn={report.false_negative})"
+            )
+            return
+        if not gate_model_configured(model):
+            typer.echo(
+                "findings gate needs a judge model and API key "
+                f"({GateModelUnavailableError.__name__})",
+                err=True,
+            )
+            raise typer.Exit(1)
+        gated, report = gate_findings_in_store(
+            store,
+            model=model,
+            pr_number=pr,
+            run_id=run_id,
+        )
+    except GateModelUnavailableError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    finally:
+        store.close()
+    candidates = sum(1 for row in gated if row.get("gate_verdict") == "baseline_candidate")
+    noise = sum(1 for row in gated if row.get("gate_verdict") == "noise")
+    typer.echo(
+        f"gated {len(gated)} finding(s): {candidates} baseline_candidate, {noise} noise "
+        f"(precision={report.precision}, n={report.sample_size})"
+    )
 
 
 @findings_app.command("list")
@@ -113,6 +214,104 @@ def findings_triage(
     finally:
         store.close()
     typer.echo(f"triage {finding_id} → {updated.get('state')}")
+
+
+@findings_app.command("promote")
+def findings_promote(
+    to: Annotated[
+        Path,
+        typer.Option("--to", help="Review baseline JSONL output path."),
+    ] = Path("bench/review/baseline.jsonl"),
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="GraphStore SQLite path."),
+    ] = Path(".tripll/graph.db"),
+    repo: Annotated[
+        str | None,
+        typer.Option("--repo", help="owner/name slug stamped on each baseline issue."),
+    ] = None,
+    state: Annotated[
+        str,
+        typer.Option("--state", help="Finding state to promote (default: accepted)."),
+    ] = "accepted",
+    provenance: Annotated[
+        str | None,
+        typer.Option(
+            "--provenance",
+            help="Emit only human, mergecraft, or ci findings.",
+        ),
+    ] = None,
+    pr: Annotated[
+        int | None,
+        typer.Option("--pr", help="Limit promotion to findings from one PR."),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite a frozen baseline corpus (D24 operator gate).",
+        ),
+    ] = False,
+) -> None:
+    """Promote operator-curated findings to frozen review baseline JSONL."""
+    from tripll.github.findings import (
+        BASELINE_PROVENANCE,
+        BaselineCorpusFrozenError,
+        list_findings_from_store,
+        promote_findings_to_baseline,
+    )
+    from tripll.github.sync import _repo_slug, open_store
+
+    if provenance is not None and provenance not in BASELINE_PROVENANCE:
+        typer.echo(
+            f"invalid --provenance {provenance!r}; expected one of {sorted(BASELINE_PROVENANCE)}",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    store = open_store(db)
+    try:
+        rows = list_findings_from_store(store, state=state)
+        if pr is not None:
+            rows = [row for row in rows if row.get("pr_number") == pr]
+    finally:
+        store.close()
+
+    if repo is None:
+        owner, name = _repo_slug()
+        repo_slug = f"{owner}/{name}"
+    else:
+        repo_slug = repo
+
+    try:
+        records = promote_findings_to_baseline(
+            rows,
+            to,
+            repo=repo_slug,
+            force=force,
+            provenance=provenance,
+            states=frozenset({state}),
+        )
+    except BaselineCorpusFrozenError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    by_provenance: dict[str, int] = {}
+    context_dependent = 0
+    for record in records:
+        tag = str(record.get("provenance") or "")
+        by_provenance[tag] = by_provenance.get(tag, 0) + 1
+        if record.get("requires_context_outside_diff"):
+            context_dependent += 1
+    summary = ", ".join(f"{tag}={count}" for tag, count in sorted(by_provenance.items()))
+    typer.echo(
+        f"promoted {len(records)} baseline issue(s) → {to} "
+        f"(provenance: {summary or 'none'}; "
+        f"requires_context_outside_diff={context_dependent})"
+    )
 
 
 @findings_app.command("export-learnings")

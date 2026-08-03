@@ -1,0 +1,36 @@
+name: bench-review
+
+# Nightly Harbor review benchmark (#64 W5). On-demand via workflow_dispatch.
+# Never on pull_request — full review track is too expensive for per-PR gates.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review-bench:
+    name: Review track regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TRIPLL_REVIEW_BENCH_REGRESSION_THRESHOLD: "0.05"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Bootstrap (uv + sync)
+        uses: ./.github/actions/bootstrap
+
+      - name: Run review benchmark (oracle, best-of-3)
+        run: make bench-review
+
+      - name: Upload dashboard snapshot
+        if: always()
+        uses: actions/upload-artifact@4.6.0
+        with:
+          name: bench-review-latest
+          path: .tripll/bench-review-latest.json
+          if-no-files-found: ignore

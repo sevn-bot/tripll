@@ -24,6 +24,7 @@ AUTH_FIX_COMMANDS: dict[str, str] = {
     "claude_code": "claude login  (or headless: claude setup-token → export CLAUDE_CODE_OAUTH_TOKEN)",
     "cursor_local": "cursor-agent login",
     "cursor_cloud": "Install tripll[cloud] and configure sevn.evolution.router",
+    "nous_research": "export NOUS_API_KEY=<key from https://portal.nousresearch.com>",
 }
 
 _MANAGED_TOP_LEVEL_KEYS = frozenset({"default_provider", "providers", "tracing"})

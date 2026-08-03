@@ -4,16 +4,34 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import uuid
 from contextlib import suppress
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from pathlib import Path  # noqa: TC003 — baseline JSONL paths at runtime
+from typing import Any, Literal
 
-from tripll.extract._common import edge_id, provenance, utc_now
+from pydantic import BaseModel, Field
+
+from tripll.extract._common import edge_id, make_node, provenance, utc_now
 from tripll.graphstore import GraphStore, SqliteGraphStore
 
 _EXTRACTOR = "github.findings"
 _EXTRACTOR_VERSION = "1"
+_GATE_EXTRACTOR = "github.findings_gate"
+
+FINDING_STATES = frozenset(
+    {"open", "accepted", "rejected", "deferred", "fixed", "baseline_candidate"}
+)
+GATE_VERDICTS = frozenset({"baseline_candidate", "noise"})
+TRIAGE_TERMINAL_STATES = frozenset({"accepted", "rejected", "deferred", "fixed"})
+GATE_NOISE_KINDS = frozenset({"nit", "question", "praise", "vague", "none"})
+
+DEFAULT_GATE_MODEL = "anthropic:claude-haiku-4-5-20251001"
+GATE_MODEL_ENV_VAR = "TRIPLL_FINDINGS_GATE_MODEL"
+_GATE_MODEL_KEY_ENV_VARS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
 
 _RULE_LINE = re.compile(
     r"^(?P<file>[^:]+):(?P<line>\d+)(?::\d+)?\s+(?P<code>[A-Z]\d+)\b",
@@ -383,3 +401,457 @@ def triage_finding(
     if rationale:
         updated["rationale"] = rationale
     return updated
+
+
+class GateModelUnavailableError(RuntimeError):
+    """Raised when the findings gate judge model is missing or misconfigured."""
+
+
+class FindingGateVerdict(BaseModel):
+    """Structured LLM output for one finding noise gate."""
+
+    verdict: Literal["baseline_candidate", "noise"]
+    noise_kind: Literal["nit", "question", "praise", "vague", "none"] = "none"
+    reasoning: str = Field(min_length=1)
+
+
+@dataclass(frozen=True)
+class GatePrecisionReport:
+    """Gate precision vs operator triage decisions."""
+
+    sample_size: int
+    true_positive: int
+    false_positive: int
+    true_negative: int
+    false_negative: int
+    precision: float | None
+    recall: float | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "sample_size": self.sample_size,
+            "true_positive": self.true_positive,
+            "false_positive": self.false_positive,
+            "true_negative": self.true_negative,
+            "false_negative": self.false_negative,
+            "precision": self.precision,
+            "recall": self.recall,
+        }
+
+
+def resolve_gate_model(model: str | None = None) -> str:
+    """Resolve the pydantic-ai model string for the findings gate."""
+    resolved = (model or os.environ.get(GATE_MODEL_ENV_VAR) or DEFAULT_GATE_MODEL).strip()
+    if not resolved:
+        msg = "findings gate model is empty — set TRIPLL_FINDINGS_GATE_MODEL or pass --model"
+        raise GateModelUnavailableError(msg)
+    return resolved
+
+
+def gate_model_configured(model: str | None = None) -> bool:
+    """Return True when a gate model and credential appear configured."""
+    resolved = resolve_gate_model(model)
+    if resolved.startswith(("test", "function:")):
+        return True
+    return any(os.environ.get(var) for var in _GATE_MODEL_KEY_ENV_VARS)
+
+
+def _gate_instructions() -> str:
+    return "\n".join(
+        [
+            "You are a code-review curator building a frozen benchmark corpus.",
+            "For each review finding, decide whether it should survive to human triage.",
+            "",
+            "Mark baseline_candidate when the comment:",
+            "- Identifies a concrete defect or regression introduced by the PR change",
+            "- Is specific enough that an automated verifier could adjudicate it",
+            "",
+            "Mark noise when the comment is a question, style nit, praise, vague suggestion",
+            '("consider maybe"), or lacks enough specificity to verify.',
+            "",
+            "Never auto-reject — your verdict flags only; the operator triages later.",
+            "Set noise_kind to nit, question, praise, vague, or none (for baseline_candidate).",
+        ]
+    )
+
+
+def _gate_prompt(finding: dict[str, Any]) -> str:
+    parts = [
+        "Review finding to classify:",
+        f"kind: {finding.get('kind', '')}",
+        f"rule_id: {finding.get('rule_id', '')}",
+        f"file: {finding.get('file', '')}",
+        f"line_range: {finding.get('line_range', '')}",
+        f"category: {finding.get('category', '')}",
+        f"severity: {finding.get('severity', '')}",
+        "",
+        str(finding.get("message_raw") or finding.get("message_normalized") or ""),
+    ]
+    return "\n".join(parts)
+
+
+def _run_gate_judge(model: str, finding: dict[str, Any]) -> FindingGateVerdict:
+    """Run one pydantic-ai gate pass — sole network/model touchpoint (tests monkeypatch)."""
+    try:
+        from pydantic_ai import Agent  # lazy import by design
+    except ImportError as exc:  # pragma: no cover - exercised only without the extra
+        msg = (
+            "pydantic-ai is not installed. Install pydantic-ai to run "
+            "`tripll findings gate` (needs live model access)."
+        )
+        raise GateModelUnavailableError(msg) from exc
+    try:
+        agent = Agent(model, output_type=FindingGateVerdict, instructions=_gate_instructions())
+        result = agent.run_sync(_gate_prompt(finding))
+    except Exception as exc:  # pragma: no cover - network/credential failures
+        msg = f"findings gate model {model!r} failed: {exc}"
+        raise GateModelUnavailableError(msg) from exc
+    output: FindingGateVerdict = result.output
+    return output
+
+
+def apply_gate_verdict(
+    finding: dict[str, Any],
+    gate: FindingGateVerdict | dict[str, Any],
+    *,
+    gated_at: str | None = None,
+) -> dict[str, Any]:
+    """Apply a gate verdict to a finding — flags only, never auto-rejects."""
+    verdict = (
+        gate if isinstance(gate, FindingGateVerdict) else FindingGateVerdict.model_validate(gate)
+    )
+    updated = dict(finding)
+    updated["gate_verdict"] = verdict.verdict
+    updated["gate_noise_kind"] = verdict.noise_kind
+    updated["gate_reasoning"] = verdict.reasoning
+    updated["gated_at"] = gated_at or _now()
+    current_state = str(updated.get("state") or "open")
+    if current_state not in TRIAGE_TERMINAL_STATES:
+        if verdict.verdict == "baseline_candidate":
+            updated["state"] = "baseline_candidate"
+        else:
+            updated["state"] = "open"
+    return updated
+
+
+def gate_finding(
+    finding: dict[str, Any],
+    *,
+    model: str | None = None,
+) -> dict[str, Any]:
+    """Run the LLM noise gate on one finding and return the updated dict."""
+    resolved = resolve_gate_model(model)
+    verdict = _run_gate_judge(resolved, finding)
+    return apply_gate_verdict(finding, verdict)
+
+
+def gate_findings(
+    findings: list[dict[str, Any]],
+    *,
+    model: str | None = None,
+    only_open: bool = True,
+) -> list[dict[str, Any]]:
+    """Run the LLM noise gate on each eligible finding."""
+    out: list[dict[str, Any]] = []
+    for finding in findings:
+        state = str(finding.get("state") or "open")
+        if only_open and state in TRIAGE_TERMINAL_STATES:
+            out.append(finding)
+            continue
+        out.append(gate_finding(finding, model=model))
+    return out
+
+
+def compute_gate_precision(findings: list[dict[str, Any]]) -> GatePrecisionReport:
+    """Compare gate verdicts to operator triage where both labels exist."""
+    tp = fp = tn = fn = 0
+    for finding in findings:
+        gate_verdict = finding.get("gate_verdict")
+        operator_state = str(finding.get("state") or "")
+        if gate_verdict not in GATE_VERDICTS or operator_state not in {"accepted", "rejected"}:
+            continue
+        gate_positive = gate_verdict == "baseline_candidate"
+        operator_positive = operator_state == "accepted"
+        if gate_positive and operator_positive:
+            tp += 1
+        elif gate_positive and not operator_positive:
+            fp += 1
+        elif not gate_positive and not operator_positive:
+            tn += 1
+        else:
+            fn += 1
+    sample = tp + fp + tn + fn
+    precision = tp / (tp + fp) if tp + fp else None
+    recall = tp / (tp + fn) if tp + fn else None
+    return GatePrecisionReport(
+        sample_size=sample,
+        true_positive=tp,
+        false_positive=fp,
+        true_negative=tn,
+        false_negative=fn,
+        precision=precision,
+        recall=recall,
+    )
+
+
+def make_gate_precision_verdict_node(
+    report: GatePrecisionReport,
+    *,
+    run_id: str = "local",
+) -> dict[str, Any]:
+    """Build a Verdict node recording gate precision vs operator triage."""
+    verdict_id = str(uuid.uuid4())
+    precision = report.precision if report.precision is not None else 0.0
+    passed = report.sample_size == 0 or (report.precision is not None and report.precision >= 0.5)
+    return make_node(
+        layer="finding",
+        kind="Verdict",
+        natural_key=f"{run_id}#gate-{verdict_id}",
+        repo=None,
+        props={
+            "predicate": "findings_gate",
+            "precision": precision,
+            "recall": report.recall,
+            "passed": passed,
+            "sample_size": report.sample_size,
+            **report.as_dict(),
+        },
+        **provenance(
+            source="findings_gate",
+            evidence=json.dumps(report.as_dict()),
+            extractor=_GATE_EXTRACTOR,
+            confidence=precision,
+            extracted_at=utc_now(),
+        ),
+    )
+
+
+def persist_gated_findings(
+    findings: list[dict[str, Any]],
+    store: GraphStore,
+    *,
+    repo: str = "tripll",
+    record_precision: bool = True,
+    run_id: str = "local",
+) -> GatePrecisionReport:
+    """Upsert gate-updated findings and optionally record precision Verdict."""
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+    for finding in findings:
+        node, about_edges = finding_to_graph_nodes(finding, repo=repo)
+        nodes.append(node)
+        edges.extend(about_edges)
+    if nodes:
+        store.upsert_nodes(nodes)
+    if edges:
+        store.upsert_edges(edges)
+    report = compute_gate_precision(findings)
+    if record_precision and report.sample_size:
+        store.upsert_nodes([make_gate_precision_verdict_node(report, run_id=run_id)])
+    return report
+
+
+def gate_findings_in_store(
+    store: GraphStore,
+    *,
+    model: str | None = None,
+    pr_number: int | None = None,
+    only_open: bool = True,
+    repo: str = "tripll",
+    run_id: str = "local",
+) -> tuple[list[dict[str, Any]], GatePrecisionReport]:
+    """Load findings from the graph, run the gate, persist updates."""
+    rows = list_findings_from_store(store)
+    if pr_number is not None:
+        rows = [row for row in rows if row.get("pr_number") == pr_number]
+    gated = gate_findings(rows, model=model, only_open=only_open)
+    report = persist_gated_findings(
+        gated,
+        store,
+        repo=repo,
+        record_precision=True,
+        run_id=run_id,
+    )
+    return gated, report
+
+
+BASELINE_PROVENANCE = frozenset({"human", "mergecraft", "ci"})
+PROMOTABLE_BASELINE_STATES = frozenset({"accepted"})
+DEFAULT_REVIEW_BASELINE_PATH = "bench/review/baseline.jsonl"
+
+
+class BaselineCorpusFrozenError(RuntimeError):
+    """Raised when promote would mutate a committed review baseline (D24)."""
+
+
+def infer_baseline_provenance(finding: dict[str, Any]) -> str:
+    """Infer review-baseline provenance from a Finding record.
+
+    Args:
+        finding: Normalized finding dict from the graph.
+
+    Returns:
+        One of ``human``, ``mergecraft``, or ``ci``.
+
+    Examples:
+        >>> infer_baseline_provenance({"kind": "ci_check", "rule_id": "ci:ruff"})
+        'ci'
+        >>> infer_baseline_provenance({"rule_id": "mergecraft:review"})
+        'mergecraft'
+    """
+    kind = str(finding.get("kind") or "")
+    rule_id = str(finding.get("rule_id") or "")
+    if kind == "ci_check" or rule_id.startswith(("ci:", "ruff:")):
+        return "ci"
+    if rule_id in {"mergecraft:review", "bugbot:review"} or rule_id.startswith("mergecraft"):
+        return "mergecraft"
+    if rule_id.startswith("review:"):
+        login = rule_id.removeprefix("review:").lower()
+        if login.startswith("mergecraft") or login == "pullfrog":
+            return "mergecraft"
+        return "human"
+    return "human"
+
+
+def _baseline_title(finding: dict[str, Any]) -> str:
+    message = str(finding.get("message_raw") or finding.get("message_normalized") or "finding")
+    for line in message.strip().splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("_") and "|" in stripped and stripped.endswith("_"):
+            continue
+        return stripped[:120]
+    return message.strip().splitlines()[0][:120] if message.strip() else "finding"
+
+
+def baseline_issue_id(repo: str, pr_number: int, sequence: int) -> str:
+    """Build a stable baseline issue id ``{repo}-pr{N}-{seq:02d}``."""
+    repo_short = repo.rsplit("/", 1)[-1]
+    return f"{repo_short}-pr{pr_number}-{sequence:02d}"
+
+
+def finding_to_baseline_issue(
+    finding: dict[str, Any],
+    *,
+    issue_id: str,
+    repo: str,
+) -> dict[str, Any]:
+    """Convert an accepted Finding into a review-benchmark baseline record."""
+    provenance_tag = infer_baseline_provenance(finding)
+    description = str(
+        finding.get("rationale")
+        or finding.get("gate_reasoning")
+        or finding.get("message_raw")
+        or finding.get("message_normalized")
+        or ""
+    )
+    record: dict[str, Any] = {
+        "id": issue_id,
+        "repo": repo,
+        "pr": finding.get("pr_number"),
+        "head_sha": finding.get("head_sha"),
+        "path": finding.get("file"),
+        "line_range": finding.get("line_range"),
+        "about": finding.get("symbol_ref"),
+        "category": finding.get("category"),
+        "severity": finding.get("severity"),
+        "title": _baseline_title(finding),
+        "description": description,
+        "provenance": provenance_tag,
+        "requires_context_outside_diff": bool(finding.get("requires_context_outside_diff")),
+    }
+    optional_keys = {"pr", "head_sha", "path", "line_range", "about", "category", "severity"}
+    return {
+        key: value for key, value in record.items() if key not in optional_keys or value is not None
+    }
+
+
+def validate_baseline_issue(record: dict[str, Any]) -> None:
+    """Ensure a baseline record carries mandatory provenance (D24 review track)."""
+    tag = record.get("provenance")
+    if tag not in BASELINE_PROVENANCE:
+        msg = f"baseline issue missing mandatory provenance (got {tag!r})"
+        raise ValueError(msg)
+
+
+def load_baseline_issues(path: Path) -> list[dict[str, Any]]:
+    """Load review baseline JSONL records from *path*."""
+    if not path.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        record = json.loads(stripped)
+        validate_baseline_issue(record)
+        rows.append(record)
+    return rows
+
+
+def promote_findings_to_baseline(
+    findings: list[dict[str, Any]],
+    dest: Path,
+    *,
+    repo: str,
+    force: bool = False,
+    provenance: str | None = None,
+    states: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Write operator-curated findings to frozen review baseline JSONL (D24).
+
+    Args:
+        findings: Finding dicts loaded from the graph store.
+        dest: Output JSONL path (default ``bench/review/baseline.jsonl``).
+        repo: ``owner/name`` slug stamped on each baseline issue.
+        force: When False, refuse to overwrite a non-empty baseline corpus.
+        provenance: Optional filter — emit only ``human``, ``mergecraft``, or ``ci``.
+        states: Finding states eligible for promotion (default ``accepted`` only).
+
+    Returns:
+        Baseline issue records written to *dest*.
+
+    Raises:
+        BaselineCorpusFrozenError: When *dest* already contains a committed corpus.
+        ValueError: When *provenance* filter is invalid.
+    """
+    if provenance is not None and provenance not in BASELINE_PROVENANCE:
+        msg = f"invalid provenance filter {provenance!r}; expected one of {sorted(BASELINE_PROVENANCE)}"
+        raise ValueError(msg)
+    if dest.exists() and dest.stat().st_size > 0 and not force:
+        msg = (
+            f"review baseline at {dest} is frozen (D24 Goodhart gate); "
+            "pass --force for operator corpus edits"
+        )
+        raise BaselineCorpusFrozenError(msg)
+
+    eligible_states = states or PROMOTABLE_BASELINE_STATES
+    selected = [row for row in findings if str(row.get("state") or "") in eligible_states]
+    if provenance is not None:
+        selected = [row for row in selected if infer_baseline_provenance(row) == provenance]
+    selected.sort(
+        key=lambda row: (
+            int(row.get("pr_number") or 0),
+            str(row.get("file") or ""),
+            str(row.get("finding_id") or ""),
+        )
+    )
+
+    per_pr: dict[int, int] = {}
+    records: list[dict[str, Any]] = []
+    for finding in selected:
+        pr_number = int(finding.get("pr_number") or 0)
+        per_pr[pr_number] = per_pr.get(pr_number, 0) + 1
+        issue_id = baseline_issue_id(repo, pr_number, per_pr[pr_number])
+        record = finding_to_baseline_issue(finding, issue_id=issue_id, repo=repo)
+        validate_baseline_issue(record)
+        records.append(record)
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    payload = "\n".join(json.dumps(record, sort_keys=True) for record in records)
+    if payload:
+        dest.write_text(payload + "\n", encoding="utf-8")
+    else:
+        dest.write_text("", encoding="utf-8")
+    return records

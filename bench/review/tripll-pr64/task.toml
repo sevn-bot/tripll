@@ -1,0 +1,28 @@
+schema_version = "1.4"
+
+[task]
+name = "tripll/review/tripll-pr64"
+version = "1.0.0"
+description = "Frozen code review task for sevn-bot/tripll PR #64"
+keywords = ["review", "mergecraft", "benchmark"]
+
+[metadata]
+generator = "tripll.bench.review_harbor.v1"
+repo = "sevn-bot/tripll"
+pr = 64
+head_sha = "ec877d5f079492d3c8bb5b009dcb2ddcf6b56e60"
+baseline_issue_count = 2
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+network_mode = "no-network"
+build_timeout_sec = 600.0
+os = "linux"
+cpus = 1
+memory_mb = 2048
+storage_mb = 4096

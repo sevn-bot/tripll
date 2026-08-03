@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "tool": "agent",
+      "rule_id": "MC-001",
+      "category": "Functional Correctness",
+      "severity": "Major",
+      "confidence": "likely",
+      "message": "Possible null deref when input list is empty",
+      "path": "src/tripll/demo.py",
+      "start_line": 10,
+      "end_line": 12,
+      "fingerprint": "a1b2c3d4e5f6789012345678",
+      "evidence": ["if not items:", "return items[0]"],
+      "remediation": "Guard the empty-list case before indexing.",
+      "autofix": null,
+      "introduced_by_pr": "true",
+      "source": "agent",
+      "cluster_id": null
+    }
+  ]
+}

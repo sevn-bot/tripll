@@ -58,7 +58,7 @@ jobs:
         if: env.HAS_AUTH == 'true'
         id: mergecraft
         continue-on-error: true
-        uses: alexhawat/mergeCraft@c0868b7a222547d855f0b5b3b0fcf41c06234d13 # pre-0.0.1
+        uses: alexhawat/mergeCraft@f369164c609aa6ffb4149b0248f72f6a3e10b0a6 # main 2026-08-02 — diff-review --json
         with:
           prompt: >-
             ${{ (github.event_name == 'pull_request' && format('Review pull request #{0}. Focus on correctness, security, regressions, missing tests, and maintainability. Leave concise, actionable comments only for issues that should be addressed before merge.', github.event.pull_request.number))

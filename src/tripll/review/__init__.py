@@ -9,6 +9,8 @@ Exports:
     scaffold_mergecraft — write ``.mergecraft/`` + optional workflow.
     run_mergecraft — invoke external ``mergecraft`` via ``uv tool run``.
     dispatch_mode — ``gh workflow run mergecraft.yml`` when posture allows.
+    load_mergecraft_findings_json — parse ``diff-review --json`` payloads.
+    normalize_mergecraft_findings — map mergeCraft findings to tripll schema.
 """
 
 from __future__ import annotations
@@ -23,11 +25,19 @@ from typing import Any, Literal, cast
 
 from loguru import logger
 
+from tripll.review.findings_json import (
+    MERGECRAFT_FINDING_REQUIRED_KEYS,
+    MergecraftFindingsPayloadError,
+    load_mergecraft_findings_json,
+    normalize_mergecraft_finding,
+    normalize_mergecraft_findings,
+)
+
 Posture = Literal["review_only", "fix", "full"]
 Permission = Literal["disabled", "restricted", "enabled"]
 
-DEFAULT_MERGECRAFT_SHA = "b8e83a82e97ed537706d9a712e59af9ef031588f"
-DEFAULT_MERGECRAFT_REF_LABEL = "pre-0.0.1"
+DEFAULT_MERGECRAFT_SHA = "f369164c609aa6ffb4149b0248f72f6a3e10b0a6"
+DEFAULT_MERGECRAFT_REF_LABEL = "main"
 WORKFLOW_NAME = "mergecraft.yml"
 
 POSTURE_PRESETS: dict[Posture, dict[str, Permission]] = {
@@ -38,10 +48,15 @@ POSTURE_PRESETS: dict[Posture, dict[str, Permission]] = {
 
 __all__ = [
     "DEFAULT_MERGECRAFT_SHA",
+    "MERGECRAFT_FINDING_REQUIRED_KEYS",
     "POSTURE_PRESETS",
+    "MergecraftFindingsPayloadError",
     "ReviewCiConfig",
     "ReviewConfig",
     "dispatch_mode",
+    "load_mergecraft_findings_json",
+    "normalize_mergecraft_finding",
+    "normalize_mergecraft_findings",
     "resolve_mergecraft_ref",
     "review_config_from_raw",
     "run_mergecraft",

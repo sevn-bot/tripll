@@ -1,6 +1,7 @@
 """tripll.adapters — pluggable agent backends (D1).
 
-Backends: ``claude_code`` (default), ``cursor_local``, ``cursor_cloud``.
+Backends: ``claude_code`` (default), ``cursor_local``, ``cursor_cloud``,
+``nous_research`` (OpenAI-compatible HTTP).
 
 Exports:
     BACKENDS — mapping of backend name → adapter factory.
@@ -18,6 +19,7 @@ from tripll.adapters.base import AdapterCapabilities, AgentAdapter, DispatchResu
 from tripll.adapters.claude_code import ClaudeCodeAdapter
 from tripll.adapters.cursor_cloud import CursorCloudAdapter
 from tripll.adapters.cursor_local import CursorLocalAdapter
+from tripll.adapters.nous_research import NousResearchAdapter
 from tripll.adapters.options import BackendOptions
 
 if TYPE_CHECKING:
@@ -40,6 +42,7 @@ BACKENDS: dict[str, Callable[[], AgentAdapter]] = {
     "claude_code": ClaudeCodeAdapter,
     "cursor_local": CursorLocalAdapter,
     "cursor_cloud": CursorCloudAdapter,
+    "nous_research": NousResearchAdapter,
 }
 
 
@@ -134,6 +137,8 @@ def build_adapter(
         )
     if name == "cursor_local":
         return CursorLocalAdapter(model=opts.model, agent=opts.agent)
+    if name == "nous_research":
+        return NousResearchAdapter(model=opts.model)
     return BACKENDS[name]()
 
 

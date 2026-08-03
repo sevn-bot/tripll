@@ -25,5 +25,32 @@ Graph-packed briefs must beat grep briefs on **first-attempt pass rate** and
 
 ## Goodhart gate (D24)
 
-L2/L3 runs may not modify this file or `bench/tasks/` in the same run that
-claims an improvement. Changes require a human gate.
+L2/L3 runs may not modify this file, `bench/tasks/`, or `bench/review/` in the
+same run that claims an improvement. Changes require a human gate.
+
+---
+
+## Review track metrics (#64 W4)
+
+The Harbor review benchmark uses a **sibling metric set** in
+`src/tripll/bench/review_metrics.py` — separate from the frozen nine
+`METRIC_KEYS` above (D23). Baseline snapshots live in
+`bench/baselines/review-v1.json`. Report **deltas** against that baseline;
+absolute scores are expected to stay low (~30% coverage is strong).
+
+| # | Metric | Unit | Definition |
+|---|--------|------|------------|
+| 1 | `review_coverage` | ratio | Share of baseline issues matched by submitted findings (same fingerprint / code path) |
+| 2 | `review_precision` | ratio | Share of submitted findings that match a baseline issue |
+| 3 | `review_f1` | ratio | Harmonic mean of coverage and precision (headline) |
+| 4 | `review_coverage_context_dependent` | ratio | Coverage restricted to baseline issues with `requires_context_outside_diff: true` |
+| 5 | `review_noise_rate` | ratio | Share of findings that miss the baseline or exceed the inline budget |
+| 6 | `review_cost_per_task` | USD | Mean spend (tokens or USD) attributed per Harbor task attempt |
+
+### D24 review corpus gate
+
+`bench/review/baseline.jsonl`, emitted Harbor tasks under
+`bench/review/<repo>-pr<N>/`, and `bench/baselines/review-v1.json` are frozen
+once committed. A run may not edit the review corpus or baseline snapshot in
+the same change that claims a review-track improvement. The nightly
+`bench-review` runner (W11) surfaces F1 deltas; per-PR execution is forbidden.

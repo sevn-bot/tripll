@@ -1,0 +1,35 @@
+{
+  "base_ref": "origin/main",
+  "head_sha": "ec877d5f079492d3c8bb5b009dcb2ddcf6b56e60",
+  "issue_ids": [
+    "tripll-pr64-01",
+    "tripll-pr64-02"
+  ],
+  "issues": [
+    {
+      "id": "tripll-pr64-01",
+      "line_range": [
+        821,
+        827
+      ],
+      "path": "src/tripll/github/findings.py",
+      "provenance": "human",
+      "requires_context_outside_diff": false,
+      "title": "D24 freeze gate must refuse overwrite without --force"
+    },
+    {
+      "id": "tripll-pr64-02",
+      "line_range": [
+        770,
+        776
+      ],
+      "path": "src/tripll/github/findings.py",
+      "provenance": "human",
+      "requires_context_outside_diff": true,
+      "title": "Baseline issues must stamp mandatory provenance"
+    }
+  ],
+  "pr": 64,
+  "repo": "sevn-bot/tripll",
+  "title": "Review benchmark task for PR #64"
+}
